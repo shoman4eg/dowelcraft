@@ -5,6 +5,7 @@ pub mod contour;
 pub mod design;
 pub mod geom;
 pub mod job;
+pub mod mesh;
 pub mod nest;
 pub mod panel;
 pub mod raskroy;

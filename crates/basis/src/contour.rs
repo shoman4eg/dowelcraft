@@ -55,6 +55,61 @@ pub fn length(s: &Seg) -> f64 {
     }
 }
 
+/// Начало и конец сегмента (у окружности — одна и та же точка на ней).
+pub fn ends(s: &Seg) -> ([f64; 2], [f64; 2]) {
+    match *s {
+        Seg::Line { a, b } | Seg::Arc { a, b, .. } => (a, b),
+        Seg::Circle { c, r } => ([c[0] + r, c[1]], [c[0] + r, c[1]]),
+    }
+}
+
+/// Тот же сегмент, пройденный в обратную сторону.
+pub fn reversed(s: &Seg) -> Seg {
+    match *s {
+        Seg::Line { a, b } => Seg::Line { a: b, b: a },
+        Seg::Arc { a, b, c, ccw } => Seg::Arc { a: b, b: a, c, ccw: !ccw },
+        circle => circle,
+    }
+}
+
+/// Замкнутый контур: индексы сегментов в порядке обхода и признак «пройден в обратную сторону».
+pub type Loop = Vec<(usize, bool)>;
+
+/// Сцепляет сегменты в замкнутые контуры по совпадающим концам: Базис хранит сегменты
+/// не по порядку обхода, часть — развёрнутыми. Ошибка — если контур не замыкается.
+pub fn loops(segs: &[Seg]) -> Result<Vec<Loop>, String> {
+    const EPS: f64 = 1e-3;
+    let near = |p: [f64; 2], q: [f64; 2]| (p[0] - q[0]).abs() < EPS && (p[1] - q[1]).abs() < EPS;
+    let mut used = vec![false; segs.len()];
+    let mut out = Vec::new();
+    while let Some(first) = used.iter().position(|u| !u) {
+        used[first] = true;
+        let mut lp = vec![(first, false)];
+        let (start, mut end) = ends(&segs[first]);
+        while !near(start, end) {
+            let next = (0..segs.len()).filter(|&i| !used[i]).find_map(|i| {
+                let (a, b) = ends(&segs[i]);
+                if near(a, end) {
+                    Some((i, false))
+                } else if near(b, end) {
+                    Some((i, true))
+                } else {
+                    None
+                }
+            });
+            let Some((i, rev)) = next else {
+                return Err(format!("контур не замкнут: от точки {end:?} нет продолжения"));
+            };
+            used[i] = true;
+            lp.push((i, rev));
+            let (a, b) = ends(&segs[i]);
+            end = if rev { a } else { b };
+        }
+        out.push(lp);
+    }
+    Ok(out)
+}
+
 /// Габарит [min, max] контура с учётом выпуклости дуг.
 pub fn bounds(segs: &[Seg]) -> Option<([f64; 2], [f64; 2])> {
     let mut lo = [f64::INFINITY; 2];
@@ -113,5 +168,21 @@ mod tests {
     fn rejects_garbage() {
         assert_eq!(parse(&[1, 0, 0, 0, 0x99]), None);
         assert_eq!(parse(&[1, 0, 0]), None);
+    }
+
+    #[test]
+    fn loops_join_unordered_and_reversed_segments() {
+        // Прямоугольник 10×5: сегменты вперемешку, два развёрнуты; плюс отдельная окружность-вырез.
+        let segs = [
+            Seg::Line { a: [0.0, 0.0], b: [10.0, 0.0] },
+            Seg::Line { a: [0.0, 5.0], b: [0.0, 0.0] },
+            Seg::Line { a: [10.0, 5.0], b: [10.0, 0.0] },
+            Seg::Circle { c: [5.0, 2.5], r: 1.0 },
+            Seg::Arc { a: [0.0, 5.0], b: [10.0, 5.0], c: [5.0, 5.0], ccw: true },
+        ];
+        let l = loops(&segs).unwrap();
+        assert_eq!(l, vec![vec![(0, false), (2, true), (4, true), (1, false)], vec![(3, false)]]);
+        assert_eq!(reversed(&segs[4]), Seg::Arc { a: [10.0, 5.0], b: [0.0, 5.0], c: [5.0, 5.0], ccw: false });
+        assert!(loops(&segs[..2]).is_err());
     }
 }

@@ -122,6 +122,7 @@ fn all_samples_parse() {
         return;
     }
     let mut panels = 0;
+    let mut open_contours = Vec::new();
     for f in &files {
         let file = basis::b3d::parse(&std::fs::read(f).unwrap()).unwrap_or_else(|e| panic!("{}: {e}", f.display()));
         assert!(file.section("Header").is_some(), "{}: нет Header", f.display());
@@ -132,8 +133,22 @@ fn all_samples_parse() {
             assert!(l > 0.0 && w > 0.0 && p.thickness > 0.0, "{}: «{}» {l}x{w}x{}", f.display(), p.name, p.thickness);
         }
         panels += ex.panels.len();
+        // Контур каждой плиты сцепляется в замкнутые контуры и даёт сетку для 3D.
+        let parts: Vec<basis::design::Part> = ex
+            .panels
+            .iter()
+            .map(|p| basis::design::Part { owner: 0, kind: basis::design::Kind::Body, panel: p.clone(), origin: [0.0; 3], size: [0.0; 3] })
+            .collect();
+        let mesh = basis::mesh::build(&parts, |_| false);
+        // «проверить контур.b3d» — модель с заведомо незамкнутым контуром: ошибка должна найтись.
+        let broken = f.file_name().is_some_and(|n| n.to_string_lossy().starts_with("проверить контур"));
+        assert_eq!(broken, !mesh.errors.is_empty(), "{}: {:?}", f.display(), mesh.errors);
+        for (i, e) in mesh.errors.iter().filter(|_| !broken) {
+            open_contours.push(format!("{}: «{}»: {e}", f.display(), ex.panels[*i].name));
+        }
     }
     eprintln!("файлов {}, плит {panels}", files.len());
+    assert!(open_contours.is_empty(), "незамкнутые контуры ({}):\n{}", open_contours.len(), open_contours.join("\n"));
 }
 
 /// Положение плит Базиса: в шкафу полки стоят между боковинами, а не заходят в них.
