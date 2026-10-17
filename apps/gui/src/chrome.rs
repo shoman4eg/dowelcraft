@@ -263,7 +263,7 @@ impl App {
             self.new_project();
         }
         x += 26.0;
-        let name = if self.path.is_some() || self.session.as_ref().is_some_and(|s| !s.project.objects.is_empty() || !s.project.cabinets.is_empty()) { self.job.name.clone() } else { crate::i18n::t("Новый проект") };
+        let name = self.session.as_ref().map_or_else(|| self.job.name.clone(), |s| s.project.name.clone());
         for (label, start, w) in [(crate::i18n::t("Начало"), true, 110.0), (name, false, 190.0)] {
             let tr = egui::Rect::from_min_size(egui::pos2(x, r.top()), egui::vec2(w, r.height()));
             let resp = ui.interact(tr, ui.id().with(("doc", start)), egui::Sense::click());

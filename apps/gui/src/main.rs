@@ -1973,8 +1973,13 @@ impl App {
 
     fn cut_view(&mut self, ui: &mut egui::Ui) {
         let before = self.params;
+        // В своём проекте лист, пропил и обрезка — у каждого материала; общие числа нужны только
+        // модели Базиса, у материалов которой листа нет.
+        if self.session.is_some() {
+            ui.weak(crate::i18n::t("Лист, пропил и обрезка задаются у каждого материала: панель «Проект» → «Материалы»."));
+        } else {
         ui.horizontal(|ui| {
-            ui.label(crate::i18n::t("Лист по умолчанию"));
+            ui.label(crate::i18n::t("Лист для материалов модели Базиса"));
             crate::expr::add(ui, &mut self.params.sheet.0, |d| d.range(500.0..=6000.0));
             ui.label("×");
             crate::expr::add(ui, &mut self.params.sheet.1, |d| d.range(500.0..=6000.0));
@@ -1983,6 +1988,7 @@ impl App {
             ui.label(crate::i18n::t("Обрезка"));
             crate::expr::add(ui, &mut self.params.trim, |d| d.range(0.0..=50.0));
         });
+        }
         if self.params != before {
             self.refresh();
         }
