@@ -653,22 +653,27 @@ impl Viewport {
         !self.fitted
     }
 
-    /// Панель видов и режимов над окном модели.
+    /// Панель видов и режимов над окном модели — иконки, как в cadcraft.
     pub fn toolbar(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            for (label, yaw, pitch) in [("Спереди", 0.0, 0.0), ("Слева", 90.0, 0.0), ("Сверху", 0.0, 89.9), ("Аксонометрия", Camera::AXON.0, Camera::AXON.1)] {
-                if ui.button(label).clicked() {
-                    (self.camera.yaw, self.camera.pitch) = (f32::to_radians(yaw), f32::to_radians(pitch));
-                }
+        use crate::icons::{Icon, button};
+        const S: f32 = 26.0;
+        let views = [(Icon::ViewFront, "Вид спереди", 0.0, 0.0), (Icon::ViewLeft, "Вид слева", 90.0, 0.0), (Icon::ViewTop, "Вид сверху", 0.0, 89.9), (Icon::ViewIso, "Аксонометрия", Camera::AXON.0, Camera::AXON.1)];
+        for (icon, tip, yaw, pitch) in views {
+            let on = (self.camera.yaw - f32::to_radians(yaw)).abs() < 1e-3 && (self.camera.pitch - f32::to_radians(pitch)).abs() < 1e-3;
+            if button(ui, icon, S, tip, on).clicked() {
+                (self.camera.yaw, self.camera.pitch) = (f32::to_radians(yaw), f32::to_radians(pitch));
             }
-            if ui.button("Показать всё").clicked() {
-                self.fitted = false;
+        }
+        if button(ui, Icon::Fit, S, "Показать всё", false).clicked() {
+            self.fitted = false;
+        }
+        ui.separator();
+        let icons = [Icon::ModeSolid, Icon::ModeHidden, Icon::ModeWire, Icon::ModeXRay, Icon::ModeTextured];
+        for ((mode, label), icon) in Mode::ALL.into_iter().zip(icons) {
+            if button(ui, icon, S, label, self.mode == mode).clicked() {
+                self.mode = mode;
             }
-            ui.separator();
-            for (mode, label) in Mode::ALL {
-                ui.selectable_value(&mut self.mode, mode, label);
-            }
-        });
+        }
     }
 
     /// Деталь под точкой экрана (смещение от центра окна в точках egui).

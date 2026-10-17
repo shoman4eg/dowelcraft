@@ -5,6 +5,8 @@ use std::path::PathBuf;
 
 mod editors;
 mod expr;
+mod icons;
+mod tools;
 mod viewport;
 
 use craft_ui::docking::{Action, DockArea, DockStyle, Layout, Node, Permissions};
@@ -46,6 +48,15 @@ fn main() -> eframe::Result {
     };
     let _ = app.layout.apply(Action::Activate { panel: pane });
     app.quad = args.iter().any(|a| a == "--quad");
+    // Для снимков: включить инструмент «в проём» (horizontal | vertical | front | door | drawers) или изменения (move).
+    match args.iter().position(|a| a == "--tool").and_then(|i| args.get(i + 1)).map(String::as_str) {
+        Some("move") => app.modify = Some(tools::Modify::Move),
+        Some(t @ ("horizontal" | "vertical" | "front" | "door" | "drawers")) => {
+            let plane = ["horizontal", "vertical", "front", "door", "drawers"].into_iter().find(|p| *p == t).unwrap_or("horizontal");
+            app.toggle_fill(plane);
+        }
+        _ => {}
+    }
     // Для снимков: выделить деталь по номеру.
     if let Some(i) = args.iter().position(|a| a == "--select").and_then(|i| args.get(i + 1)).and_then(|v| v.parse().ok()) {
         app.select(Some(i));
@@ -60,6 +71,7 @@ fn main() -> eframe::Result {
 /// Панели окна (раскладка — craft-ui docking).
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 enum Pane {
+    Tools,
     Model,
     Front,
     Parts,
@@ -73,6 +85,7 @@ enum Pane {
 impl Pane {
     fn label(self) -> &'static str {
         match self {
+            Pane::Tools => "Инструменты",
             Pane::Model => "3D",
             Pane::Front => "Вид спереди",
             Pane::Parts => "Детали",
@@ -85,19 +98,20 @@ impl Pane {
     }
 }
 
-/// Раскладка по умолчанию: слева структура и проект, в центре 3D и вкладки, справа свойства.
+/// Раскладка по умолчанию (как в cadcraft): слева палитра инструментов, проект и фурнитура;
+/// в центре 3D и вкладки; справа структура модели над свойствами.
 fn default_layout() -> Layout<Pane> {
     let tabs = |panels: Vec<Pane>| Box::new(Node::Tabs { panels, active: 0 });
     Layout {
         root: Some(Node::Split {
             axis: SplitAxis::Horizontal,
             size: SplitSize::FixedFirst(300.0),
-            first: tabs(vec![Pane::Structure, Pane::Project, Pane::Library]),
+            first: tabs(vec![Pane::Tools, Pane::Project, Pane::Library]),
             second: Box::new(Node::Split {
                 axis: SplitAxis::Horizontal,
                 size: SplitSize::FixedSecond(380.0),
                 first: tabs(vec![Pane::Model, Pane::Front, Pane::Parts, Pane::Cut]),
-                second: tabs(vec![Pane::Properties]),
+                second: Box::new(Node::Split { axis: SplitAxis::Vertical, size: SplitSize::Ratio(0.4), first: tabs(vec![Pane::Structure]), second: tabs(vec![Pane::Properties]) }),
             }),
         }),
         floating: Vec::new(),
@@ -339,6 +353,8 @@ struct App {
     new_panel: (&'static str, f64, f64),
     /// Режим «Панель в проём» на виде спереди: плоскость, материал, отступы.
     fill: Option<FillTool>,
+    /// Включённый инструмент изменения выделенного (палитра «Инструменты»).
+    modify: Option<tools::Modify>,
     /// Облицовка: кромка, «Подрезать», припуск.
     edging: (Option<String>, bool, f64),
     /// Библиотека моделей фурнитуры: папка, найденные модели, превью (текстуры по пути), строка поиска.
@@ -391,6 +407,7 @@ impl Default for App {
             new_edge: ("ПВХ 0,4".into(), 0.4, 19.0),
             new_panel: ("vertical", 560.0, 720.0),
             fill: None,
+            modify: None,
             edging: (None, true, 0.0),
             contour_tool: (ContourTool::Edge, 50.0),
             fastener_kind: "Конфирмат 7х50".into(),
@@ -442,21 +459,72 @@ impl App {
 
     /// Команда над проектом; каждая пишется в терминал (stderr), ошибка — ещё и в строку состояния.
     fn exec(&mut self, cmd: &str, p: Value) {
+        self.exec_ret(cmd, p);
+    }
+
+    /// То же, с ответом команды (например `{id}` нового объекта); `None` — ошибка.
+    fn exec_ret(&mut self, cmd: &str, p: Value) -> Option<Value> {
         let Some(s) = &mut self.session else {
             eprintln!("[команда] {cmd}: нет своего проекта (открыт файл Базиса только для просмотра)");
-            return;
+            return None;
         };
         match s.execute(cmd, &p) {
             Ok(r) => {
                 eprintln!("[команда] {cmd} {p} → {}", if r.is_null() { "ok".into() } else { r.to_string() });
                 self.error = None;
                 self.refresh();
+                Some(r)
             }
             Err(e) => {
                 eprintln!("[ошибка] {cmd} {p}: {e}");
                 self.error = Some(e);
+                None
             }
         }
+    }
+
+    /// Сделать вкладку видимой (активной в своей группе).
+    fn show_pane(&mut self, pane: Pane) {
+        let _ = self.layout.apply(Action::Activate { panel: pane });
+    }
+
+    /// «Анализ модели»: окно с проблемами.
+    fn analyze(&mut self) {
+        let project = self.session.as_ref().map(|s| s.project.clone()).unwrap_or_else(|| self.job.import());
+        match design::analysis::analyze(&project) {
+            Ok(p) => self.problems = Some(p),
+            Err(e) => self.error = Some(e),
+        }
+    }
+
+    /// Выбрать и запустить скрипт Базиса.
+    fn pick_script(&mut self) {
+        if self.session.is_some()
+            && let Some(p) = rfd::FileDialog::new().add_filter("BAZIS-Script", &["js"]).pick_file()
+        {
+            self.start_script(&p);
+        }
+    }
+
+    /// Новый пустой проект (параметры раскроя сохраняются).
+    fn new_project(&mut self) {
+        *self = App { params: self.params, ..App::default() };
+    }
+
+    /// Открыть файл через диалог.
+    fn open_dialog(&mut self) {
+        if let Some(p) = rfd::FileDialog::new().add_filter("Модели", &["bcraft", "b3d", "fr3d"]).pick_file() {
+            self.open(p);
+        }
+    }
+
+    /// Модель Базиса (только просмотр) → свой проект.
+    fn make_editable(&mut self) {
+        let p = self.job.import();
+        self.status = format!("Импортировано деталей: {}", p.panels().len());
+        self.session = Some(Session::new(p));
+        self.path = None;
+        self.refresh();
     }
 
     fn save(&mut self, ask: bool) {
@@ -536,18 +604,34 @@ impl eframe::App for App {
         self.ctx_ctrl = ui.input(|i| i.modifiers.command);
         let ctx = ui.ctx().clone();
         self.top_bar(ui);
-        egui::Panel::bottom("status").show(ui, |ui| match &self.error {
-            Some(e) => {
-                ui.colored_label(Color32::from_rgb(200, 40, 40), e);
+        // Esc — выйти из инструмента, а без инструмента — снять выделение.
+        if !ctx.text_edit_focused() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if self.fill.is_some() || self.modify.is_some() {
+                (self.fill, self.modify) = (None, None);
+            } else {
+                self.menu_apply(MenuAct::Deselect);
             }
-            None => {
-                ui.label(&self.status);
-            }
+        }
+        egui::Panel::bottom("status").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                match &self.error {
+                    Some(e) => {
+                        ui.colored_label(Color32::from_rgb(220, 70, 70), e);
+                    }
+                    None => {
+                        ui.label(egui::RichText::new(self.hint()).color(Color32::from_rgb(0x9f, 0xc8, 0xf5)));
+                    }
+                }
+                if !self.status.is_empty() {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.weak(&self.status));
+                }
+            });
         });
         egui::CentralPanel::default().show(ui, |ui| {
             let layout = self.layout.clone();
             let style = DockStyle::from_ui(ui);
             let out = DockArea::new(egui::Id::new("dock")).show(ui, &layout, &style, |p| p.label().to_string(), permissions, |ui, pane| match pane {
+                Pane::Tools => egui::ScrollArea::vertical().id_salt("tools").show(ui, |ui| self.tools_panel(ui)).inner,
                 Pane::Model => self.iso_view(ui, frame),
                 Pane::Front => self.front_view(ui),
                 Pane::Parts => self.parts_table(ui),
@@ -574,40 +658,36 @@ impl eframe::App for App {
 }
 
 impl App {
+    /// Верхняя строка иконок (как в cadcraft): файл, отмена, экспорт, проверка; название проекта.
     fn top_bar(&mut self, ui: &mut egui::Ui) {
-        egui::Panel::top("menu").show(ui, |ui| {
-            egui::MenuBar::new().ui(ui, |ui| {
-                ui.menu_button("Файл", |ui| {
-                    if ui.button("Новый проект").clicked() {
-                        *self = App { params: self.params, ..App::default() };
-                    }
-                    if ui.button("Открыть…").clicked()
-                        && let Some(p) = rfd::FileDialog::new().add_filter("Модели", &["bcraft", "b3d", "fr3d"]).pick_file()
-                    {
-                        self.open(p);
-                    }
-                    if ui.button("Сохранить").clicked() {
-                        self.save(false);
-                    }
-                    if ui.button("Сохранить как…").clicked() {
-                        self.save(true);
-                    }
-                });
-                if ui.button("Анализ модели").clicked() {
-                    let project = self.session.as_ref().map(|s| s.project.clone()).unwrap_or_else(|| self.job.import());
-                    match design::analysis::analyze(&project) {
-                        Ok(p) => self.problems = Some(p),
-                        Err(e) => self.error = Some(e),
-                    }
+        use icons::{Icon, button, button_if};
+        const S: f32 = 28.0;
+        egui::Panel::top("toolbar").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
+                if button(ui, Icon::New, S, "Новый проект", false).clicked() {
+                    self.new_project();
                 }
-                ui.menu_button("Скрипты", |ui| {
-                    if ui.add_enabled(self.session.is_some(), egui::Button::new("Выполнить скрипт Базиса…")).on_disabled_hover_text("Сначала «Сделать редактируемой»").clicked()
-                        && let Some(p) = rfd::FileDialog::new().add_filter("BAZIS-Script", &["js"]).pick_file()
-                    {
-                        self.start_script(&p);
-                    }
-                });
-                ui.menu_button("Экспорт", |ui| {
+                if button(ui, Icon::Open, S, "Открыть… (.bcraft, .b3d, .fr3d)", false).clicked() {
+                    self.open_dialog();
+                }
+                if button(ui, Icon::Save, S, "Сохранить (Ctrl+S)", false).clicked() {
+                    self.save(false);
+                }
+                if button(ui, Icon::SaveAs, S, "Сохранить как…", false).clicked() {
+                    self.save(true);
+                }
+                ui.separator();
+                let (undo, redo) = self.session.as_ref().map_or((false, false), |s| (s.can_undo(), s.can_redo()));
+                if button_if(ui, undo, Icon::Undo, S, "Отменить (Ctrl+Z)", false).clicked() {
+                    self.exec("undo", json!({}));
+                }
+                if button_if(ui, redo, Icon::Redo, S, "Вернуть (Ctrl+Y)", false).clicked() {
+                    self.exec("redo", json!({}));
+                }
+                ui.separator();
+                let export = button(ui, Icon::Export, S, "Экспорт: раскрой, Базис-Раскрой, спецификация, смета, .b3d, чертежи", false);
+                egui::Popup::menu(&export).show(|ui| {
                     for (what, label) in [
                         ("html", "Карты раскроя и «Панели в производство» (HTML)…"),
                         ("xml", "Проект для БАЗИС-Раскроя (XML)…"),
@@ -623,27 +703,40 @@ impl App {
                         }
                     }
                 });
-                let (undo, redo) = self.session.as_ref().map_or((false, false), |s| (s.can_undo(), s.can_redo()));
-                if ui.add_enabled(undo, egui::Button::new("Отменить")).clicked() {
-                    self.exec("undo", json!({}));
+                if button(ui, Icon::Analyze, S, "Анализ модели", false).clicked() {
+                    self.analyze();
                 }
-                if ui.add_enabled(redo, egui::Button::new("Вернуть")).clicked() {
-                    self.exec("redo", json!({}));
+                if button_if(ui, self.session.is_some(), Icon::Script, S, "Выполнить скрипт Базиса (.js)", false).clicked() {
+                    self.pick_script();
+                }
+                if self.session.is_none() && button(ui, Icon::Unlock, S, "Сделать редактируемой: импорт модели Базиса в свой проект", false).clicked() {
+                    self.make_editable();
                 }
                 ui.separator();
-                ui.label(format!("{} — деталей: {}", self.job.name, self.job.panels.len()));
+                let title = format!("{} — деталей: {}", self.job.name, self.job.panels.len());
+                ui.label(egui::RichText::new(title).strong());
                 if self.session.is_none() {
                     ui.weak("(модель Базиса, только просмотр)");
-                    if ui.button("Сделать редактируемой").on_hover_text("Импорт в свой проект: детали можно менять и дополнять корпусами").clicked() {
-                        let p = self.job.import();
-                        self.status = format!("Импортировано деталей: {}", p.panels().len());
-                        self.session = Some(Session::new(p));
-                        self.path = None;
-                        self.refresh();
-                    }
                 }
             });
         });
+        // Сочетания клавиш, как в cadcraft и Базисе.
+        let (save, undo, redo) = ui.input_mut(|i| {
+            (
+                i.consume_key(egui::Modifiers::COMMAND, egui::Key::S),
+                i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z),
+                i.consume_key(egui::Modifiers::COMMAND, egui::Key::Y) || i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::Z),
+            )
+        });
+        if save {
+            self.save(false);
+        }
+        if undo && self.session.as_ref().is_some_and(|s| s.can_undo()) {
+            self.exec("undo", json!({}));
+        }
+        if redo && self.session.as_ref().is_some_and(|s| s.can_redo()) {
+            self.exec("redo", json!({}));
+        }
     }
 
     fn project_panel(&mut self, ui: &mut egui::Ui) {
@@ -732,49 +825,6 @@ impl App {
             }
         });
 
-        ui.separator();
-        ui.heading("Добавить");
-        let first = project.materials.first().map(|m| m.name.clone());
-        let edge = project.edges.first().map(|e| e.name.clone());
-        if first.is_none() {
-            ui.weak("Сначала добавьте материал.");
-        }
-        // Новый модуль встаёт справа от последнего напольного, чтобы не попасть внутрь соседа.
-        let right = project.cabinets.iter().filter(|c| c.position[1] <= 0.0).map(|c| c.position[0] + c.width)
-            .chain(project.corners.iter().map(|c| c.position[0] + c.width_x))
-            .fold(0.0, f64::max);
-        ui.add_enabled_ui(first.is_some(), |ui| {
-            if ui.button("+ Корпус").clicked() {
-                cmds.push(("cabinet.add", json!({ "width": 800, "height": 2000, "depth": 600, "material": first, "plinth": 80, "edge": edge, "doors": 2, "position": [right, 0, 0] })));
-            }
-            if ui.button("+ Угловой модуль").clicked() {
-                cmds.push(("corner.add", json!({ "width_x": 1000, "width_z": 1000, "height": 820, "depth": 560, "material": first, "plinth": 100, "doors": true, "edge": edge, "position": [right, 0, 0] })));
-            }
-            if ui.button("+ Столешница над корпусами").clicked() {
-                // По умолчанию — на напольные корпуса, по всей их длине, с выносом 20 мм вперёд.
-                let floor: Vec<&design::Cabinet> = project.cabinets.iter().filter(|c| c.position[1] <= 0.0).collect();
-                let x0 = floor.iter().map(|c| c.position[0]).fold(f64::MAX, f64::min).min(0.0);
-                let x1 = floor.iter().map(|c| c.position[0] + c.width).fold(600.0, f64::max);
-                let top = floor.iter().map(|c| c.height).fold(720.0, f64::max);
-                let depth = floor.iter().map(|c| c.depth).fold(560.0, f64::max) + 20.0;
-                cmds.push(("countertop.add", json!({ "material": first, "length": x1 - x0, "depth": depth, "position": [x0, top, 0], "edge": edge })));
-            }
-            ui.label("Панель (размеры контура, мм):");
-            let (plane, a, b) = &mut self.new_panel;
-            ui.horizontal(|ui| {
-                for (p, label) in [("vertical", "Вертикальная"), ("horizontal", "Горизонтальная"), ("front", "Фронтальная")] {
-                    ui.selectable_value(plane, p, label);
-                }
-            });
-            ui.horizontal(|ui| {
-                ui.add(crate::expr::drag(a).range(10.0..=3000.0).suffix(" мм"));
-                ui.label("×");
-                ui.add(crate::expr::drag(b).range(10.0..=3000.0).suffix(" мм"));
-            });
-            if ui.button("+ Панель").on_hover_text("Встанет справа от модулей; положение — в свойствах").clicked() {
-                cmds.push(("panel.add", json!({ "material": first, "plane": plane, "size": [*a, *b], "position": [right, 0, 0] })));
-            }
-        });
         for (cmd, p) in cmds {
             self.exec(cmd, p);
         }
@@ -1194,69 +1244,6 @@ impl App {
         });
     }
 
-    /// «Действия с выделенным» (как гл. 14 руководства Базиса).
-    fn actions_panel(&mut self, ui: &mut egui::Ui) {
-        let ids = self.targets();
-        if ids.is_empty() || self.session.is_none() {
-            return;
-        }
-        let Some((lo, hi)) = self.selection_bounds() else { return };
-        let center: [f64; 3] = std::array::from_fn(|k| ((lo[k] + hi[k]) / 2.0).round());
-        let mut cmds: Cmds = Vec::new();
-        egui::CollapsingHeader::new(format!("Действия с выделенным ({})", ids.len())).default_open(true).show(ui, |ui| {
-            let (d, axis, angle, count) = &mut self.actions;
-            ui.horizontal(|ui| {
-                ui.label("dX, dY, dZ");
-                for v in d.iter_mut() {
-                    ui.add(crate::expr::drag(v).speed(1.0).suffix(" мм"));
-                }
-            });
-            ui.horizontal(|ui| {
-                if ui.button("Сдвинуть").clicked() {
-                    cmds.push(("object.move", json!({ "ids": ids, "d": *d })));
-                }
-                ui.add(crate::expr::drag(count).range(1..=100).prefix("копий "));
-                if ui.button("Копировать").on_hover_text("Копии со сдвигом dX, dY, dZ, 2·d, … (массив)").clicked() {
-                    cmds.push(("object.copy", json!({ "ids": ids, "d": *d, "count": *count })));
-                }
-            });
-            ui.horizontal(|ui| {
-                ui.label("Ось");
-                for a in ['x', 'y', 'z'] {
-                    ui.selectable_value(axis, a, a.to_ascii_uppercase().to_string());
-                }
-                ui.add(crate::expr::drag(angle).range(-360.0..=360.0).suffix("°"));
-                if ui.button("Повернуть").on_hover_text("Вокруг центра выделенного").clicked() {
-                    cmds.push(("object.rotate", json!({ "ids": ids, "axis": axis.to_string(), "angle": *angle, "center": center })));
-                }
-            });
-            let k = match axis { 'x' => 0, 'y' => 1, _ => 2 };
-            ui.horizontal(|ui| {
-                if ui.button("Отразить").on_hover_text("Плоскостью через центр выделенного поперёк выбранной оси").clicked() {
-                    cmds.push(("object.mirror", json!({ "ids": ids, "axis": axis.to_string(), "at": center[k] })));
-                }
-                if ui.button("Зеркальная копия").on_hover_text("Копия, отражённая плоскостью по правому (верхнему, переднему) краю выделенного").clicked() {
-                    cmds.push(("object.mirror", json!({ "ids": ids, "axis": axis.to_string(), "at": hi[k], "copy": true })));
-                }
-            });
-            ui.horizontal(|ui| {
-                if ui.button("Собрать в блок").clicked() {
-                    cmds.push(("block.create", json!({ "ids": ids })));
-                }
-                if ui.button("Удалить").clicked() {
-                    cmds.push(("object.remove", json!({ "ids": ids })));
-                }
-            });
-        });
-        for (cmd, v) in cmds {
-            self.exec(cmd, v);
-            if cmd == "object.remove" {
-                self.selection.clear();
-            }
-        }
-        ui.separator();
-    }
-
     /// «Структура модели»: шаблоны (корпуса, угловые модули, столешницы) и дерево панелей и блоков.
     fn structure_panel(&mut self, ui: &mut egui::Ui) {
         let Ok(parts) = &self.parts else { return };
@@ -1342,9 +1329,6 @@ impl App {
         if let Some(id) = self.furniture_sel {
             self.furniture_properties(ui, id);
             return;
-        }
-        if self.selected().is_some() {
-            self.actions_panel(ui);
         }
         let (Ok(parts), Some(i)) = (&self.parts, self.selected()) else {
             ui.weak("Выделите деталь щелчком в 3D, на виде спереди или в структуре модели. Ctrl+щелчок — добавить к выделению.");
@@ -1483,53 +1467,8 @@ impl App {
     }
 
     /// Панель режима «в проём»: включение, плоскость, материал, отступы.
-    fn fill_toolbar(&mut self, ui: &mut egui::Ui) {
-        let Some(s) = &self.session else { return };
-        let names: Vec<String> = s.project.materials.iter().map(|m| m.name.clone()).collect();
-        ui.horizontal(|ui| {
-            let mut on = self.fill.is_some();
-            if ui.toggle_value(&mut on, "Панель в проём").on_hover_text("Щелчок внутри проёма ставит панель между ближайшими деталями, как «~» в Базисе").changed() {
-                self.fill = match (on, names.first()) {
-                    (true, Some(m)) => Some(FillTool { plane: "horizontal", material: m.clone(), gaps: [0.0; 4], mount: "overlay", double: false, heights: "140 280 280".into() }),
-                    _ => None,
-                };
-            }
-            let Some(t) = &mut self.fill else { return };
-            for (p, label) in [("horizontal", "Горизонтальная"), ("vertical", "Вертикальная"), ("front", "Фронтальная"), ("door", "Дверь"), ("drawers", "Ящики")] {
-                ui.selectable_value(&mut t.plane, p, label);
-            }
-            if let Some(Some(m)) = editors::choose(ui, "fill_mat", Some(&t.material), &names, false) {
-                t.material = m;
-            }
-            if matches!(t.plane, "door" | "drawers") {
-                for (m, label) in [("overlay", "накладная"), ("half", "полунакладная"), ("inset", "вкладная")] {
-                    ui.selectable_value(&mut t.mount, m, label);
-                }
-                if t.plane == "door" {
-                    ui.checkbox(&mut t.double, "двойная");
-                } else {
-                    ui.label("фасады:");
-                    ui.add(egui::TextEdit::singleline(&mut t.heights).desired_width(110.0)).on_hover_text("Высоты фасадов снизу вверх через пробел, мм");
-                }
-                return;
-            }
-            let labels = match t.plane {
-                "horizontal" => ["слева", "справа", "сзади", "спереди"],
-                "vertical" => ["сзади", "спереди", "снизу", "сверху"],
-                _ => ["слева", "справа", "снизу", "сверху"],
-            };
-            ui.label("отступы:");
-            for (g, l) in t.gaps.iter_mut().zip(labels) {
-                ui.add(crate::expr::drag(g).range(-100.0..=500.0).prefix(format!("{l} ")).suffix(" мм"));
-            }
-        });
-    }
-
     fn front_view(&mut self, ui: &mut egui::Ui) {
-        if ui.checkbox(&mut self.show_doors, "Показывать двери и фасады").changed() {
-            self.revision += 1;
-        }
-        self.fill_toolbar(ui);
+        ui.horizontal(|ui| self.doors_toggle(ui));
         let parts = match &self.parts {
             Ok(p) => p.clone(),
             Err(e) => {
@@ -1730,14 +1669,23 @@ impl App {
         }
     }
 
+    /// Иконка «Показывать двери и фасады».
+    fn doors_toggle(&mut self, ui: &mut egui::Ui) {
+        if icons::button(ui, icons::Icon::Doors, 26.0, "Показывать двери и фасады", self.show_doors).clicked() {
+            self.show_doors = !self.show_doors;
+            self.revision += 1;
+        }
+    }
+
     fn iso_view(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame) {
         ui.horizontal(|ui| {
-            if ui.checkbox(&mut self.show_doors, "Показывать двери и фасады").changed() {
-                self.revision += 1;
-            }
-            ui.toggle_value(&mut self.quad, "4 окна").on_hover_text("Спереди, слева, сверху и аксонометрия одновременно");
-            ui.separator();
+            ui.spacing_mut().item_spacing.x = 2.0;
             self.viewport.toolbar(ui);
+            ui.separator();
+            if icons::button(ui, icons::Icon::Quad, 26.0, "4 окна: спереди, слева, сверху и аксонометрия", self.quad).clicked() {
+                self.quad = !self.quad;
+            }
+            self.doors_toggle(ui);
         });
         // Общие режим, рамки фурнитуры и «Показать всё» — для всех окон.
         let list = self.session.as_ref().map(|s| design::furniture(&s.project)).unwrap_or_default();
