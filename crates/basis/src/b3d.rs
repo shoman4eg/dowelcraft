@@ -1,0 +1,218 @@
+//! Контейнер BZ85: модели Базис-Мебельщика (`.b3d`) и фурнитура (`.fr3d`).
+//! Формат восстановлен по образцам, см. `docs/formats/b3d.md`.
+
+use std::fmt;
+use std::io::Read;
+
+const MAGIC: &[u8; 4] = b"BZ85";
+const SECTION: [u8; 4] = [0x01, 0x00, 0x00, 0xff];
+/// Защита от враждебных файлов: глубина дерева у реальных моделей < 30.
+const MAX_DEPTH: usize = 256;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Value {
+    /// Тип 0: узел-контейнер, содержимое в `children`.
+    Obj,
+    True,
+    False,
+    U8(u8),
+    I32(i32),
+    F64(f64),
+    Str(String),
+    Blob(Vec<u8>),
+    /// Тип 8: пустое значение.
+    Nil,
+    /// Тип 9: Delphi TDateTime (дни от 1899-12-30).
+    DateTime(f64),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Node {
+    /// Пустое имя у элементов списков.
+    pub name: String,
+    pub value: Value,
+    pub children: Vec<Node>,
+}
+
+impl Node {
+    pub fn get(&self, name: &str) -> Option<&Node> {
+        self.children.iter().find(|c| c.name == name)
+    }
+    pub fn f64(&self, name: &str) -> Option<f64> {
+        match self.get(name)?.value {
+            Value::F64(v) => Some(v),
+            Value::I32(v) => Some(v.into()),
+            Value::U8(v) => Some(v.into()),
+            _ => None,
+        }
+    }
+    /// Целые хранятся то как u8, то как i32 — в зависимости от величины.
+    pub fn int(&self, name: &str) -> Option<i64> {
+        match self.get(name)?.value {
+            Value::U8(v) => Some(v.into()),
+            Value::I32(v) => Some(v.into()),
+            _ => None,
+        }
+    }
+    pub fn str(&self, name: &str) -> Option<&str> {
+        match &self.get(name)?.value {
+            Value::Str(s) => Some(s),
+            _ => None,
+        }
+    }
+    pub fn blob(&self, name: &str) -> Option<&[u8]> {
+        match &self.get(name)?.value {
+            Value::Blob(b) => Some(b),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Error {
+    pub offset: usize,
+    pub msg: String,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "b3d: {} (смещение {})", self.msg, self.offset)
+    }
+}
+impl std::error::Error for Error {}
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+/// Файл: несжатая секция заголовка (`Header`: версия, превью, артикул),
+/// затем сжатая секция документа (`Document`: модель). Хвост после секций
+/// (64 байта у `.b3d`, вероятно подпись) не разбирается.
+#[derive(Debug, Clone, PartialEq)]
+pub struct File {
+    pub sections: Vec<Node>,
+}
+
+impl File {
+    pub fn section(&self, name: &str) -> Option<&Node> {
+        self.sections.iter().find(|s| s.name == name)
+    }
+}
+
+pub fn parse(data: &[u8]) -> Result<File> {
+    if data.get(..4) != Some(MAGIC) {
+        return Err(Error { offset: 0, msg: "нет сигнатуры BZ85".into() });
+    }
+    let mut r = Reader { b: data, p: 4 };
+    let mut sections = Vec::new();
+    while r.b.get(r.p..r.p + 4) == Some(&SECTION) {
+        r.p += 4;
+        if r.u8()? != 0 {
+            let at = r.p;
+            let mut z = flate2::read::ZlibDecoder::new(&r.b[r.p..]);
+            let mut body = Vec::new();
+            z.read_to_end(&mut body)
+                .map_err(|e| Error { offset: at, msg: format!("zlib: {e}") })?;
+            r.p += z.total_in() as usize;
+            let mut sub = Reader { b: &body, p: 0 };
+            sections.push(sub.section()?);
+        } else {
+            sections.push(r.section()?);
+        }
+    }
+    if sections.is_empty() {
+        return Err(Error { offset: r.p, msg: "нет ни одной секции".into() });
+    }
+    Ok(File { sections })
+}
+
+struct Reader<'a> {
+    b: &'a [u8],
+    p: usize,
+}
+
+impl<'a> Reader<'a> {
+    fn err<T>(&self, msg: impl Into<String>) -> Result<T> {
+        Err(Error { offset: self.p, msg: msg.into() })
+    }
+    fn take(&mut self, n: usize) -> Result<&'a [u8]> {
+        match self.b.get(self.p..self.p.saturating_add(n)) {
+            Some(s) => {
+                self.p += n;
+                Ok(s)
+            }
+            None => self.err(format!("обрыв данных, нужно {n} байт")),
+        }
+    }
+    fn u8(&mut self) -> Result<u8> {
+        Ok(self.take(1)?[0])
+    }
+    fn u32(&mut self) -> Result<u32> {
+        Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+    }
+    fn i32(&mut self) -> Result<i32> {
+        Ok(i32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+    }
+    fn f64(&mut self) -> Result<f64> {
+        Ok(f64::from_le_bytes(self.take(8)?.try_into().unwrap()))
+    }
+    fn len(&mut self, unit: usize) -> Result<usize> {
+        let n = self.u32()? as usize;
+        if n.saturating_mul(unit) > self.b.len() - self.p {
+            return self.err(format!("длина {n} больше остатка файла"));
+        }
+        Ok(n)
+    }
+
+    /// Словарь имён (u32 n, затем n × [u32 len, cp1251/ASCII]) и корневой узел.
+    fn section(&mut self) -> Result<Node> {
+        let n = self.len(4)?;
+        let names = (0..n)
+            .map(|_| {
+                let k = self.len(1)?;
+                Ok(self.take(k)?.iter().map(|&c| c as char).collect())
+            })
+            .collect::<Result<Vec<String>>>()?;
+        self.node(&names, 0)
+    }
+
+    /// Узел: i32 индекс имени (-1 у элементов списка), u32 число детей, u8 тип, значение, дети.
+    fn node(&mut self, names: &[String], depth: usize) -> Result<Node> {
+        if depth > MAX_DEPTH {
+            return self.err("слишком глубокое дерево");
+        }
+        let at = self.p;
+        let ni = self.i32()?;
+        let name = match ni {
+            -1 => String::new(),
+            _ => match names.get(ni as usize) {
+                Some(s) => s.clone(),
+                None => return Err(Error { offset: at, msg: format!("индекс имени {ni} вне словаря") }),
+            },
+        };
+        // Каждый узел занимает минимум 9 байт — отсекаем фальшивые огромные счётчики.
+        let n = self.len(9)?;
+        let value = match self.u8()? {
+            0 => Value::Obj,
+            1 => Value::True,
+            2 => Value::False,
+            3 => Value::U8(self.u8()?),
+            4 => Value::I32(self.i32()?),
+            5 => Value::F64(self.f64()?),
+            6 => {
+                let k = self.len(2)?;
+                let units: Vec<u16> =
+                    self.take(2 * k)?.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+                // В некоторых строках Базиса встречаются одиночные суррогаты.
+                Value::Str(String::from_utf16_lossy(&units))
+            }
+            7 => {
+                let k = self.len(1)?;
+                Value::Blob(self.take(k)?.to_vec())
+            }
+            8 => Value::Nil,
+            9 => Value::DateTime(self.f64()?),
+            t => return Err(Error { offset: at, msg: format!("неизвестный тип {t} у «{name}»") }),
+        };
+        let children = (0..n).map(|_| self.node(names, depth + 1)).collect::<Result<_>>()?;
+        Ok(Node { name, value, children })
+    }
+}

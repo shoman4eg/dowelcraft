@@ -1,0 +1,20 @@
+[package]
+name = "basis-craft-gui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "basis-craft-gui"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+basis = { workspace = true }
+serde_json = { workspace = true }
+eframe = "0.36"
+egui = "0.36"
+rfd = "0.17"
+png = "0.17"
