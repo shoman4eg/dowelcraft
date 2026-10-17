@@ -134,11 +134,11 @@ pub fn part_svg(p: &Panel, qty: usize, number: &str, order: &str, sheet: (usize,
         s += &format!(r##"<text x="{:.2}" y="{:.2}" font-size="2" fill="#a00" font-family="Arial">{}</text>"##, x + 1.0, y - 1.0, i + 1);
         if i < 30 {
             let ty = 22.0 + i as f64 * 4.0;
-            rows += &format!(r##"<text x="210" y="{ty}" font-size="2.6" font-family="Arial">{}</text><text x="220" y="{ty}" font-size="2.6" font-family="Arial">{}</text><text x="236" y="{ty}" font-size="2.6" font-family="Arial">{}</text><text x="252" y="{ty}" font-size="2.6" font-family="Arial">⌀{}×{}</text><text x="272" y="{ty}" font-size="2.6" font-family="Arial">{side}</text>"##, i + 1, n(hl.pos[0]), n(hl.pos[1]), n(hl.diameter), n(hl.depth));
+            rows += &format!(r##"<text x="210" y="{ty}" font-size="2.6" font-family="Arial">{}</text><text x="220" y="{ty}" font-size="2.6" font-family="Arial">{}</text><text x="236" y="{ty}" font-size="2.6" font-family="Arial">{}</text><text x="252" y="{ty}" font-size="2.6" font-family="Arial">Ø{}×{}</text><text x="272" y="{ty}" font-size="2.6" font-family="Arial">{side}</text>"##, i + 1, n(hl.pos[0]), n(hl.pos[1]), n(hl.diameter), n(hl.depth));
         }
     }
     if !p.holes.is_empty() {
-        for (x, h) in [(210, "№"), (220, "X"), (236, "Y"), (252, "⌀ × глуб."), (272, "сторона")] {
+        for (x, h) in [(210, "№"), (220, "X"), (236, "Y"), (252, "Ø × глуб."), (272, "сторона")] {
             s += &format!(r##"<text x="{x}" y="15" font-size="2.8" font-weight="bold" font-family="Arial">{h}</text>"##);
         }
         s += &rows;
@@ -227,7 +227,7 @@ mod tests {
         // Масштаб 1:20 (2000 мм в поле 115 мм), размеры 600 и 2000, кромка 2, отверстия в таблице.
         assert!(svg.contains(">1:20<") && svg.contains(">600<") && svg.contains(">2000<"), "{svg}");
         assert!(svg.contains(">2<"), "толщина кромки");
-        assert!(svg.contains("пласть") && svg.contains("⌀8×16"), "сквозные ⌀8 конфирматов в таблице");
+        assert!(svg.contains("пласть") && svg.contains("Ø8×16"), "сквозные Ø8 конфирматов в таблице");
         assert!(svg.contains("Боковина левая") && svg.contains("ЛДСП 16"));
         let all = drawings(&parts, "Заказ 7");
         assert_eq!(all.len(), 1 + crate::panel::spec(&parts.iter().map(|p| p.panel.clone()).collect::<Vec<_>>()).len());

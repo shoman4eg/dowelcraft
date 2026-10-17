@@ -11,6 +11,7 @@ pub mod job;
 pub mod library;
 pub mod mesh;
 pub mod nest;
+pub mod pdf;
 pub mod panel;
 pub mod raskroy;
 pub mod report;

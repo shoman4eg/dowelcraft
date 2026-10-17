@@ -459,11 +459,13 @@ impl App {
             "spec" | "smeta" => ("csv", "Таблица CSV"),
             "b3d" => ("b3d", "Модель Базис-Мебельщика"),
             "drawings" => ("html", "Чертежи"),
+            "drawings_pdf" | "cards_pdf" => ("pdf", "PDF"),
             _ => return,
         };
         let suffix = match what {
             "spec" => " спецификация",
-            "drawings" => " чертежи",
+            "drawings" | "drawings_pdf" => " чертежи",
+            "cards_pdf" => " карты раскроя",
             "smeta" => " смета",
             _ => "",
         };
@@ -476,6 +478,14 @@ impl App {
             "html" => job::document(job, &self.cuts).into_bytes(),
             "xml" => basis::raskroy::project_xml(&job.name, &job.panels, |m| job.sheet(m, sheet)),
             "spec" => basis::report::spec_csv(&panel::spec(&job.panels)).into_bytes(),
+            "drawings_pdf" => match job::parts(job).and_then(|parts| basis::pdf::from_svg_pages(&basis::drawing::drawings(&parts, &job.name))) {
+                Ok(b) => b,
+                Err(e) => return self.error = Some(e),
+            },
+            "cards_pdf" => match basis::pdf::from_svg_pages(&job::cards(job, &self.cuts)) {
+                Ok(b) => b,
+                Err(e) => return self.error = Some(e),
+            },
             "drawings" => match job::parts(job) {
                 Ok(parts) => basis::report::document_html(&job.name, &basis::drawing::drawings(&parts, &job.name), "").into_bytes(),
                 Err(e) => return self.error = Some(e),
@@ -574,6 +584,8 @@ impl App {
                         ("smeta", "Смета материалов (CSV)…"),
                         ("b3d", "Модель Базис-Мебельщика (.b3d)…"),
                         ("drawings", "Чертежи: сборочный и детали (HTML для печати)…"),
+                        ("drawings_pdf", "Чертежи (PDF)…"),
+                        ("cards_pdf", "Карты раскроя (PDF)…"),
                     ] {
                         if ui.button(label).clicked() {
                             self.export(what);

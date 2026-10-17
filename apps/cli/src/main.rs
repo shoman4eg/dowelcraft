@@ -25,7 +25,7 @@ const USAGE: &str = "basis-craft — проектирование мебели �
   basis-craft b3d <проект.bcraft> [-o модель.b3d]     свой проект → модель Базис-Мебельщика
   basis-craft script <проект.bcraft> <скрипт.js>      выполнить скрипт Базиса над проектом и сохранить
   basis-craft check <модель>                          анализ модели: пересечения, крепёж, размеры
-  basis-craft drawings <модель> [-o чертежи.html]     сборочный и рабочие чертежи деталей (A4, для печати)
+  basis-craft drawings <модель> [-o чертежи.html|.pdf] сборочный и рабочие чертежи деталей (A4; .pdf — без браузера)
   basis-craft design <проект.bcraft> <команда> ['{json-параметры}']
                                                      выполнить команду; файл создаётся, если его нет
   basis-craft design --help                          список команд
@@ -111,9 +111,10 @@ fn run(args: &[String]) -> Result<(), String> {
         "drawings" => {
             let job = Job::open(Path::new(path))?;
             let parts = basis::job::parts(&job)?;
-            let html = report::document_html(&format!("{} — чертежи", job.name), &basis::drawing::drawings(&parts, &job.name), "");
+            let pages = basis::drawing::drawings(&parts, &job.name);
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("drawings.html"));
-            std::fs::write(&out, html).map_err(|e| format!("{}: {e}", out.display()))?;
+            let data = if out.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf")) { basis::pdf::from_svg_pages(&pages)? } else { report::document_html(&format!("{} — чертежи", job.name), &pages, "").into_bytes() };
+            std::fs::write(&out, data).map_err(|e| format!("{}: {e}", out.display()))?;
             println!("листов {} → {}", parts.len().min(1) + basis::panel::spec(&job.panels).len(), out.display());
             return Ok(());
         }
@@ -177,7 +178,9 @@ fn run(args: &[String]) -> Result<(), String> {
                 }
             }
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("html"));
-            std::fs::write(&out, job::document(&job, &cuts)).map_err(|e| format!("{}: {e}", out.display()))?;
+            // .pdf — карты раскроя в PDF (без браузера), иначе HTML с картами и «Панелями в производство».
+            let data = if out.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf")) { basis::pdf::from_svg_pages(&job::cards(&job, &cuts))? } else { job::document(&job, &cuts).into_bytes() };
+            std::fs::write(&out, data).map_err(|e| format!("{}: {e}", out.display()))?;
             println!("→ {}", out.display());
         }
         _ => return Err(USAGE.into()),

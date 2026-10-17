@@ -13,3 +13,4 @@ flate2 = { workspace = true }
 encoding_rs = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+ab_glyph = "0.2"
