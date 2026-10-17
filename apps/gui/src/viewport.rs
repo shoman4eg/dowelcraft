@@ -210,6 +210,8 @@ pub struct Viewport {
     /// Детали, контур которых не построился: (имя, причина).
     pub errors: Vec<(String, String)>,
     fitted: bool,
+    /// Подпись вида в углу окна («Спереди», «Сверху»…).
+    pub label: Option<&'static str>,
 }
 
 impl Default for Viewport {
@@ -227,6 +229,7 @@ impl Default for Viewport {
             selected: None,
             errors: Vec::new(),
             fitted: false,
+            label: None,
         }
     }
 }
@@ -437,6 +440,24 @@ impl Viewport {
         self.camera.mm_per_px = diag / size.x.min(size.y).max(50.0) * 1.1;
     }
 
+    /// Окно с заданным видом (для «4 окон»): угол в градусах, подпись в углу.
+    pub fn with_view(yaw: f32, pitch: f32, label: &'static str) -> Viewport {
+        let mut v = Viewport::default();
+        (v.camera.yaw, v.camera.pitch) = (yaw.to_radians(), pitch.to_radians());
+        v.label = Some(label);
+        v
+    }
+
+    /// Вписать сцену заново при следующем показе.
+    pub fn refit(&mut self) {
+        self.fitted = false;
+    }
+
+    /// Ждёт ли окно вписывания (нажали «Показать всё»).
+    pub fn needs_fit(&self) -> bool {
+        !self.fitted
+    }
+
     /// Панель видов и режимов над окном модели.
     pub fn toolbar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
@@ -611,6 +632,10 @@ impl Viewport {
         }
         rs.queue.submit([enc.finish()]);
         ui.painter().image(target.id, rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
+        if let Some(l) = self.label {
+            ui.painter().text(rect.left_top() + Vec2::new(6.0, 4.0), egui::Align2::LEFT_TOP, l, egui::FontId::proportional(13.0), Color32::from_gray(90));
+            ui.painter().rect_stroke(rect, 0.0, egui::Stroke::new(1.0, Color32::from_gray(150)), egui::StrokeKind::Inside);
+        }
         if !self.errors.is_empty() {
             let text = format!("Не построены контуры деталей ({}): {}", self.errors.len(), self.errors.iter().map(|(n, e)| format!("«{n}» — {e}")).collect::<Vec<_>>().join("; "));
             ui.painter().text(rect.left_bottom() + Vec2::new(8.0, -8.0), egui::Align2::LEFT_BOTTOM, text, egui::FontId::proportional(13.0), Color32::from_rgb(200, 40, 40));

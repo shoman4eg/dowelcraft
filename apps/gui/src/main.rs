@@ -44,6 +44,7 @@ fn main() -> eframe::Result {
         _ => Pane::Model,
     };
     let _ = app.layout.apply(Action::Activate { panel: pane });
+    app.quad = args.iter().any(|a| a == "--quad");
     // Для снимков: выделить деталь по номеру.
     if let Some(i) = args.iter().position(|a| a == "--select").and_then(|i| args.get(i + 1)).and_then(|v| v.parse().ok()) {
         app.select(Some(i));
@@ -340,6 +341,9 @@ struct App {
     /// Растёт при каждом изменении деталей или их видимости: окно модели перестраивает сетку.
     revision: u64,
     viewport: viewport::Viewport,
+    /// «4 окна» (как «Проекции» в Базисе): спереди, слева, сверху и основное окно — аксонометрия.
+    quad: bool,
+    views: [viewport::Viewport; 3],
 }
 
 impl Default for App {
@@ -375,6 +379,8 @@ impl Default for App {
             parts: Ok(Vec::new()),
             revision: 0,
             viewport: viewport::Viewport::default(),
+            quad: false,
+            views: [viewport::Viewport::with_view(0.0, 0.0, "Спереди"), viewport::Viewport::with_view(90.0, 0.0, "Слева"), viewport::Viewport::with_view(0.0, 89.9, "Сверху")],
         };
         app.refresh();
         app
@@ -1451,9 +1457,21 @@ impl App {
             if ui.checkbox(&mut self.show_doors, "Показывать двери и фасады").changed() {
                 self.revision += 1;
             }
+            ui.toggle_value(&mut self.quad, "4 окна").on_hover_text("Спереди, слева, сверху и аксонометрия одновременно");
             ui.separator();
             self.viewport.toolbar(ui);
         });
+        // Общие режим, рамки фурнитуры и «Показать всё» — для всех окон.
+        let boxes: Vec<(basis::geom::Frame, [f64; 3], [f64; 3], bool)> = self.session.as_ref().map(|s| design::furniture(&s.project).into_iter().map(|(f, fr)| (fr, f.lo, f.hi, self.furniture_sel == Some(f.id))).collect()).unwrap_or_default();
+        let refit = self.viewport.needs_fit();
+        for v in &mut self.views {
+            v.mode = self.viewport.mode;
+            v.furniture = boxes.clone();
+            if refit {
+                v.refit();
+            }
+        }
+        self.viewport.furniture = boxes;
         let parts = match &self.parts {
             Ok(p) => p,
             Err(e) => {
@@ -1463,12 +1481,28 @@ impl App {
         };
         let doors = self.show_doors;
         let selected = self.selected_all();
-        let boxes: Vec<(basis::geom::Frame, [f64; 3], [f64; 3], bool)> = self.session.as_ref().map(|s| design::furniture(&s.project).into_iter().map(|(f, fr)| (fr, f.lo, f.hi, self.furniture_sel == Some(f.id))).collect()).unwrap_or_default();
-        self.viewport.furniture = boxes;
-        match self.viewport.show(ui, frame, parts, self.revision, &selected, |p| !doors && matches!(p.kind, design::Kind::Door | design::Kind::Drawer)) {
-            viewport::Click::Part(i) => self.select(Some(i)),
-            viewport::Click::Empty => self.select(None),
-            viewport::Click::None => {}
+        let skip = |p: &Part| !doors && matches!(p.kind, design::Kind::Door | design::Kind::Drawer);
+        let mut clicks = Vec::new();
+        if self.quad {
+            // Как в Базисе: спереди | слева, сверху | аксонометрия.
+            let r = ui.available_rect_before_wrap();
+            let (w, h) = (r.width() / 2.0, r.height() / 2.0);
+            let cell = |i: usize, j: usize| egui::Rect::from_min_size(r.min + Vec2::new(i as f32 * w, j as f32 * h), Vec2::new(w, h)).shrink(1.0);
+            let cells = [cell(0, 0), cell(1, 0), cell(0, 1)];
+            for (v, c) in self.views.iter_mut().zip(cells) {
+                clicks.push(ui.scope_builder(egui::UiBuilder::new().max_rect(c), |ui| v.show(ui, frame, parts, self.revision, &selected, skip)).inner);
+            }
+            clicks.push(ui.scope_builder(egui::UiBuilder::new().max_rect(cell(1, 1)), |ui| self.viewport.show(ui, frame, parts, self.revision, &selected, skip)).inner);
+            ui.allocate_rect(r, egui::Sense::hover());
+        } else {
+            clicks.push(self.viewport.show(ui, frame, parts, self.revision, &selected, skip));
+        }
+        for c in clicks {
+            match c {
+                viewport::Click::Part(i) => self.select(Some(i)),
+                viewport::Click::Empty => self.select(None),
+                viewport::Click::None => {}
+            }
         }
     }
 
