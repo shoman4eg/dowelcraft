@@ -18,6 +18,8 @@ pub struct Job {
     pub skipped: Vec<String>,
     /// Фурнитура из модели Базиса: (наименование, количество).
     pub hardware: Vec<(String, usize)>,
+    /// Отверстия крепежа модели Базиса, не попавшие ни в одну плиту.
+    pub holes_lost: usize,
     /// Свой проект, если открыт `.bcraft`: из него берутся форматы листов и коэффициенты.
     pub project: Option<Project>,
 }
@@ -32,13 +34,13 @@ impl Job {
         } else {
             let file = crate::b3d::parse(&data).map_err(|e| format!("{}: {e}", path.display()))?;
             let ex = panel::panels(&file);
-            Ok(Job { name, panels: ex.panels, skipped: ex.skipped, hardware: panel::hardware(&file), project: None })
+            Ok(Job { name, panels: ex.panels, skipped: ex.skipped, hardware: panel::hardware(&file), holes_lost: ex.holes_lost, project: None })
         }
     }
 
     pub fn from_project(p: Project) -> Job {
         let panels = design::build(&p).map(|parts| parts.into_iter().map(|x| x.panel).collect()).unwrap_or_default();
-        Job { name: p.name.clone(), panels, skipped: Vec::new(), hardware: Vec::new(), project: Some(p) }
+        Job { name: p.name.clone(), panels, skipped: Vec::new(), hardware: Vec::new(), holes_lost: 0, project: Some(p) }
     }
 
     fn material(&self, full: &str) -> Option<&design::Material> {

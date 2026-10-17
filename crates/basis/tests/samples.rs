@@ -83,6 +83,32 @@ fn import_basis_model_into_project() {
     assert!(s.execute("panel.set", &serde_json::json!({"id": 1, "material": "нет такого"})).is_err());
 }
 
+/// Присадка шкафа: все отверстия крепежа нашли плиту и лежат на её поверхности; выгружаются в XML Раскроя.
+#[test]
+fn drilling_of_wardrobe() {
+    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/шкаф.b3d");
+    let Ok(data) = std::fs::read(&p) else { return };
+    let ex = basis::panel::panels(&basis::b3d::parse(&data).unwrap());
+    let holes: usize = ex.panels.iter().map(|p| p.holes.len()).sum();
+    assert_eq!((holes, ex.holes_lost), (80, 0));
+    for p in &ex.panels {
+        for h in &p.holes {
+            let on_face = h.pos[2].abs() < 0.01 || (h.pos[2] - p.thickness).abs() < 0.01;
+            let on_edge = [h.pos[0], h.pos[1]].iter().zip([p.size.0, p.size.1]).any(|(v, s)| v.abs() < 0.01 || (v - s).abs() < 0.01);
+            assert!(on_face || on_edge, "«{}»: отверстие {:?} не на поверхности", p.name, h.pos);
+            // Торцевое отверстие — посередине толщины.
+            if h.dir[2].abs() < 0.5 {
+                assert!((h.pos[2] - p.thickness / 2.0).abs() < 0.5, "«{}»: торцевое отверстие не по центру толщины", p.name);
+            }
+        }
+    }
+    let xml = basis::raskroy::project_string("шкаф", &ex.panels, |_| (2800.0, 2070.0));
+    let n: usize = xml.matches("<DRILLING>").count();
+    // <DRILLING> — и обёртка у каждой детали (11), и каждое отверстие (80).
+    assert_eq!(n, 11 + 80);
+    assert!(xml.contains("<TYPE>EDGEDIR</TYPE>") && xml.contains("<TYPE>FACETOBACKDIR</TYPE>"));
+}
+
 #[test]
 fn all_samples_parse() {
     let files = samples();

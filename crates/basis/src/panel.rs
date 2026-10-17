@@ -69,6 +69,18 @@ pub struct Panel {
     /// Габарит в пространстве модели ([мин], [макс]), мм: X вправо, Y вверх, Z к зрителю.
     /// Есть у плит из моделей Базиса; у своих проектов положение хранит `design::Part`.
     pub bounds: Option<([f64; 3], [f64; 3])>,
+    /// Присадка: отверстия крепежа, попавшие в эту плиту.
+    pub holes: Vec<Hole>,
+}
+
+/// Отверстие в координатах плиты: X, Y — как у контура (от 0), Z — от тыльной пласти (0) к лицевой (толщина).
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Hole {
+    pub pos: [f64; 3],
+    /// Единичное направление сверления.
+    pub dir: [f64; 3],
+    pub diameter: f64,
+    pub depth: f64,
 }
 
 const EPS: f64 = 0.01;
@@ -151,14 +163,100 @@ pub struct Extract {
     pub panels: Vec<Panel>,
     /// Плиты, чей контур не удалось разобрать (имя).
     pub skipped: Vec<String>,
+    /// Отверстия крепежа, не попавшие ни в одну плиту.
+    pub holes_lost: usize,
 }
+
+/// Наибольший зазор между началом отверстия и плитой, мм (толщина планки петли, навеса).
+const GAP: f64 = 5.0;
 
 pub fn panels(file: &File) -> Extract {
     let mut out = Extract::default();
+    let mut frames = Vec::new();
     if let Some(model) = file.section("Document").and_then(|d| d.get("Model")) {
-        walk(model, &mut out, &IDENTITY);
+        walk(model, &mut out, &mut frames, &IDENTITY);
+        out.holes_lost = drill(file, model, &mut out.panels, &frames);
     }
     out
+}
+
+/// Отверстия крепежа → плиты. Описание крепежа (`Document/FurnList`, по `FastID`) хранит отверстия
+/// в его координатах; экземпляр (Type 3001) ставит их в модель. Отверстие достаётся плите, в которую
+/// луч сверления входит не дальше `GAP` от начала (шуруп проходит сквозь планку петли, навеса и т.п.);
+/// точка входа становится началом отверстия. Отдельные отверстия (Type 3000) — так же.
+/// shortcut: проверка «внутри плиты» по габариту контура — у фигурных плит возможны лишние попадания; эталона присадки с парной моделью нет.
+fn drill(file: &File, model: &Node, panels: &mut [Panel], frames: &[Xform]) -> usize {
+    let defs: Vec<(i64, &Node)> = file
+        .section("Document")
+        .and_then(|d| d.get("FurnList"))
+        .map(|l| l.children.iter().filter_map(|f| Some((f.int("FastID")?, f))).collect())
+        .unwrap_or_default();
+    let mut world: Vec<([f64; 3], [f64; 3], f64, f64)> = Vec::new();
+    fn holes(n: &Node) -> impl Iterator<Item = ([f64; 3], [f64; 3], f64, f64)> + '_ {
+        n.children.iter().filter(|h| h.name == "Hole").map(|h| {
+            let g = |k: &str| h.f64(k).unwrap_or(0.0);
+            ([g("X"), g("Y"), g("Z")], [g("DirX"), g("DirY"), g("DirZ")], 2.0 * g("Radius"), g("Depth"))
+        })
+    }
+    fn collect(n: &Node, parent: &Xform, defs: &[(i64, &Node)], out: &mut Vec<([f64; 3], [f64; 3], f64, f64)>) {
+        let xf = if n.get("Type").is_some() { parent.then(n) } else { *parent };
+        let mut put = |p: [f64; 3], d: [f64; 3], dia: f64, depth: f64| {
+            let r = &xf.r;
+            out.push((xf.apply(p), std::array::from_fn(|i| r[i][0] * d[0] + r[i][1] * d[1] + r[i][2] * d[2]), dia, depth));
+        };
+        match n.int("Type") {
+            Some(3001) => {
+                if let Some((_, def)) = n.int("FastID").and_then(|id| defs.iter().find(|(f, _)| *f == id))
+                    && let Some(hs) = def.get("Holes")
+                {
+                    holes(hs).for_each(|(p, d, dia, depth)| put(p, d, dia, depth));
+                }
+            }
+            Some(3000) => {
+                let g = |k: &str| n.f64(k).unwrap_or(0.0);
+                put([g("X"), g("Y"), g("Z")], [g("DirX"), g("DirY"), g("DirZ")], 2.0 * g("Radius"), g("Depth"));
+            }
+            _ => {}
+        }
+        for c in &n.children {
+            collect(c, &xf, defs, out);
+        }
+    }
+    collect(model, &IDENTITY, &defs, &mut world);
+
+    let mut lost = 0;
+    'hole: for (p, d, diameter, depth) in world {
+        let inv = |f: &Xform, v: [f64; 3]| -> [f64; 3] { std::array::from_fn(|j| (0..3).map(|i| f.r[i][j] * v[i]).sum()) };
+        for (panel, f) in panels.iter_mut().zip(frames) {
+            let Some((lo, hi)) = panel.bounds else { continue };
+            if (0..3).any(|k| p[k] < lo[k] - 1.0 || p[k] > hi[k] + 1.0) {
+                continue;
+            }
+            let l = inv(f, std::array::from_fn(|k| p[k] - f.t[k]));
+            let ld = inv(f, d);
+            let hi = [panel.size.0, panel.size.1, panel.thickness];
+            // Вход луча в габарит плиты (метод плит): параметр входа и выхода по каждой оси.
+            let (mut t0, mut t1) = (f64::MIN, f64::MAX);
+            for k in 0..3 {
+                if ld[k].abs() < 1e-9 {
+                    if l[k] < -0.5 || l[k] > hi[k] + 0.5 {
+                        t1 = f64::MIN;
+                    }
+                } else {
+                    let (a, b) = ((0.0 - l[k]) / ld[k], (hi[k] - l[k]) / ld[k]);
+                    t0 = t0.max(a.min(b));
+                    t1 = t1.min(a.max(b));
+                }
+            }
+            if (-0.5..=GAP).contains(&t0) && t1 - t0 > 0.5 {
+                let pos = std::array::from_fn(|k| l[k] + ld[k] * t0.max(0.0));
+                panel.holes.push(Hole { pos, dir: ld, diameter, depth: (depth - t0.max(0.0)).max(0.0) });
+                continue 'hole;
+            }
+        }
+        lost += 1;
+    }
+    lost
 }
 
 /// Преобразование «локальные → мировые» координаты: поворот и смещение.
@@ -192,21 +290,25 @@ impl Xform {
     }
 }
 
-fn walk(n: &Node, out: &mut Extract, parent: &Xform) {
+fn walk(n: &Node, out: &mut Extract, frames: &mut Vec<Xform>, parent: &Xform) {
     let xf = if n.get("Type").is_some() { parent.then(n) } else { *parent };
     // Плиты нулевой толщины — изображения внутри фурнитуры (заглушки, крепления), в раскрой не идут.
     if n.int("Type") == Some(TYPE_PANEL) && n.f64("Thick").is_some_and(|t| t > 0.0) {
         match panel(n, &xf) {
-            Some(p) => out.panels.push(p),
+            Some((p, frame)) => {
+                out.panels.push(p);
+                frames.push(frame);
+            }
             None => out.skipped.push(n.str("Name").unwrap_or_default().to_string()),
         }
     }
     for c in &n.children {
-        walk(c, out, &xf);
+        walk(c, out, frames, &xf);
     }
 }
 
-fn panel(n: &Node, xf: &Xform) -> Option<Panel> {
+/// Плита и её система координат (с началом в углу габарита контура, как у `segs`).
+fn panel(n: &Node, xf: &Xform) -> Option<(Panel, Xform)> {
     let segs = contour::parse(n.blob("Contour")?)?;
     let (lo, hi) = contour::bounds(&segs)?;
     // Контур лежит в плоскости XY плиты, толщина откладывается в +Z (сверено по шкафу: полки встают между боковинами).
@@ -238,7 +340,8 @@ fn panel(n: &Node, xf: &Xform) -> Option<Panel> {
             })
         })
         .collect();
-    Some(Panel {
+    let frame = Xform { r: xf.r, t: xf.apply([lo[0], lo[1], 0.0]) };
+    let panel = Panel {
         name: n.str("Name").unwrap_or_default().to_string(),
         pos: n.str("ArtPos").unwrap_or_default().to_string(),
         designation: n.str("Des").unwrap_or_default().to_string(),
@@ -253,7 +356,9 @@ fn panel(n: &Node, xf: &Xform) -> Option<Panel> {
         },
         edges,
         bounds: Some(bounds),
-    })
+        holes: Vec::new(),
+    };
+    Some((panel, frame))
 }
 
 /// Строка спецификации: одинаковые детали сведены в одну позицию.

@@ -177,6 +177,9 @@ pub struct FreePanel {
     pub texture: Texture,
     #[serde(default)]
     pub edges: Vec<Edge>,
+    /// Присадка из исходной модели.
+    #[serde(default)]
+    pub holes: Vec<crate::panel::Hole>,
     /// Габарит в пространстве: минимальный угол и размеры по X, Y, Z, мм.
     pub origin: [f64; 3],
     pub size: [f64; 3],
@@ -283,6 +286,7 @@ pub fn import(name: &str, panels: &[Panel]) -> Project {
             segs: src.segs.clone(),
             texture: src.texture,
             edges: src.edges.clone(),
+            holes: src.holes.clone(),
             origin: lo,
             size: std::array::from_fn(|k| hi[k] - lo[k]),
         });
@@ -353,6 +357,7 @@ fn poly(name: &str, mat: &Material, pts: &[[f64; 2]], texture: Texture, edged: &
         texture,
         edges,
         bounds: None,
+        holes: Vec::new(),
     }
 }
 
@@ -379,6 +384,7 @@ pub fn build(p: &Project) -> Result<Vec<Part>, String> {
             texture: fp.texture,
             edges: fp.edges.clone(),
             bounds: None,
+            holes: fp.holes.clone(),
         };
         parts.push(Part { cabinet: 0, kind: guess_kind(&panel), panel, origin: fp.origin, size: fp.size });
     }

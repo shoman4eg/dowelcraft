@@ -108,7 +108,11 @@ fn run(args: &[String]) -> Result<(), String> {
             let xml = basis::raskroy::project_xml(&job.name, &job.panels, sheet_for);
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("xml"));
             std::fs::write(&out, xml).map_err(|e| format!("{}: {e}", out.display()))?;
-            println!("деталей {} → {}", job.panels.len(), out.display());
+            let holes: usize = job.panels.iter().map(|p| p.holes.len()).sum();
+            println!("деталей {}, отверстий присадки {holes} → {}", job.panels.len(), out.display());
+            if job.holes_lost > 0 {
+                eprintln!("  отверстий крепежа без плиты (не попали в выгрузку): {}", job.holes_lost);
+            }
         }
         "cut" => {
             let (kerf, trim) = (num(args, "--kerf")?.unwrap_or(4.0), num(args, "--trim")?.unwrap_or(10.0));

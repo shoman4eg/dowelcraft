@@ -182,6 +182,67 @@ fn contour(x: &mut X, tag: &str, segs: &[Seg]) {
     x.close(tag);
 }
 
+/// Присадка как в эталоне: по пласти (сверху вниз), с тыла (снизу вверх) и в торец; внутри — группы
+/// отверстий одного диаметра и глубины.
+fn drilling(x: &mut X, p: &Panel) {
+    x.open("DRILLING");
+    for (tag, kind) in [("FACEDRILLING", "FACETOBACKDIR"), ("BACKDRILLING", "BACKTOFACEDIR"), ("EDGEDRILLING", "EDGEDIR")] {
+        let holes: Vec<_> = p
+            .holes
+            .iter()
+            .filter(|h| match kind {
+                "FACETOBACKDIR" => h.dir[2] < -0.5,
+                "BACKTOFACEDIR" => h.dir[2] > 0.5,
+                _ => h.dir[2].abs() <= 0.5,
+            })
+            .collect();
+        if holes.is_empty() {
+            continue;
+        }
+        let mut groups: Vec<((String, String), Vec<_>)> = Vec::new();
+        for h in &holes {
+            let key = (num(h.diameter), num(h.depth));
+            match groups.iter_mut().find(|(k, _)| *k == key) {
+                Some((_, v)) => v.push(*h),
+                None => groups.push((key, vec![*h])),
+            }
+        }
+        x.open(tag);
+        x.leaf("QTY", holes.len());
+        x.leaf("QTYSERIALS", groups.len());
+        for ((dia, depth), hs) in &groups {
+            x.open("DRILLINGLISTEQUALS");
+            x.leaf("INDEX", 0);
+            x.leaf("STARTDIAM", dia);
+            x.leaf("ENDDIAM", dia);
+            x.leaf("STARTDIAMPARTLEN", depth);
+            x.leaf("LENGTH", depth);
+            x.leaf("TYPE", kind);
+            x.leaf("QTY", hs.len());
+            x.open("HOLES");
+            for h in hs {
+                x.open("DRILLING");
+                x.open("BASE");
+                x.leaf("X", num(h.pos[0]));
+                x.leaf("Y", num(h.pos[1]));
+                x.leaf("Z", num(h.pos[2]));
+                x.close("BASE");
+                x.open("DIR");
+                for (axis, v) in ["X", "Y", "Z"].into_iter().zip(h.dir) {
+                    // Направление — единичный вектор по оси; шум float округляем.
+                    x.leaf(axis, num((v * 1e6).round() / 1e6));
+                }
+                x.close("DIR");
+                x.close("DRILLING");
+            }
+            x.close("HOLES");
+            x.close("DRILLINGLISTEQUALS");
+        }
+        x.close(tag);
+    }
+    x.close("DRILLING");
+}
+
 fn edge(x: &mut X, tag: &str, index: usize, e: Option<&Edge>) {
     x.open(tag);
     x.leaf("INDEX", index);
@@ -231,8 +292,7 @@ fn board(x: &mut X, p: &Panel, sheet: (f64, f64)) {
         x.qty0(t);
     }
     contour(x, "BOARDCONTOUR", &p.segs);
-    x.open("DRILLING");
-    x.close("DRILLING");
+    drilling(x, p);
     if rect {
         // Контур заготовки: тот же прямоугольник, стянутый до размеров заготовки.
         let fit = |q: [f64; 2]| [if q[0] > EPS_HALF { bx } else { 0.0 }, if q[1] > EPS_HALF { by } else { 0.0 }];
