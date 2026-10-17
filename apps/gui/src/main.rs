@@ -10,6 +10,7 @@ mod i18n;
 mod icons;
 mod library;
 mod settings;
+mod theme;
 mod tools;
 mod viewport;
 
@@ -49,11 +50,10 @@ fn main() -> eframe::Result {
         Some("front") => Pane::Front,
         Some("library") => Pane::Library,
         Some("project") => Pane::Project,
-        Some("start") => Pane::Start,
-        // Без файла — стартовая страница, как в cadcraft.
-        _ if file.is_none() => Pane::Start,
         _ => Pane::Model,
     };
+    // Без файла — стартовая страница на всё окно, как в cadcraft.
+    app.start = (file.is_none() && tab.is_none()) || tab.as_deref() == Some("start");
     let _ = app.layout.apply(Action::Activate { panel: pane });
     app.quad = args.iter().any(|a| a == "--quad");
     // Для снимков: включить инструмент «в проём» (horizontal | vertical | front | door | drawers) или изменения (move).
@@ -77,8 +77,8 @@ fn main() -> eframe::Result {
         "basis-craft",
         options,
         Box::new(|cc| {
-            // Подсказки к иконкам — почти сразу, а не через полсекунды неподвижной мыши.
-            cc.egui_ctx.all_styles_mut(|st| st.interaction.tooltip_delay = 0.15);
+            // Тема cadcraft; подсказки к иконкам — почти сразу.
+            theme::apply(&cc.egui_ctx);
             Ok(Box::new(app))
         }),
     )
@@ -87,7 +87,6 @@ fn main() -> eframe::Result {
 /// Панели окна (раскладка — craft-ui docking).
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 enum Pane {
-    Start,
     Tools,
     Model,
     Front,
@@ -102,7 +101,6 @@ enum Pane {
 impl Pane {
     fn label(self) -> &'static str {
         match self {
-            Pane::Start => "Начало",
             Pane::Tools => "Инструменты",
             Pane::Model => "3D",
             Pane::Front => "Вид спереди",
@@ -130,7 +128,7 @@ fn default_layout() -> Layout<Pane> {
             second: Box::new(Node::Split {
                 axis: SplitAxis::Horizontal,
                 size: SplitSize::FixedSecond(380.0),
-                first: tabs(vec![Pane::Start, Pane::Model, Pane::Front, Pane::Parts, Pane::Cut]),
+                first: tabs(vec![Pane::Model, Pane::Front, Pane::Parts, Pane::Cut]),
                 second: stack(vec![(Pane::Structure, true, Some(300.0)), (Pane::Properties, true, None)]),
             }),
         }),
@@ -414,6 +412,8 @@ struct App {
     new_panel: (&'static str, f64, f64),
     /// Режим «Панель в проём» на виде спереди: плоскость, материал, отступы.
     fill: Option<FillTool>,
+    /// Показана стартовая страница (вместо рабочих панелей), как вкладка «Start» в cadcraft.
+    start: bool,
     /// Открыты окна «Как пользоваться» и «О программе».
     help: bool,
     about: bool,
@@ -476,6 +476,7 @@ impl Default for App {
             new_panel: ("vertical", 560.0, 720.0),
             fill: None,
             modify: None,
+            start: false,
             help: false,
             about: false,
             edging: (None, true, 0.0),
@@ -509,6 +510,7 @@ impl App {
                 self.job = job;
                 self.status = format!("Открыт {}", path.display());
                 chrome::remember(&path);
+                self.start = false;
                 self.show_pane(Pane::Model);
                 self.path = Some(path);
                 self.error = None;
@@ -708,20 +710,19 @@ impl eframe::App for App {
                 }
             });
         });
-        egui::CentralPanel::default().show(ui, |ui| {
+        if self.start {
+            egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui, |ui| self.start_page(ui));
+        } else {
+        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(theme::T.chrome_dark)).show(ui, |ui| {
             let layout = self.layout.clone();
             // Цвета палитр — как в cadcraft: заголовки светлее фона, активная вкладка — синеватая.
             let mut style = DockStyle::from_ui(ui);
             style.min_pane = 96.0;
-            style.background = Color32::from_rgb(0x2b, 0x30, 0x3a);
-            style.tab_background = Color32::from_rgb(0x3a, 0x41, 0x4e);
-            style.active_background = Color32::from_rgb(0x4e, 0x5a, 0x6e);
-            style.text = Color32::from_rgb(0xdd, 0xe2, 0xea);
-            style.inactive_text = Color32::from_rgb(0x9a, 0xa3, 0xb0);
-            style.border = Stroke::new(1.0, Color32::from_rgb(0x1c, 0x20, 0x27));
-            style.accent = Color32::from_rgb(0x4f, 0xa3, 0xf7);
+            let t = &theme::T;
+            (style.background, style.tab_background, style.active_background) = (t.panel, t.chrome, t.tab_active);
+            (style.text, style.inactive_text, style.accent) = (t.text, t.text_dim, t.accent);
+            style.border = Stroke::new(1.0, t.border);
             let out = DockArea::new(egui::Id::new("dock")).show(ui, &layout, &style, |p| i18n::t(p.label()), permissions, |ui, pane| match pane {
-                Pane::Start => self.start_page(ui),
                 Pane::Tools => side(ui, "tools", |ui| self.tools_panel(ui)),
                 Pane::Model => self.iso_view(ui, frame),
                 Pane::Front => self.front_view(ui),
@@ -738,6 +739,7 @@ impl eframe::App for App {
                 }
             }
         });
+        }
         // Delete — удалить выделенное, если курсор не в поле ввода.
         if !ctx.text_edit_focused() && ui.input(|i| i.key_pressed(egui::Key::Delete)) {
             self.menu_apply(MenuAct::Delete);
@@ -754,7 +756,7 @@ impl App {
     fn top_bar(&mut self, ui: &mut egui::Ui) {
         use icons::{Icon, button, button_if};
         const S: f32 = 28.0;
-        egui::Panel::top("toolbar").show(ui, |ui| {
+        egui::Panel::top("toolbar").exact_size(34.0).frame(egui::Frame::NONE.fill(theme::T.chrome).inner_margin(egui::Margin::symmetric(10, 0))).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
                 if button(ui, Icon::New, S, "Новый проект", false).clicked() {
@@ -803,7 +805,8 @@ impl App {
                 }
             });
         });
-        egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
+        egui::Panel::top("menu").frame(egui::Frame::NONE.fill(theme::T.chrome).inner_margin(egui::Margin::symmetric(6, 2))).show(ui, |ui| self.menu_bar(ui));
+        egui::Panel::top("doc_tabs").exact_size(26.0).frame(egui::Frame::NONE.fill(theme::T.chrome_dark)).show(ui, |ui| self.doc_tabs(ui));
         // Сочетания клавиш, как в cadcraft и Базисе.
         let (save, undo, redo) = ui.input_mut(|i| {
             (
@@ -1640,7 +1643,7 @@ impl App {
         let k = ((area.width() as f64) / (hi[0] - lo[0]).max(1.0)).min((area.height() as f64) / (hi[1] - lo[1]).max(1.0));
         let to = |x: f64, y: f64| Pos2::new(area.left() + ((x - lo[0]) * k) as f32, area.bottom() - ((y - lo[1]) * k) as f32);
         // Холст как в cadcraft: тёмный фон, сетка на весь экран (каждая десятая линия ярче), оси через начало.
-        painter.rect_filled(resp.rect, 0.0, Color32::from_rgb(0x22, 0x28, 0x2f));
+        painter.rect_filled(resp.rect, 0.0, theme::T.canvas);
         {
             let (minor, major) = (Color32::from_rgb(0x29, 0x30, 0x3a), Color32::from_rgb(0x31, 0x39, 0x45));
             let step = [10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0].into_iter().find(|s| s * k >= 8.0).unwrap_or(5000.0);

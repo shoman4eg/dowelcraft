@@ -568,8 +568,8 @@ impl Scene {
             let (x0, x1) = (((lo[0] / 1000.0).floor() - 3.0) * 1000.0, ((hi[0] / 1000.0).ceil() + 3.0) * 1000.0);
             let (z0, z1) = (((lo[2] / 1000.0).floor() - 3.0) * 1000.0, ((hi[2] / 1000.0).ceil() + 3.0) * 1000.0);
             let step = if (x1 - x0).max(z1 - z0) > 16000.0 { 500.0 } else { 100.0 };
-            // Цвета cadcraft (тёмный холст): линейные значения, цель — sRGB.
-            let color = |v: f32| if (v / 1000.0).fract().abs() < 1e-3 { [0.1022, 0.1329, 0.1878, 1.0] } else { [0.0467, 0.0612, 0.0908, 1.0] };
+            // Цвета cadcraft (тёмный холст), как в его теме: фон #22282f, сетка светлее.
+            let color = |v: f32| if (v / 1000.0).fract().abs() < 1e-3 { [0.2706, 0.3137, 0.3765, 1.0] } else { [0.1922, 0.2235, 0.2745, 1.0] };
             let mut v = x0;
             while v <= x1 + 0.5 {
                 push_vertex(&mut lines, [v, 0.0, z0], [0.0; 3], color(v));
@@ -836,7 +836,7 @@ impl Viewport {
                     view: &target.msaa,
                     depth_slice: None,
                     resolve_target: Some(&target.resolve),
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.016, g: 0.0212, b: 0.0284, a: 1.0 }), store: wgpu::StoreOp::Discard },
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.1333, g: 0.1569, b: 0.1843, a: 1.0 }), store: wgpu::StoreOp::Discard },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &target.depth,

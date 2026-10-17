@@ -158,10 +158,14 @@ impl App {
                 }
             });
             ui.menu_button(crate::i18n::t("Вид"), |ui| {
-                for (label, pane) in [("3D", Pane::Model), ("Вид спереди", Pane::Front), ("Детали", Pane::Parts), ("Раскрой", Pane::Cut), ("Начало", Pane::Start)] {
+                for (label, pane) in [("3D", Pane::Model), ("Вид спереди", Pane::Front), ("Детали", Pane::Parts), ("Раскрой", Pane::Cut)] {
                     if ui.button(crate::i18n::t(label)).clicked() {
+                        self.start = false;
                         self.show_pane(pane);
                     }
+                }
+                if ui.button(crate::i18n::t("Начало")).clicked() {
+                    self.start = true;
                 }
                 ui.separator();
                 for (label, yaw, pitch) in [("Спереди", 0.0, 0.0), ("Слева", 90.0, 0.0), ("Сверху", 0.0, 89.9), ("Аксонометрия", crate::viewport::Camera::AXON.0, crate::viewport::Camera::AXON.1)] {
@@ -244,69 +248,117 @@ impl App {
         });
     }
 
-    /// Стартовая страница: открыть, новый, пример; справа — последние файлы.
-    pub(crate) fn start_page(&mut self, ui: &mut egui::Ui) {
-        let full = ui.available_rect_before_wrap();
-        ui.painter().rect_filled(full, 0.0, Color32::from_rgb(0x2b, 0x30, 0x3a));
-        let left = egui::Rect::from_min_size(full.min, egui::vec2(300.0_f32.min(full.width() * 0.4), full.height()));
-        ui.painter().rect_filled(left, 0.0, Color32::from_rgb(0x23, 0x27, 0x30));
-        let right = egui::Rect::from_min_max(egui::pos2(left.max.x, full.min.y), full.max);
-        ui.scope_builder(egui::UiBuilder::new().max_rect(left.shrink2(egui::vec2(28.0, 32.0))), |ui| {
-            ui.label(RichText::new("basis-craft").size(30.0).color(Color32::from_rgb(0xdd, 0xe2, 0xea)));
-            ui.weak(crate::i18n::t(format!("Версия {} · проектирование корпусной мебели", env!("CARGO_PKG_VERSION"))));
-            ui.add_space(24.0);
-            let width = ui.available_width();
-            let wide = |text: &str| egui::Button::new(RichText::new(crate::i18n::t(text)).size(15.0)).min_size(egui::vec2(width, 34.0));
-            if ui.add(wide("Открыть…")).on_hover_text(".bcraft, .b3d, .fr3d").clicked() {
-                self.open_dialog();
-                self.leave_start();
+    /// Строка документов под меню (как файловые вкладки cadcraft): «+» — новый проект, «Начало», текущий проект.
+    pub(crate) fn doc_tabs(&mut self, ui: &mut egui::Ui) {
+        let t = &crate::theme::T;
+        let r = ui.max_rect();
+        let mut x = r.left() + 6.0;
+        let plus = egui::Rect::from_min_size(egui::pos2(x, r.top() + 4.0), egui::vec2(18.0, 18.0));
+        let resp = ui.interact(plus, ui.id().with("doc+"), egui::Sense::click());
+        if resp.hovered() {
+            ui.painter().rect_filled(plus, 2.0, t.control_hover);
+        }
+        ui.painter().text(plus.center(), egui::Align2::CENTER_CENTER, "+", egui::FontId::proportional(16.0), t.text);
+        if resp.on_hover_text(crate::i18n::t("Новый проект")).clicked() {
+            self.new_project();
+        }
+        x += 26.0;
+        let name = if self.path.is_some() || self.session.as_ref().is_some_and(|s| !s.project.objects.is_empty() || !s.project.cabinets.is_empty()) { self.job.name.clone() } else { crate::i18n::t("Новый проект") };
+        for (label, start, w) in [(crate::i18n::t("Начало"), true, 110.0), (name, false, 190.0)] {
+            let tr = egui::Rect::from_min_size(egui::pos2(x, r.top()), egui::vec2(w, r.height()));
+            let resp = ui.interact(tr, ui.id().with(("doc", start)), egui::Sense::click());
+            let active = self.start == start;
+            let fill = if active { t.tab_active } else if resp.hovered() { t.chrome } else { t.chrome_dark };
+            ui.painter().rect_filled(tr, 0.0, fill);
+            let clip = ui.painter().with_clip_rect(tr.shrink2(egui::vec2(8.0, 0.0)));
+            clip.text(egui::pos2(tr.left() + 8.0, tr.center().y), egui::Align2::LEFT_CENTER, &label, egui::FontId::proportional(13.0), if active { t.text } else { t.text_dim });
+            ui.painter().vline(tr.right(), tr.y_range(), egui::Stroke::new(1.0, t.border));
+            if resp.clicked() {
+                self.start = start;
             }
-            ui.add_space(6.0);
-            if ui.add(wide("Новый проект")).clicked() {
+            x += w;
+        }
+    }
+
+    /// Стартовая страница на всё окно, как в cadcraft: слева название и кнопки в рамке, справа — последние файлы.
+    pub(crate) fn start_page(&mut self, ui: &mut egui::Ui) {
+        let t = &crate::theme::T;
+        let r = ui.max_rect();
+        let p = ui.painter().clone();
+        let left = egui::Rect::from_min_size(r.min, egui::vec2(300.0, r.height()));
+        p.rect_filled(left, 0.0, t.chrome_dark);
+        p.rect_filled(egui::Rect::from_min_max(egui::pos2(left.right(), r.top()), r.max), 0.0, t.chrome);
+        p.text(egui::pos2(left.left() + 34.0, left.top() + 70.0), egui::Align2::LEFT_CENTER, "basis-craft", egui::FontId::proportional(28.0), t.text);
+        p.text(egui::pos2(left.left() + 34.0, left.top() + 98.0), egui::Align2::LEFT_CENTER, crate::i18n::t(format!("Версия {}", env!("CARGO_PKG_VERSION"))), egui::FontId::proportional(12.0), t.text_faint);
+        let sample = SAMPLES.iter().map(Path::new).find(|p| p.exists());
+        let mut y = left.top() + 140.0;
+        let mut action = None;
+        let mut buttons = vec![("Открыть…", "open"), ("Новый проект", "new")];
+        if sample.is_some() {
+            buttons.push(("Открыть пример", "sample"));
+        }
+        buttons.push(("Как пользоваться", "help"));
+        for (label, cmd) in buttons {
+            let br = egui::Rect::from_min_size(egui::pos2(left.left() + 34.0, y), egui::vec2(220.0, 34.0));
+            let resp = ui.interact(br, ui.id().with(("start", cmd)), egui::Sense::click());
+            p.rect_stroke(br, 2.0, egui::Stroke::new(1.0, if resp.hovered() { t.text } else { t.text_dim }), egui::StrokeKind::Inside);
+            p.text(egui::pos2(br.left() + 16.0, br.center().y), egui::Align2::LEFT_CENTER, crate::i18n::t(label), egui::FontId::proportional(14.0), t.text);
+            if resp.clicked() {
+                action = Some(cmd);
+            }
+            y += 44.0;
+        }
+        let main = egui::Rect::from_min_max(egui::pos2(left.right() + 36.0, r.top() + 40.0), r.max);
+        p.text(main.min, egui::Align2::LEFT_TOP, crate::i18n::t("Последние"), egui::FontId::proportional(22.0), t.text);
+        let list = recent();
+        let mut open = None;
+        let mut y = main.top() + 44.0;
+        for (i, path) in list.iter().enumerate() {
+            let row = egui::Rect::from_min_size(egui::pos2(main.left(), y), egui::vec2((r.right() - main.left() - 36.0).clamp(0.0, 640.0), 42.0));
+            let resp = ui.interact(row, ui.id().with(("recent", i)), egui::Sense::click());
+            if resp.hovered() {
+                p.rect_filled(row, 2.0, t.control_hover.gamma_multiply(0.5));
+            }
+            let name = path.file_name().map_or_else(|| path.display().to_string(), |f| f.to_string_lossy().into_owned());
+            let dir = path.parent().map(|d| d.display().to_string()).unwrap_or_default();
+            let clip = p.with_clip_rect(row.shrink(2.0));
+            clip.text(egui::pos2(row.left() + 10.0, row.top() + 13.0), egui::Align2::LEFT_CENTER, name, egui::FontId::proportional(14.0), t.text);
+            clip.text(egui::pos2(row.left() + 10.0, row.top() + 30.0), egui::Align2::LEFT_CENTER, dir, egui::FontId::proportional(12.0), t.text_faint);
+            if resp.on_hover_text(path.display().to_string()).clicked() {
+                open = Some(path.clone());
+            }
+            y += 46.0;
+            if y > r.bottom() {
+                break;
+            }
+        }
+        if list.is_empty() {
+            p.text(main.center(), egui::Align2::CENTER_CENTER, crate::i18n::t("Здесь пока ничего нет."), egui::FontId::proportional(18.0), t.text);
+            p.text(main.center() + egui::vec2(0.0, 26.0), egui::Align2::CENTER_CENTER, crate::i18n::t("Чтобы начать, создайте или откройте проект."), egui::FontId::proportional(14.0), t.text_dim);
+        }
+        ui.allocate_rect(r, egui::Sense::hover());
+        if let Some(path) = open {
+            self.open(path);
+        }
+        match action {
+            Some("open") => self.open_dialog(),
+            Some("new") => {
                 self.new_project();
                 self.leave_start();
             }
-            ui.add_space(6.0);
-            if let Some(sample) = SAMPLES.iter().map(Path::new).find(|p| p.exists())
-                && ui.add(wide("Открыть пример")).on_hover_text(sample.display().to_string()).clicked()
-            {
-                self.open(sample.to_path_buf());
-                self.leave_start();
-            }
-            ui.add_space(6.0);
-            if ui.add(wide("Как пользоваться")).clicked() {
-                self.help = true;
-            }
-        });
-        ui.scope_builder(egui::UiBuilder::new().max_rect(right.shrink2(egui::vec2(36.0, 32.0))), |ui| {
-            ui.label(RichText::new(crate::i18n::t("Последние")).size(22.0).color(Color32::from_rgb(0xdd, 0xe2, 0xea)));
-            ui.add_space(12.0);
-            let list = recent();
-            if list.is_empty() {
-                ui.weak(crate::i18n::t("Здесь появятся файлы, которые вы открывали и сохраняли."));
-            }
-            let mut open = None;
-            egui::ScrollArea::vertical().id_salt("recent").show(ui, |ui| {
-                for p in list {
-                    let name = p.file_name().map_or_else(|| p.display().to_string(), |f| f.to_string_lossy().into_owned());
-                    let r = ui.add(egui::Button::new(RichText::new(name).size(15.0)).frame(false));
-                    ui.weak(p.parent().map(|d| d.display().to_string()).unwrap_or_default());
-                    ui.add_space(6.0);
-                    if r.clicked() {
-                        open = Some(p);
-                    }
+            Some("sample") => {
+                if let Some(s) = sample {
+                    self.open(s.to_path_buf());
                 }
-            });
-            if let Some(p) = open {
-                self.open(p);
-                self.leave_start();
             }
-        });
-        ui.allocate_rect(full, egui::Sense::hover());
+            Some("help") => self.help = true,
+            _ => {}
+        }
     }
 
     /// После выбора на стартовой странице — к модели.
     fn leave_start(&mut self) {
+        self.start = false;
         self.show_pane(Pane::Model);
     }
 
