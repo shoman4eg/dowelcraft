@@ -17,11 +17,12 @@ pub struct Doc {
     pub furniture_sel: Option<u32>,
     pub card: usize,
     pub dirty: bool,
+    pub hidden: std::collections::HashSet<Sel>,
 }
 
 impl Doc {
     pub fn empty() -> Doc {
-        Doc { session: Some(Session::new(Project::new("Новый проект"))), job: Job::from_project(Project::new("Новый проект")), path: None, selection: Vec::new(), furniture_sel: None, card: 0, dirty: false }
+        Doc { session: Some(Session::new(Project::new("Новый проект"))), job: Job::from_project(Project::new("Новый проект")), path: None, selection: Vec::new(), furniture_sel: None, card: 0, dirty: false, hidden: Default::default() }
     }
 
     /// Имя для вкладки.
@@ -46,6 +47,7 @@ impl App {
         std::mem::swap(&mut self.furniture_sel, &mut doc.furniture_sel);
         std::mem::swap(&mut self.card, &mut doc.card);
         std::mem::swap(&mut self.dirty, &mut doc.dirty);
+        std::mem::swap(&mut self.hidden, &mut doc.hidden);
     }
 
     /// Сделать активным документ `i` (в `docs` активный лежит пустышкой на своём месте).
@@ -211,6 +213,22 @@ mod tests {
                 assert!(apart, "{} и {} пересекаются", a.panel.name, b.panel.name);
             }
         }
+    }
+
+    /// Скрытая глазом деталь остаётся скрытой у своего проекта при переключении вкладок.
+    #[test]
+    fn hidden_parts_belong_to_their_project() {
+        let mut app = App::default();
+        app.exec("material.add", json!({ "name": "ЛДСП 16", "thickness": 16, "sheet": [2800, 2070], "coef": 1.2 }));
+        app.add_object("panel");
+        app.add_object("panel");
+        let first = crate::Sel::of(app.parts.as_ref().unwrap(), 0);
+        app.hidden.insert(first);
+        assert_eq!(app.hidden_parts().into_iter().collect::<Vec<_>>(), vec![0]);
+        app.new_project();
+        assert!(app.hidden_parts().is_empty());
+        app.switch_doc(0);
+        assert_eq!(app.hidden_parts().into_iter().collect::<Vec<_>>(), vec![0]);
     }
 
     /// Несохранённые изменения — сначала вопрос, а не закрытие.

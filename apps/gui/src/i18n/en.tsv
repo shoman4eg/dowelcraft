@@ -404,3 +404,13 @@
 крыло Z	wing Z
 длина	length
 толщина	thickness
+Каркас	Carcass
+Задние стенки	Back panels
+Показать	Show
+Скрыть в 3D и на виде спереди (в деталях и раскрое остаётся)	Hide in 3D and the front view (stays in parts and cutting)
+Название группы	Group name
+Разгруппировать	Ungroup
+Сгруппировать	Group
+Собрать выделенное в группу (блок): двигается и копируется вместе	Group the selection into a block: it moves and copies together
+Выделите группу (щелчок по её названию) — её содержимое выйдет на уровень выше	Select a group (click its name) — its contents move one level up
+Показать скрытые	Show hidden

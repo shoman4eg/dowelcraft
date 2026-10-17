@@ -11,6 +11,7 @@ mod i18n;
 mod icons;
 mod library;
 mod settings;
+mod structure;
 mod textures;
 mod theme;
 mod tools;
@@ -356,7 +357,7 @@ struct FillTool {
 }
 
 /// Выделение: объект верхнего уровня, панель дерева (0 — деталь шаблона) и номер детали внутри объекта.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 struct Sel {
     owner: u32,
     id: u32,
@@ -397,7 +398,7 @@ const EXPORTS: [(&str, &str); 8] = [
 
 /// Боковая панель: отступ от краёв и прокрутка.
 fn side(ui: &mut egui::Ui, id: &str, body: impl FnOnce(&mut egui::Ui)) {
-    egui::ScrollArea::vertical().id_salt(id).show(ui, |ui| {
+    egui::ScrollArea::vertical().id_salt(id).auto_shrink([false, false]).show(ui, |ui| {
         egui::Frame::new().inner_margin(egui::Margin { left: 10, right: 10, top: 6, bottom: 8 }).show(ui, body);
     });
 }
@@ -467,6 +468,8 @@ struct App {
     drafting: bool,
     /// Показана стартовая страница (вместо рабочих панелей), как вкладка «Start» в cadcraft.
     start: bool,
+    /// Скрытые глазом в «Структуре модели» детали (не рисуются в 3D и на виде спереди).
+    hidden: std::collections::HashSet<Sel>,
     /// Вид на холсте: 3D, вид спереди, таблица деталей или раскрой (переключатель в верхней строке).
     view: Pane,
     /// Включён инструмент «Крепёж» (параметры под палитрой).
@@ -545,6 +548,7 @@ impl Default for App {
             help: false,
             fastening: false,
             view: Pane::Model,
+            hidden: Default::default(),
             about: false,
             edging: (None, true, 0.0),
             contour_tool: (ContourTool::Edge, 50.0),
@@ -1545,86 +1549,6 @@ impl App {
         });
     }
 
-    /// «Структура модели»: шаблоны (корпуса, угловые модули, столешницы) и дерево панелей и блоков.
-    fn structure_panel(&mut self, ui: &mut egui::Ui) {
-        let Ok(parts) = &self.parts else { return };
-        let sel = self.selected();
-        let all = self.selected_all();
-        let mut pick = None;
-        let mut menu_hit = None;
-        let mut act = None;
-        let mut row = |ui: &mut egui::Ui, i: usize, text: String| {
-            let r = ui.selectable_label(all.contains(&i), crate::i18n::t(text));
-            if r.clicked() {
-                pick = Some(i);
-            }
-            if r.secondary_clicked() {
-                menu_hit = Some(i);
-            }
-            r.context_menu(|ui| act = self.menu_items(ui));
-        };
-        // Группы по объекту верхнего уровня, в порядке деталей.
-        let mut owners: Vec<u32> = Vec::new();
-        for p in parts {
-            if !owners.contains(&p.owner) {
-                owners.push(p.owner);
-            }
-        }
-        let project = self.session.as_ref().map(|s| &s.project);
-        let title = |owner: u32| -> String {
-            let Some(pr) = project else { return "Модель Базиса".into() };
-            pr.cabinets.iter().find(|c| c.id == owner).map(|c| format!("Корпус: {}", c.name))
-                .or_else(|| pr.corners.iter().find(|c| c.id == owner).map(|c| format!("Угловой модуль: {}", c.name)))
-                .or_else(|| pr.countertops.iter().find(|c| c.id == owner).map(|c| format!("Столешница: {}", c.name)))
-                .or_else(|| pr.objects.iter().find(|o| o.id() == owner).map(|o| match o {
-                    design::Object::Block(b) => format!("Блок: {}", b.name),
-                    design::Object::Panel(p) => format!("Панель: {}", p.name),
-                    design::Object::Furniture(f) => format!("Фурнитура: {}", f.name),
-                }))
-                .unwrap_or_else(|| format!("Объект {owner}"))
-        };
-        for owner in owners {
-            let mine: Vec<usize> = (0..parts.len()).filter(|&i| parts[i].owner == owner).collect();
-            if mine.len() == 1 && parts[mine[0]].id == owner {
-                row(ui, mine[0], title(owner));
-                continue;
-            }
-            let open = sel.is_some_and(|i| parts[i].owner == owner);
-            egui::CollapsingHeader::new(format!("{} ({})", title(owner), mine.len())).id_salt(("own", owner)).open(open.then_some(true)).show(ui, |ui| {
-                for i in mine {
-                    let p = &parts[i].panel;
-                    row(ui, i, format!("{} {}", p.pos, p.name));
-                }
-            });
-        }
-        let furniture: Vec<(u32, String)> = project.map(|p| design::furniture(p).into_iter().map(|(f, _)| (f.id, f.name)).collect()).unwrap_or_default();
-        let mut fsel = None;
-        if !furniture.is_empty() {
-            ui.separator();
-            ui.strong(crate::i18n::t("Фурнитура"));
-            for (id, name) in furniture {
-                if ui.selectable_label(self.furniture_sel == Some(id), name).clicked() {
-                    fsel = Some(id);
-                }
-            }
-        }
-        if let Some(i) = pick {
-            self.select(Some(i));
-            self.furniture_sel = None;
-        }
-        if menu_hit.is_some() {
-            self.menu_pick(menu_hit);
-            self.furniture_sel = None;
-        }
-        if let Some(a) = act {
-            self.menu_apply(a);
-        }
-        if fsel.is_some() {
-            self.furniture_sel = fsel;
-            self.selection.clear();
-        }
-    }
-
     /// «Свойства» выделенной детали: её размеры и редактор объекта, которому она принадлежит.
     fn properties_panel(&mut self, ui: &mut egui::Ui) {
         // Шапка как в cadcraft: заголовок и что выделено.
@@ -1801,7 +1725,8 @@ impl App {
             ui.label(crate::i18n::t("Пусто. Добавьте материал и модуль или панель на вкладке «Проект»."));
             return;
         }
-        let rects = design::front_view(&parts, self.show_doors);
+        let hidden = self.hidden_parts();
+        let rects: Vec<_> = design::front_view(&parts, self.show_doors).into_iter().filter(|r| !hidden.contains(&r.part)).collect();
         let Some((lo, hi)) = design::bounds(&rects) else { return };
         let (resp, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::click_and_drag());
         let area = resp.rect.shrink(30.0);
@@ -2075,7 +2000,9 @@ impl App {
         };
         let doors = self.show_doors;
         let selected = self.selected_all();
-        let skip = |p: &Part| !doors && matches!(p.kind, design::Kind::Door | design::Kind::Drawer);
+        // Скрытые глазом детали — по адресу в списке (замыкание получает саму деталь).
+        let hidden: std::collections::HashSet<*const Part> = self.hidden_parts().into_iter().map(|i| &parts[i] as *const Part).collect();
+        let skip = |p: &Part| hidden.contains(&(p as *const Part)) || (!doors && matches!(p.kind, design::Kind::Door | design::Kind::Drawer));
         let mut clicks = Vec::new();
         if self.quad {
             // Как в Базисе: спереди | слева, сверху | аксонометрия.

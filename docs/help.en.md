@@ -32,6 +32,12 @@ basis-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 - **Material texture.** “Project” → “Choose…” at a material (or in the new material form): an image library by folders with previews and search. Add your folders with “+ Add folder…”. “by article” finds the Baltlaminat image by the material article. See it in the 3D “Textured” mode.
 - **The grid** in the front view and in 3D is infinite and its spacing grows when you zoom out. Toggle it with F7 or the grid icon at the bottom right; spacing and major lines — the gear “Drafting settings”.
 
+## Model structure
+
+- The item tree: cabinets (inside — “Carcass”, “Back panels”, “Doors”, “Drawers”), groups (blocks) and free panels. Click a part to select it, a group name to select the whole group.
+- **The eye** on a row hides or shows a part or a whole group in 3D and the front view (hidden parts stay in the parts table and cutting). “Show hidden” brings everything back.
+- **Group** puts the selection into a group that moves and copies as one. Right-click a group to rename or ungroup it.
+
 ## Cabinets and free panels
 
 Cabinets, corner units and countertops are **templates**: change the width and all parts are recalculated. To edit one part of a template (cut-out, fillet, own size), select it and press “Explode” — the template becomes a set of free panels.
