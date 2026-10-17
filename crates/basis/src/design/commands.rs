@@ -30,6 +30,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("corner.set", "{id, ...поля}"),
     ("corner.remove", "{id}"),
     ("panel.add", "{material, plane: front|horizontal|vertical, size: [a, b], position?: [x,y,z] мин. угол габарита, name?, texture?: Horizontal|Vertical|Default, kind?: body|back|door|drawer, block?} → {id}. Размеры контура: front — ширина×высота, horizontal — ширина×глубина, vertical — глубина×высота; толщина — из материала"),
+    ("panel.fill", "{material, plane, at: [x, y] точка в проёме на виде спереди, gaps?: [4 отступа], name?, kind?} → {id}. Панель во весь проём между ближайшими деталями (двери не в счёт), как «~» в Базисе. horizontal — нижней пластью на высоту y, gaps [слева, справа, сзади, спереди]; vertical — левой пластью на x, gaps [сзади, спереди, снизу, сверху]; front — вровень с передом проёма, gaps [слева, справа, снизу, сверху]"),
     ("panel.set", "{id, name?, material?, frame?: {origin, x, y, z}, ...поля} — панель дерева объектов"),
     ("panel.remove", "{id}"),
     ("block.set", "{id, name?, frame?} — блок дерева объектов"),
@@ -247,6 +248,7 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
             return item(&mut pr.corners, id, cmd, p, "Угловой модуль");
         }
         "panel.add" => return panel_add(pr, p),
+        "panel.fill" => return panel_fill(pr, p),
         "cabinet.explode" | "corner.explode" | "countertop.explode" => return explode(pr, idx(p, "id")? as u32),
         "panel.set" | "block.set" => {
             let id = idx(p, "id")? as u32;
@@ -309,6 +311,23 @@ fn explode(pr: &mut Project, id: u32) -> Result<Value, String> {
     pr.countertops.retain(|c| c.id != id);
     pr.objects.push(Object::Block(Block { id, name, frame: Frame::IDENTITY, children }));
     Ok(json!({ "id": id }))
+}
+
+/// `panel.fill`: панель в проёме у точки вида спереди (см. [`fill::fill`]).
+fn panel_fill(pr: &mut Project, p: &Value) -> Result<Value, String> {
+    let plane: Plane = serde_json::from_value(field(p, "plane")?.clone()).map_err(|e| format!("plane: {e}"))?;
+    let at: [f64; 2] = serde_json::from_value(field(p, "at")?.clone()).map_err(|e| format!("at: {e}"))?;
+    let gaps: [f64; 4] = match p.get("gaps") {
+        Some(g) => serde_json::from_value(g.clone()).map_err(|e| format!("gaps: {e}"))?,
+        None => [0.0; 4],
+    };
+    let t = pr.material(s(p, "material")?)?.thickness;
+    let f = fill::fill(&build(pr)?, plane, at, t, gaps)?;
+    let mut args = p.clone();
+    let obj = args.as_object_mut().ok_or("параметры должны быть объектом")?;
+    obj.insert("size".into(), json!(f.size));
+    obj.insert("position".into(), json!(f.position));
+    panel_add(pr, &args)
 }
 
 /// `panel.add`: прямоугольная панель в одной из трёх плоскостей, `position` — минимальный угол габарита.

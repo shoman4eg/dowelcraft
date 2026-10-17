@@ -254,3 +254,27 @@ fn reports_work_on_own_model() {
     let xml = crate::raskroy::project_string("Шкаф", &panels, |_| (2800.0, 2070.0));
     assert_eq!(xml.matches("<BOARDSMP>").count(), 11);
 }
+
+/// Панель в проём: полка между боковиной и перегородкой, стойка между дном и крышей, вставка спереди.
+#[test]
+fn panel_fill_takes_the_opening() {
+    let mut s = wardrobe();
+    // Левая секция шкафа: от боковины (16) до перегородки (392), глубина 0…600.
+    let id = |v: Value| v["id"].as_u64().unwrap() as u32;
+    let shelf = id(s.execute("panel.fill", &json!({"material": "ЛДСП Белый 16", "plane": "horizontal", "at": [200, 1500], "gaps": [0, 0, 0, 20]})).unwrap());
+    let parts = build(&s.project).unwrap();
+    let p = parts.iter().find(|p| p.id == shelf).unwrap();
+    assert_eq!((p.origin, p.size), ([16.0, 1500.0, 0.0], [376.0, 16.0, 580.0]));
+    // Стойка в правой секции между полкой (на 800 от дна → верх 80+16+800+16 = 912) и крышей (2000−16).
+    let post = id(s.execute("panel.fill", &json!({"material": "ЛДСП Белый 16", "plane": "vertical", "at": [600, 1500]})).unwrap());
+    let parts = build(&s.project).unwrap();
+    let p = parts.iter().find(|p| p.id == post).unwrap();
+    assert_eq!((p.origin, p.size), ([600.0, 912.0, 0.0], [16.0, 1984.0 - 912.0, 600.0]));
+    // Фронтальная в левой секции: между дном (верх 96) и полкой шкафа на 400 (низ 496), отступы по 2 мм.
+    let front = id(s.execute("panel.fill", &json!({"material": "ЛДСП Белый 16", "plane": "front", "at": [200, 300], "gaps": [2, 2, 2, 2]})).unwrap());
+    let parts = build(&s.project).unwrap();
+    let p = parts.iter().find(|p| p.id == front).unwrap();
+    assert_eq!((p.origin, p.size), ([18.0, 98.0, 584.0], [372.0, 396.0, 16.0]));
+    // Вне шкафа проёма нет.
+    assert!(s.execute("panel.fill", &json!({"material": "ЛДСП Белый 16", "plane": "horizontal", "at": [5000, 500]})).is_err());
+}

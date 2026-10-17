@@ -103,6 +103,14 @@ fn permissions(_: &Pane) -> Permissions {
     Permissions { closable: false, ..Permissions::default() }
 }
 
+/// Режим установки панели в проём (как «~» в Базисе).
+struct FillTool {
+    plane: &'static str,
+    material: String,
+    /// Отступы от границ в осях контура (см. команду `panel.fill`).
+    gaps: [f64; 4],
+}
+
 /// Выделение: объект верхнего уровня, панель дерева (0 — деталь шаблона) и номер детали внутри объекта.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct Sel {
@@ -149,6 +157,8 @@ struct App {
     new_edge: (String, f64, f64),
     /// Новая панель: плоскость и размеры контура.
     new_panel: (&'static str, f64, f64),
+    /// Режим «Панель в проём» на виде спереди: плоскость, материал, отступы.
+    fill: Option<FillTool>,
     screenshot: Option<PathBuf>,
     frames: u32,
     /// Детали изделия с положением (или ошибка сборки) — пересобираются в `refresh`.
@@ -175,6 +185,7 @@ impl Default for App {
             new_material: NewMaterial { name: "ЛДСП 16".into(), thickness: 16.0, sheet: (2800.0, 2070.0), coef: 1.2 },
             new_edge: ("ПВХ 0,4".into(), 0.4, 19.0),
             new_panel: ("vertical", 560.0, 720.0),
+            fill: None,
             screenshot: None,
             frames: 0,
             parts: Ok(Vec::new()),
@@ -602,10 +613,42 @@ impl App {
         }
     }
 
+    /// Панель режима «в проём»: включение, плоскость, материал, отступы.
+    fn fill_toolbar(&mut self, ui: &mut egui::Ui) {
+        let Some(s) = &self.session else { return };
+        let names: Vec<String> = s.project.materials.iter().map(|m| m.name.clone()).collect();
+        ui.horizontal(|ui| {
+            let mut on = self.fill.is_some();
+            if ui.toggle_value(&mut on, "Панель в проём").on_hover_text("Щелчок внутри проёма ставит панель между ближайшими деталями, как «~» в Базисе").changed() {
+                self.fill = match (on, names.first()) {
+                    (true, Some(m)) => Some(FillTool { plane: "horizontal", material: m.clone(), gaps: [0.0; 4] }),
+                    _ => None,
+                };
+            }
+            let Some(t) = &mut self.fill else { return };
+            for (p, label) in [("horizontal", "Горизонтальная"), ("vertical", "Вертикальная"), ("front", "Фронтальная")] {
+                ui.selectable_value(&mut t.plane, p, label);
+            }
+            if let Some(Some(m)) = editors::choose(ui, "fill_mat", Some(&t.material), &names, false) {
+                t.material = m;
+            }
+            let labels = match t.plane {
+                "horizontal" => ["слева", "справа", "сзади", "спереди"],
+                "vertical" => ["сзади", "спереди", "снизу", "сверху"],
+                _ => ["слева", "справа", "снизу", "сверху"],
+            };
+            ui.label("отступы:");
+            for (g, l) in t.gaps.iter_mut().zip(labels) {
+                ui.add(egui::DragValue::new(g).range(-100.0..=500.0).prefix(format!("{l} ")).suffix(" мм"));
+            }
+        });
+    }
+
     fn front_view(&mut self, ui: &mut egui::Ui) {
         if ui.checkbox(&mut self.show_doors, "Показывать двери и фасады").changed() {
             self.revision += 1;
         }
+        self.fill_toolbar(ui);
         let parts = match &self.parts {
             Ok(p) => p.clone(),
             Err(e) => {
@@ -646,6 +689,35 @@ impl App {
                 painter.text(to(c.position[0] + c.width / 2.0, c.position[1]) + Vec2::new(0.0, 14.0), egui::Align2::CENTER_CENTER, format!("{}", c.width), egui::FontId::proportional(13.0), Color32::BLACK);
                 painter.text(to(c.position[0], c.position[1] + c.height / 2.0) - Vec2::new(16.0, 0.0), egui::Align2::CENTER_CENTER, format!("{}", c.height), egui::FontId::proportional(13.0), Color32::BLACK);
             }
+        }
+        // Режим «в проём»: фантом будущей панели под курсором, щелчок — поставить.
+        let mm_at = |p: Pos2| [((p.x - area.left()) as f64 / k + lo[0]).round(), ((area.bottom() - p.y) as f64 / k + lo[1]).round()];
+        if let (Some(t), Some(m)) = (&self.fill, ui.ctx().pointer_hover_pos().filter(|m| resp.rect.contains(*m))) {
+            let at = mm_at(m);
+            let plane: Option<design::Plane> = serde_json::from_value(json!(t.plane)).ok();
+            let thick = self.session.as_ref().and_then(|s| s.project.material(&t.material).ok()).map_or(16.0, |m| m.thickness);
+            match plane.map(|pl| (pl, design::fill::fill(&parts, pl, at, thick, t.gaps))) {
+                Some((pl, Ok(f))) => {
+                    let (w, h) = match pl {
+                        design::Plane::Horizontal => (f.size[0], thick),
+                        design::Plane::Vertical => (thick, f.size[1]),
+                        design::Plane::Front => (f.size[0], f.size[1]),
+                    };
+                    let r = Rect::from_two_pos(to(f.position[0], f.position[1]), to(f.position[0] + w, f.position[1] + h));
+                    painter.rect(r, 0.0, Color32::from_rgba_unmultiplied(255, 170, 70, 90), Stroke::new(1.5, Color32::from_rgb(220, 110, 0)), StrokeKind::Inside);
+                    painter.text(r.center_top() - Vec2::new(0.0, 4.0), egui::Align2::CENTER_BOTTOM, format!("{} × {}", f.size[0], f.size[1]), egui::FontId::proportional(13.0), Color32::from_rgb(160, 70, 0));
+                    if resp.clicked() {
+                        let cmd = json!({ "material": t.material, "plane": t.plane, "at": at, "gaps": t.gaps });
+                        self.exec("panel.fill", cmd);
+                        return;
+                    }
+                }
+                Some((_, Err(e))) => {
+                    painter.text(m + Vec2::new(12.0, 12.0), egui::Align2::LEFT_TOP, e, egui::FontId::proportional(12.0), Color32::from_rgb(200, 40, 40));
+                }
+                None => {}
+            }
+            return;
         }
         if resp.clicked() {
             self.select(hovered);
