@@ -283,6 +283,36 @@ pub fn spec(panels: &[Panel]) -> Vec<SpecRow> {
     rows
 }
 
+/// Фурнитура модели Базиса: (наименование `Название\rАртикул`, количество), по имени.
+/// Считаются крепёж (3001) и покупные изделия (4001, 4004) — покупное целиком, без содержимого.
+/// Объекты с флагом `BazisFlags & 2` и всё внутри них в смету не идут — сверено со сметой
+/// `reference/pairs/sanuzly` (так исключаются, например, чашки петель внутри блоков петель).
+pub fn hardware(file: &File) -> Vec<(String, usize)> {
+    fn walk(n: &Node, out: &mut Vec<(String, usize)>, excluded: bool) {
+        let ty = n.int("Type");
+        let excluded = excluded || (ty.is_some() && n.int("BazisFlags").is_some_and(|f| f & 2 != 0));
+        if matches!(ty, Some(3001 | 4001 | 4004)) && !excluded {
+            let name = n.str("Name").unwrap_or("Без имени").to_string();
+            match out.iter_mut().find(|(m, _)| *m == name) {
+                Some(row) => row.1 += 1,
+                None => out.push((name, 1)),
+            }
+            if ty != Some(3001) {
+                return;
+            }
+        }
+        for c in &n.children {
+            walk(c, out, excluded);
+        }
+    }
+    let mut out = Vec::new();
+    if let Some(model) = file.section("Document").and_then(|d| d.get("Model")) {
+        walk(model, &mut out, false);
+    }
+    out.sort();
+    out
+}
+
 /// Строка расчёта материалов, как в смете Базиса.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MaterialRow {

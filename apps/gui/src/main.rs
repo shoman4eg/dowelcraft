@@ -167,7 +167,7 @@ impl App {
             "html" => job::document(job, &self.cuts).into_bytes(),
             "xml" => basis::raskroy::project_xml(&job.name, &job.panels, |m| job.sheet(m, sheet)),
             "spec" => basis::report::spec_csv(&panel::spec(&job.panels)).into_bytes(),
-            _ => basis::report::materials_csv(&panel::materials(&job.panels, |m| job.coef(m, 1.2))).into_bytes(),
+            _ => basis::report::materials_csv(&job.estimate(1.2)).into_bytes(),
         };
         match std::fs::write(&p, bytes) {
             Ok(()) => self.status = format!("Сохранено: {}", p.display()),

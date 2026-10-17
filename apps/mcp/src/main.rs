@@ -71,7 +71,7 @@ fn tools() -> Value {
              "command": {"type": "string"}, "params": {"type": "object"}}, "required": ["command"]}},
         {"name": "parts", "description": "Список деталей: №, наименование, материал, пильные длина×ширина×толщина, кромка.",
          "inputSchema": {"type": "object", "properties": {}}},
-        {"name": "smeta", "description": "Расход материалов: плиты (м²) и кромка (м), как смета Базиса.",
+        {"name": "smeta", "description": "Расход материалов: плиты (м²), кромка (м) и фурнитура из моделей Базиса (шт), как смета Базиса.",
          "inputSchema": {"type": "object", "properties": {}}},
         {"name": "cut", "description": "Раскроить детали по листам. Итог по материалам: листов, % использования, не поместившиеся детали.",
          "inputSchema": {"type": "object", "properties": {
@@ -181,7 +181,7 @@ impl Server {
                 Ok(text(t))
             }
             "smeta" => {
-                let rows = panel::materials(&self.job.panels, |m| self.job.coef(m, 1.2));
+                let rows = self.job.estimate(1.2);
                 Ok(text(rows.iter().map(|r| format!("{} — {} {}\n", panel::material_name(&r.material), r.qty, r.unit)).collect::<String>()))
             }
             "cut" => {
@@ -208,7 +208,7 @@ impl Server {
                     }
                     "raskroy_xml" => basis::raskroy::project_xml(&job.name, &job.panels, |m| job.sheet(m, p.sheet)),
                     "spec_csv" => basis::report::spec_csv(&panel::spec(&job.panels)).into_bytes(),
-                    "smeta_csv" => basis::report::materials_csv(&panel::materials(&job.panels, |m| job.coef(m, 1.2))).into_bytes(),
+                    "smeta_csv" => basis::report::materials_csv(&job.estimate(1.2)).into_bytes(),
                     k => return Err(format!("неизвестный вид документа «{k}»")),
                 };
                 std::fs::write(&path, bytes).map_err(|e| format!("{}: {e}", path.display()))?;

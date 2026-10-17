@@ -91,7 +91,8 @@ fn run(args: &[String]) -> Result<(), String> {
         "spec" => write_or_print(args, &report::spec_csv(&panel::spec(&job.panels)))?,
         "smeta" => {
             let coef = num(args, "--coef")?;
-            let rows = panel::materials(&job.panels, |m| coef.unwrap_or_else(|| job.coef(m, 1.2)));
+            let mut rows = panel::materials(&job.panels, |m| coef.unwrap_or_else(|| job.coef(m, 1.2)));
+            rows.extend(job.estimate(1.2).into_iter().filter(|r| r.unit == "шт"));
             write_or_print(args, &report::materials_csv(&rows))?;
         }
         "raskroy" => {

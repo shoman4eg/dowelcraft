@@ -44,6 +44,22 @@ fn materials_match_bazis_estimate() {
     }
 }
 
+/// Фурнитура из модели совпадает со сметой Базиса по штучным позициям.
+#[test]
+fn hardware_matches_bazis_estimate() {
+    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/pairs/sanuzly/1.0711 Мебель в санузлы.b3d");
+    let Ok(data) = std::fs::read(&p) else { return };
+    let hw = basis::panel::hardware(&basis::b3d::parse(&data).unwrap());
+    let qty = |article: &str| hw.iter().filter(|(n, _)| n.ends_with(&format!("\r{article}"))).map(|r| r.1).sum::<usize>();
+    // Значения из сметы.
+    for (article, want) in [("113706", 50), ("4*16", 116), ("4*20", 24), ("4*30", 107), ("9071313/9073662", 16),
+        ("9071576", 20), ("BU17PN", 40), ("FRM0598/1", 8), ("DU-10х62", 13), ("12535", 2), ("GOLA BALANCE RPK001", 6)] {
+        assert_eq!(qty(article), want, "{article}");
+    }
+    // Чашки петель лежат в блоках с флагом «не в смету» — Базис их не считает.
+    assert!(!hw.iter().any(|(n, _)| n.starts_with("Чашка петли")));
+}
+
 #[test]
 fn all_samples_parse() {
     let files = samples();

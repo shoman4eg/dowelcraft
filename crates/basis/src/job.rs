@@ -16,6 +16,8 @@ pub struct Job {
     pub panels: Vec<Panel>,
     /// Плиты Базиса с неразобранным контуром.
     pub skipped: Vec<String>,
+    /// Фурнитура из модели Базиса: (наименование, количество).
+    pub hardware: Vec<(String, usize)>,
     /// Свой проект, если открыт `.bcraft`: из него берутся форматы листов и коэффициенты.
     pub project: Option<Project>,
 }
@@ -30,13 +32,13 @@ impl Job {
         } else {
             let file = crate::b3d::parse(&data).map_err(|e| format!("{}: {e}", path.display()))?;
             let ex = panel::panels(&file);
-            Ok(Job { name, panels: ex.panels, skipped: ex.skipped, project: None })
+            Ok(Job { name, panels: ex.panels, skipped: ex.skipped, hardware: panel::hardware(&file), project: None })
         }
     }
 
     pub fn from_project(p: Project) -> Job {
         let panels = design::build(&p).map(|parts| parts.into_iter().map(|x| x.panel).collect()).unwrap_or_default();
-        Job { name: p.name.clone(), panels, skipped: Vec::new(), project: Some(p) }
+        Job { name: p.name.clone(), panels, skipped: Vec::new(), hardware: Vec::new(), project: Some(p) }
     }
 
     fn material(&self, full: &str) -> Option<&design::Material> {
@@ -60,6 +62,13 @@ impl Job {
     /// Коэффициент расхода: из материала проекта, иначе `default`.
     pub fn coef(&self, full: &str, default: f64) -> f64 {
         self.material(full).map_or(default, |m| m.coef)
+    }
+
+    /// Смета: плиты и кромка с коэффициентами (`default` — если в проекте нет своего), затем фурнитура в штуках.
+    pub fn estimate(&self, default: f64) -> Vec<panel::MaterialRow> {
+        let mut rows = panel::materials(&self.panels, |m| self.coef(m, default));
+        rows.extend(self.hardware.iter().map(|(n, q)| panel::MaterialRow { material: n.clone(), unit: "шт", coef: 1.0, qty: *q as f64 }));
+        rows
     }
 
     /// Номер детали: позиция из модели, а если её нет — порядковый номер.
