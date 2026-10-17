@@ -405,6 +405,7 @@ pub fn button_if(ui: &mut egui::Ui, enabled: bool, icon: Icon, size: f32, toolti
     }
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
     paint(ui.painter(), rect.shrink(size * 0.1), icon, true);
+    remember_hover(&resp, &format!("{tooltip} (сейчас недоступно)"));
     resp.on_hover_text(tooltip)
 }
 
@@ -414,5 +415,22 @@ pub fn button(ui: &mut egui::Ui, icon: Icon, size: f32, tooltip: &str, selected:
     let resp = IconButton::new(tooltip, egui::vec2(size, size), &style).selected(selected).show(ui, |ui, rect, _| {
         paint(ui.painter(), rect.shrink(size * 0.1), icon, !ui.is_enabled());
     });
+    remember_hover(&resp, tooltip);
     resp.on_hover_text(tooltip)
+}
+
+fn hover_id() -> egui::Id {
+    egui::Id::new("icon_hover_tip")
+}
+
+/// Описание иконки под мышью — для строки состояния (как подсказки команд в cadcraft).
+fn remember_hover(resp: &egui::Response, tooltip: &str) {
+    if resp.hovered() {
+        resp.ctx.data_mut(|d| d.insert_temp(hover_id(), tooltip.to_string()));
+    }
+}
+
+/// Забрать описание иконки, над которой мышь была на прошлом кадре.
+pub fn take_hover(ctx: &egui::Context) -> Option<String> {
+    ctx.data_mut(|d| d.remove_temp::<String>(hover_id()))
 }

@@ -44,6 +44,7 @@ fn main() -> eframe::Result {
         Some("cut") => Pane::Cut,
         Some("front") => Pane::Front,
         Some("library") => Pane::Library,
+        Some("project") => Pane::Project,
         _ => Pane::Model,
     };
     let _ = app.layout.apply(Action::Activate { panel: pane });
@@ -65,7 +66,15 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default().with_inner_size([1400.0, 900.0]).with_title("basis-craft"),
         ..Default::default()
     };
-    eframe::run_native("basis-craft", options, Box::new(|_| Ok(Box::new(app))))
+    eframe::run_native(
+        "basis-craft",
+        options,
+        Box::new(|cc| {
+            // Подсказки к иконкам — почти сразу, а не через полсекунды неподвижной мыши.
+            cc.egui_ctx.all_styles_mut(|st| st.interaction.tooltip_delay = 0.15);
+            Ok(Box::new(app))
+        }),
+    )
 }
 
 /// Панели окна (раскладка — craft-ui docking).
@@ -306,6 +315,13 @@ fn num(v: f64) -> String {
     let r = (v * 10.0).round() / 10.0;
     let r = if r == 0.0 { 0.0 } else { r };
     if r.fract() == 0.0 { format!("{r:.0}") } else { format!("{r:.1}") }
+}
+
+/// Свободное название: `base`, а если занято — «base (2)», «base (3)»…
+fn free_name(base: &str, taken: &[&str]) -> String {
+    let base = base.trim();
+    let stem = base.rsplit_once(" (").filter(|(_, n)| n.trim_end_matches(')').parse::<u32>().is_ok()).map_or(base, |(s, _)| s);
+    std::iter::once(base.to_string()).chain((2..).map(|k| format!("{stem} ({k})"))).find(|n| !taken.contains(&n.as_str())).unwrap_or_default()
 }
 
 /// Пункт меню правой кнопки (и клавиша Delete).
@@ -612,15 +628,22 @@ impl eframe::App for App {
                 self.menu_apply(MenuAct::Deselect);
             }
         }
+        let hover = icons::take_hover(&ctx);
         egui::Panel::bottom("status").show(ui, |ui| {
             ui.horizontal(|ui| {
                 match &self.error {
                     Some(e) => {
                         ui.colored_label(Color32::from_rgb(220, 70, 70), e);
                     }
-                    None => {
-                        ui.label(egui::RichText::new(self.hint()).color(Color32::from_rgb(0x9f, 0xc8, 0xf5)));
-                    }
+                    None => match &hover {
+                        // Мышь над иконкой — что она делает.
+                        Some(tip) => {
+                            ui.label(egui::RichText::new(format!("🛈 {tip}")).color(Color32::from_rgb(0xf5, 0xd0, 0x8a)));
+                        }
+                        None => {
+                            ui.label(egui::RichText::new(self.hint()).color(Color32::from_rgb(0x9f, 0xc8, 0xf5)));
+                        }
+                    },
                 }
                 if !self.status.is_empty() {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.weak(&self.status));
@@ -749,84 +772,142 @@ impl App {
             cmds.push(("project.rename", json!({ "name": name })));
         }
 
-        egui::CollapsingHeader::new(format!("Материалы ({})", project.materials.len())).default_open(project.materials.is_empty()).show(ui, |ui| {
+        egui::CollapsingHeader::new(format!("Материалы ({})", project.materials.len())).default_open(true).show(ui, |ui| {
             for m in &project.materials {
-                ui.label(format!("{} — {} мм, лист {}×{}, коэф. {}", m.name, m.thickness, m.sheet.0, m.sheet.1, m.coef));
-                ui.horizontal(|ui| {
-                    let shown = m.texture.as_deref().and_then(|t| std::path::Path::new(t).file_name()).map_or("нет".into(), |f| f.to_string_lossy().into_owned());
-                    ui.label(format!("текстура: {shown}"));
-                    if ui.small_button("…").on_hover_text("Выбрать картинку").clicked()
-                        && let Some(p) = rfd::FileDialog::new().add_filter("Картинка", &["jpg", "jpeg", "png"]).pick_file()
-                    {
-                        cmds.push(("material.set", json!({ "name": m.name, "texture": p.display().to_string() })));
-                    }
-                    if ui.small_button("по артикулу").on_hover_text("Найти d(<артикул>)1.jpg в папке текстур (Балтламинат)").clicked() {
-                        match basis::library::find_texture(std::path::Path::new(&self.textures_dir), &m.article) {
-                            Some(p) => cmds.push(("material.set", json!({ "name": m.name, "texture": p.display().to_string() }))),
-                            None => self.status = format!("Текстура для артикула «{}» в «{}» не найдена", m.article, self.textures_dir),
+                // Каждый материал — в своей рамке, чтобы не сливался с формой нового.
+                egui::Frame::group(ui.style()).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.strong(&m.name);
+                    ui.label(format!("{} мм, лист {}×{}, коэф. {}", m.thickness, m.sheet.0, m.sheet.1, m.coef));
+                    ui.horizontal(|ui| {
+                        let shown = m.texture.as_deref().and_then(|t| std::path::Path::new(t).file_name()).map_or("нет".into(), |f| f.to_string_lossy().into_owned());
+                        ui.label(format!("текстура: {shown}"));
+                        if ui.small_button("…").on_hover_text("Выбрать картинку").clicked()
+                            && let Some(p) = rfd::FileDialog::new().add_filter("Картинка", &["jpg", "jpeg", "png"]).pick_file()
+                        {
+                            cmds.push(("material.set", json!({ "name": m.name, "texture": p.display().to_string() })));
                         }
-                    }
-                    let mut tile = m.texture_size.unwrap_or([1000.0, 1000.0]);
-                    let r1 = ui.add(crate::expr::drag(&mut tile[0]).range(10.0..=5000.0).suffix(" мм"));
-                    let r2 = ui.add(crate::expr::drag(&mut tile[1]).range(10.0..=5000.0).suffix(" мм")).on_hover_text("Плитка текстуры: вдоль волокон × поперёк");
-                    let done = |r: &egui::Response| r.drag_stopped() || (r.changed() && !r.dragged());
-                    if (done(&r1) || done(&r2)) && Some(tile) != m.texture_size {
-                        cmds.push(("material.set", json!({ "name": m.name, "texture_size": tile })));
-                    }
-                });
-                ui.horizontal(|ui| {
-                    // Пусто — общие параметры раскроя со вкладки «Раскрой».
-                    for (key, label, value, general) in [("trim", "обрезка", m.trim, self.params.trim), ("kerf", "пропил", m.kerf, self.params.kerf)] {
-                        let mut v = value.unwrap_or(general);
-                        ui.label(label);
-                        let r = ui.add(crate::expr::drag(&mut v).range(0.0..=50.0).speed(0.1).suffix(" мм"));
-                        if (r.drag_stopped() || (r.changed() && !r.dragged())) && Some(v) != value {
-                            cmds.push(("material.set", json!({ "name": m.name, key: v })));
+                        if ui.small_button("по артикулу").on_hover_text("Найти d(<артикул>)1.jpg в папке текстур (Балтламинат)").clicked() {
+                            match basis::library::find_texture(std::path::Path::new(&self.textures_dir), &m.article) {
+                                Some(p) => cmds.push(("material.set", json!({ "name": m.name, "texture": p.display().to_string() }))),
+                                None => self.status = format!("Текстура для артикула «{}» в «{}» не найдена", m.article, self.textures_dir),
+                            }
                         }
-                    }
+                        let mut tile = m.texture_size.unwrap_or([1000.0, 1000.0]);
+                        let r1 = ui.add(crate::expr::drag(&mut tile[0]).range(10.0..=5000.0).suffix(" мм"));
+                        let r2 = ui.add(crate::expr::drag(&mut tile[1]).range(10.0..=5000.0).suffix(" мм")).on_hover_text("Плитка текстуры: вдоль волокон × поперёк");
+                        let done = |r: &egui::Response| r.drag_stopped() || (r.changed() && !r.dragged());
+                        if (done(&r1) || done(&r2)) && Some(tile) != m.texture_size {
+                            cmds.push(("material.set", json!({ "name": m.name, "texture_size": tile })));
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        // Пусто — общие параметры раскроя со вкладки «Раскрой».
+                        for (key, label, value, general) in [("trim", "обрезка", m.trim, self.params.trim), ("kerf", "пропил", m.kerf, self.params.kerf)] {
+                            let mut v = value.unwrap_or(general);
+                            ui.label(label);
+                            let r = ui.add(crate::expr::drag(&mut v).range(0.0..=50.0).speed(0.1).suffix(" мм"));
+                            if (r.drag_stopped() || (r.changed() && !r.dragged())) && Some(v) != value {
+                                cmds.push(("material.set", json!({ "name": m.name, key: v })));
+                            }
+                        }
+                    });
                 });
             }
             let nm = &mut self.new_material;
-            egui::Grid::new("new_mat").num_columns(2).show(ui, |ui| {
-                ui.label("Название");
-                ui.text_edit_singleline(&mut nm.name);
-                ui.end_row();
-                ui.label("Толщина, мм");
-                ui.add(crate::expr::drag(&mut nm.thickness).range(0.1..=100.0));
-                ui.end_row();
-                ui.label("Лист, мм");
-                ui.horizontal(|ui| {
-                    ui.add(crate::expr::drag(&mut nm.sheet.0).range(100.0..=6000.0));
-                    ui.label("×");
-                    ui.add(crate::expr::drag(&mut nm.sheet.1).range(100.0..=6000.0));
-                });
-                ui.end_row();
-                ui.label("Коэффициент");
-                ui.add(crate::expr::drag(&mut nm.coef).range(1.0..=3.0).speed(0.01));
-                ui.end_row();
-            });
-            if ui.button("+ Добавить материал").clicked() {
-                cmds.push(("material.add", json!({ "name": nm.name, "thickness": nm.thickness, "sheet": [nm.sheet.0, nm.sheet.1], "coef": nm.coef })));
+            let name_id = egui::Id::new("new_material_name");
+            let names: Vec<&str> = project.materials.iter().map(|m| m.name.as_str()).collect();
+            // Занятое название, которое сейчас не вводят, сразу меняется на свободное («ЛДСП 16 (2)»).
+            if names.contains(&nm.name.trim()) && !ui.memory(|m| m.has_focus(name_id)) {
+                nm.name = free_name(&nm.name, &names);
             }
+            let taken = names.contains(&nm.name.trim());
+            ui.add_space(6.0);
+            egui::Frame::group(ui.style()).fill(Color32::from_rgb(0x1f, 0x2d, 0x40)).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.strong("➕ Новый материал");
+                egui::Grid::new("new_mat").num_columns(2).show(ui, |ui| {
+                    ui.label("Название");
+                    ui.add(egui::TextEdit::singleline(&mut nm.name).id(name_id));
+                    ui.end_row();
+                    if taken {
+                        ui.label("");
+                        ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), "такой уже есть — введите другое название");
+                        ui.end_row();
+                    }
+                    ui.label("Толщина, мм");
+                    ui.add(crate::expr::drag(&mut nm.thickness).range(0.1..=100.0));
+                    ui.end_row();
+                    ui.label("Лист, мм");
+                    ui.horizontal(|ui| {
+                        ui.add(crate::expr::drag(&mut nm.sheet.0).range(100.0..=6000.0));
+                        ui.label("×");
+                        ui.add(crate::expr::drag(&mut nm.sheet.1).range(100.0..=6000.0));
+                    });
+                    ui.end_row();
+                    ui.label("Коэффициент");
+                    ui.add(crate::expr::drag(&mut nm.coef).range(1.0..=3.0).speed(0.01));
+                    ui.end_row();
+                });
+                let ok = !taken && !nm.name.trim().is_empty();
+                if ui.add_enabled(ok, egui::Button::new("Добавить материал")).clicked() {
+                    cmds.push(("material.add", json!({ "name": nm.name.trim(), "thickness": nm.thickness, "sheet": [nm.sheet.0, nm.sheet.1], "coef": nm.coef })));
+                }
+            });
         });
 
         egui::CollapsingHeader::new(format!("Кромка ({})", project.edges.len())).show(ui, |ui| {
             for e in &project.edges {
-                ui.label(format!("{} — {} мм × {} мм", e.name, e.thickness, e.width));
+                egui::Frame::group(ui.style()).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.strong(&e.name);
+                    ui.label(format!("{} мм × {} мм", e.thickness, e.width));
+                });
             }
             let (n, t, w) = &mut self.new_edge;
-            ui.horizontal(|ui| {
-                ui.text_edit_singleline(n);
-                ui.add(crate::expr::drag(t).range(0.1..=5.0).speed(0.1).suffix(" мм"));
-                ui.add(crate::expr::drag(w).range(1.0..=100.0).suffix(" мм"));
-            });
-            if ui.button("+ Добавить кромку").clicked() {
-                cmds.push(("edge.add", json!({ "name": n, "thickness": t, "width": w })));
+            let name_id = egui::Id::new("new_edge_name");
+            let names: Vec<&str> = project.edges.iter().map(|e| e.name.as_str()).collect();
+            if names.contains(&n.trim()) && !ui.memory(|m| m.has_focus(name_id)) {
+                *n = free_name(n, &names);
             }
+            let taken = names.contains(&n.trim());
+            ui.add_space(6.0);
+            egui::Frame::group(ui.style()).fill(Color32::from_rgb(0x1f, 0x2d, 0x40)).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.strong("➕ Новая кромка");
+                egui::Grid::new("new_edge").num_columns(2).show(ui, |ui| {
+                    ui.label("Название");
+                    ui.add(egui::TextEdit::singleline(n).id(name_id));
+                    ui.end_row();
+                    if taken {
+                        ui.label("");
+                        ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), "такая уже есть — введите другое название");
+                        ui.end_row();
+                    }
+                    ui.label("Толщина");
+                    ui.add(crate::expr::drag(t).range(0.1..=5.0).speed(0.1).suffix(" мм"));
+                    ui.end_row();
+                    ui.label("Ширина");
+                    ui.add(crate::expr::drag(w).range(1.0..=100.0).suffix(" мм"));
+                    ui.end_row();
+                });
+                if ui.add_enabled(!taken && !n.trim().is_empty(), egui::Button::new("Добавить кромку")).clicked() {
+                    cmds.push(("edge.add", json!({ "name": n.trim(), "thickness": t, "width": w })));
+                }
+            });
         });
 
         for (cmd, p) in cmds {
-            self.exec(cmd, p);
+            let added = self.exec_ret(cmd, p).is_some();
+            // После добавления в форме — следующее свободное название, чтобы второй раз не упереться в «уже есть».
+            let Some(s) = self.session.as_ref().filter(|_| added) else { continue };
+            if cmd == "material.add" {
+                let taken: Vec<&str> = s.project.materials.iter().map(|m| m.name.as_str()).collect();
+                self.new_material.name = free_name(&self.new_material.name, &taken);
+            } else if cmd == "edge.add" {
+                let taken: Vec<&str> = s.project.edges.iter().map(|e| e.name.as_str()).collect();
+                self.new_edge.0 = free_name(&self.new_edge.0, &taken);
+            }
         }
     }
 
@@ -1671,7 +1752,7 @@ impl App {
 
     /// Иконка «Показывать двери и фасады».
     fn doors_toggle(&mut self, ui: &mut egui::Ui) {
-        if icons::button(ui, icons::Icon::Doors, 26.0, "Показывать двери и фасады", self.show_doors).clicked() {
+        if icons::button(ui, icons::Icon::Doors, 26.0, "Двери и фасады: показать или скрыть (скрыть — заглянуть внутрь корпуса)", self.show_doors).clicked() {
             self.show_doors = !self.show_doors;
             self.revision += 1;
         }
@@ -1879,4 +1960,17 @@ fn save_png(path: &std::path::Path, img: &egui::ColorImage) -> Result<(), String
     let mut w = enc.write_header().map_err(|e| e.to_string())?;
     let data: Vec<u8> = img.pixels.iter().flat_map(|c| c.to_array()).collect();
     w.write_image_data(&data).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::free_name;
+
+    #[test]
+    fn free_name_skips_taken() {
+        assert_eq!(free_name("МДФ 16", &["ЛДСП 16"]), "МДФ 16");
+        assert_eq!(free_name("ЛДСП 16", &["ЛДСП 16"]), "ЛДСП 16 (2)");
+        assert_eq!(free_name("ЛДСП 16 (2)", &["ЛДСП 16", "ЛДСП 16 (2)"]), "ЛДСП 16 (3)");
+        assert_eq!(free_name(" ЛДСП 16 ", &["ЛДСП 16", "ЛДСП 16 (2)"]), "ЛДСП 16 (3)");
+    }
 }
