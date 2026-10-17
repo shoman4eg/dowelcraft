@@ -3,6 +3,8 @@
 
 use std::path::PathBuf;
 
+mod viewport;
+
 use basis::design::{self, Part, Project, Session};
 use basis::job::{self, Job, MaterialCut};
 use basis::nest::Params;
@@ -14,12 +16,20 @@ fn main() -> eframe::Result {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let screenshot = args.iter().position(|a| a == "--screenshot").and_then(|i| args.get(i + 1)).map(PathBuf::from);
     let tab = args.iter().position(|a| a == "--tab").and_then(|i| args.get(i + 1)).cloned();
-    let file = args.iter().find(|a| !a.starts_with("--") && Some(a.as_str()) != tab.as_deref() && screenshot.as_deref() != Some(std::path::Path::new(a)));
+    // Режим 3D для снимков: solid | hidden | wire | xray.
+    let mode = args.iter().position(|a| a == "--mode").and_then(|i| args.get(i + 1)).cloned();
+    let file = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && (*i == 0 || !args[i - 1].starts_with("--"))).map(|(_, a)| a);
     let mut app = App::default();
     if let Some(f) = file {
         app.open(PathBuf::from(f));
     }
     app.screenshot = screenshot;
+    app.viewport.mode = match mode.as_deref() {
+        Some("hidden") => viewport::Mode::Hidden,
+        Some("wire") => viewport::Mode::Wire,
+        Some("xray") => viewport::Mode::XRay,
+        _ => viewport::Mode::Solid,
+    };
     app.tab = match tab.as_deref() {
         Some("parts") => Tab::Parts,
         Some("cut") => Tab::Cut,
@@ -65,6 +75,11 @@ struct App {
     new_edge: (String, f64, f64),
     screenshot: Option<PathBuf>,
     frames: u32,
+    /// Детали изделия с положением (или ошибка сборки) — пересобираются в `refresh`.
+    parts: Result<Vec<Part>, String>,
+    /// Растёт при каждом изменении деталей или их видимости: окно модели перестраивает сетку.
+    revision: u64,
+    viewport: viewport::Viewport,
 }
 
 impl Default for App {
@@ -84,6 +99,9 @@ impl Default for App {
             new_edge: ("ПВХ 0,4".into(), 0.4, 19.0),
             screenshot: None,
             frames: 0,
+            parts: Ok(Vec::new()),
+            revision: 0,
+            viewport: viewport::Viewport::default(),
         };
         app.refresh();
         app
@@ -113,6 +131,8 @@ impl App {
         }
         let (job, params) = (&self.job, self.params);
         self.cuts = job::cut(job, |m| job.params(m, params));
+        self.parts = job::parts(&self.job);
+        self.revision += 1;
     }
 
     fn exec(&mut self, cmd: &str, p: Value) {
@@ -177,7 +197,7 @@ impl App {
 }
 
 impl eframe::App for App {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.top_bar(ui);
         egui::Panel::bottom("status").show(ui, |ui| match &self.error {
@@ -203,7 +223,7 @@ impl eframe::App for App {
             ui.separator();
             match self.tab {
                 Tab::Front => self.front_view(ui),
-                Tab::Iso => self.iso_view(ui),
+                Tab::Iso => self.iso_view(ui, frame),
                 Tab::Parts => self.parts_table(ui),
                 Tab::Cut => self.cut_view(ui),
             }
@@ -505,37 +525,23 @@ impl App {
         }
     }
 
-    fn iso_view(&mut self, ui: &mut egui::Ui) {
-        ui.checkbox(&mut self.show_doors, "Показывать двери и фасады");
-        let parts = match job::parts(&self.job) {
+    fn iso_view(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame) {
+        ui.horizontal(|ui| {
+            if ui.checkbox(&mut self.show_doors, "Показывать двери и фасады").changed() {
+                self.revision += 1;
+            }
+            ui.separator();
+            self.viewport.toolbar(ui);
+        });
+        let parts = match &self.parts {
             Ok(p) => p,
             Err(e) => {
                 ui.colored_label(Color32::RED, e);
                 return;
             }
         };
-        let faces = design::iso_view(&parts, self.show_doors);
-        let pts = faces.iter().flat_map(|f| f.pts);
-        let (lo, hi) = pts.fold(([f64::MAX; 2], [f64::MIN; 2]), |(lo, hi), p| ([lo[0].min(p[0]), lo[1].min(p[1])], [hi[0].max(p[0]), hi[1].max(p[1])]));
-        if faces.is_empty() {
-            ui.label("Нет деталей.");
-            return;
-        }
-        let (resp, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::hover());
-        let area = resp.rect.shrink(30.0);
-        let k = ((area.width() as f64) / (hi[0] - lo[0])).min((area.height() as f64) / (hi[1] - lo[1]));
-        let to = |p: [f64; 2]| Pos2::new(area.left() + ((p[0] - lo[0]) * k) as f32, area.bottom() - ((p[1] - lo[1]) * k) as f32);
-        painter.rect_filled(resp.rect, 0.0, Color32::from_gray(245));
-        for f in &faces {
-            let (r, g, b, a) = match f.kind {
-                design::Kind::Door | design::Kind::Drawer => (170.0, 200.0, 230.0, 230),
-                design::Kind::Back => (215.0, 215.0, 215.0, 255),
-                design::Kind::Body => (236.0, 220.0, 190.0, 255),
-            };
-            let c = |v: f64| (v * f.light).min(255.0) as u8;
-            let fill = Color32::from_rgba_unmultiplied(c(r), c(g), c(b), a);
-            painter.add(egui::Shape::convex_polygon(f.pts.iter().map(|&p| to(p)).collect(), fill, Stroke::new(0.7, Color32::from_gray(70))));
-        }
+        let doors = self.show_doors;
+        self.viewport.show(ui, frame, parts, self.revision, |p| !doors && matches!(p.kind, design::Kind::Door | design::Kind::Drawer));
     }
 
     fn parts_table(&mut self, ui: &mut egui::Ui) {
