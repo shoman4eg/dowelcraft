@@ -15,7 +15,7 @@ fn done(r: &egui::Response) -> bool {
 /// Поле в мм; возвращает новое значение, когда изменение завершено.
 pub fn mm(ui: &mut egui::Ui, value: f64, range: std::ops::RangeInclusive<f64>) -> Option<f64> {
     let mut v = value;
-    let r = ui.add(egui::DragValue::new(&mut v).range(range).suffix(" мм"));
+    let r = ui.add(crate::expr::drag(&mut v).range(range).suffix(" мм"));
     (done(&r) && v != value).then_some(v)
 }
 
@@ -48,7 +48,7 @@ pub fn position_editor(ui: &mut egui::Ui, pos: [f64; 3]) -> Option<[f64; 3]> {
         let mut p = pos;
         let mut changed = false;
         for v in &mut p {
-            let r = ui.add(egui::DragValue::new(v).range(-20000.0..=20000.0).speed(1.0));
+            let r = ui.add(crate::expr::drag(v).range(-20000.0..=20000.0).speed(1.0));
             changed |= done(&r);
         }
         if changed && p != pos {
@@ -310,7 +310,7 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
             ui.label(label);
             let mut v = value;
             // Применяем по отпусканию, чтобы перетаскивание давало один шаг отмены.
-            let r = ui.add(egui::DragValue::new(&mut v).range(min..=6000.0).suffix(" мм"));
+            let r = ui.add(crate::expr::drag(&mut v).range(min..=6000.0).suffix(" мм"));
             if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != value {
                 set(key, json!(v));
             }
@@ -333,7 +333,7 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
         ui.end_row();
         ui.label("Двери");
         let mut doors = c.doors;
-        let r = ui.add(egui::DragValue::new(&mut doors).range(0..=8));
+        let r = ui.add(crate::expr::drag(&mut doors).range(0..=8));
         if (r.drag_stopped() || (r.changed() && !r.dragged())) && doors != c.doors {
             set("doors", json!(doors));
         }
@@ -366,7 +366,7 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
     for (i, &x) in c.partitions.iter().enumerate() {
         ui.horizontal(|ui| {
             let mut v = x;
-            let r = ui.add(egui::DragValue::new(&mut v).range(0.0..=c.width).suffix(" мм"));
+            let r = ui.add(crate::expr::drag(&mut v).range(0.0..=c.width).suffix(" мм"));
             if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != x {
                 let mut xs = c.partitions.clone();
                 xs[i] = v;
@@ -386,8 +386,8 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
     for (i, sh) in c.shelves.iter().enumerate() {
         ui.horizontal(|ui| {
             let (mut sec, mut h) = (sh.section, sh.height);
-            let r1 = ui.add(egui::DragValue::new(&mut sec).range(0..=c.partitions.len()).prefix("секция "));
-            let r2 = ui.add(egui::DragValue::new(&mut h).range(0.0..=c.height).suffix(" мм"));
+            let r1 = ui.add(crate::expr::drag(&mut sec).range(0..=c.partitions.len()).prefix("секция "));
+            let r2 = ui.add(crate::expr::drag(&mut h).range(0.0..=c.height).suffix(" мм"));
             let done = |r: &egui::Response| r.drag_stopped() || (r.changed() && !r.dragged());
             if (done(&r1) || done(&r2)) && (sec != sh.section || h != sh.height) {
                 let mut shelves = c.shelves.clone();
@@ -410,7 +410,7 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
     ui.label("Ящики (высота фасада снизу вверх, мм):");
     if !c.partitions.is_empty() {
         let mut sec = c.drawer_section;
-        let r = ui.add(egui::DragValue::new(&mut sec).range(0..=c.partitions.len()).prefix("в секции "));
+        let r = ui.add(crate::expr::drag(&mut sec).range(0..=c.partitions.len()).prefix("в секции "));
         if (r.drag_stopped() || (r.changed() && !r.dragged())) && sec != c.drawer_section {
             cmds.push(("cabinet.set", json!({ "id": id, "drawer_section": sec })));
         }
@@ -418,7 +418,7 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
     for (i, &hf) in c.drawers.iter().enumerate() {
         ui.horizontal(|ui| {
             let mut v = hf;
-            let r = ui.add(egui::DragValue::new(&mut v).range(100.0..=1000.0).suffix(" мм"));
+            let r = ui.add(crate::expr::drag(&mut v).range(100.0..=1000.0).suffix(" мм"));
             if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != hf {
                 let mut ds = c.drawers.clone();
                 ds[i] = v;
