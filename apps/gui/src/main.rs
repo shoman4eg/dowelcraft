@@ -12,7 +12,7 @@ mod settings;
 mod tools;
 mod viewport;
 
-use craft_ui::docking::{Action, DockArea, DockStyle, Layout, Node, Permissions};
+use craft_ui::docking::{Action, DockArea, DockStyle, Layout, Node, Permissions, StackEntry};
 use craft_ui::layout::{SplitAxis, SplitSize};
 use editors::{Cmds, text_field};
 
@@ -115,20 +115,22 @@ impl Pane {
     }
 }
 
-/// Раскладка по умолчанию (как в cadcraft): слева палитра инструментов, проект и фурнитура;
-/// в центре 3D и вкладки; справа структура модели над свойствами.
+/// Раскладка по умолчанию (как в cadcraft): слева стопка палитр «Инструменты», «Проект», «Фурнитура»;
+/// в центре начало, 3D и вкладки; справа стопка «Структура модели» над «Свойствами». Палитры
+/// сворачиваются кнопкой в заголовке, тянутся за заголовок в другое место или наружу окном.
 fn default_layout() -> Layout<Pane> {
     let tabs = |panels: Vec<Pane>| Box::new(Node::Tabs { panels, active: 0 });
+    let stack = |entries: Vec<(Pane, bool, Option<f32>)>| Box::new(Node::Stack { entries: entries.into_iter().map(|(panel, open, height)| StackEntry { panel, open, height }).collect() });
     Layout {
         root: Some(Node::Split {
             axis: SplitAxis::Horizontal,
-            size: SplitSize::FixedFirst(300.0),
-            first: tabs(vec![Pane::Tools, Pane::Project, Pane::Library]),
+            size: SplitSize::FixedFirst(290.0),
+            first: stack(vec![(Pane::Tools, true, Some(380.0)), (Pane::Project, true, Some(300.0)), (Pane::Library, false, None)]),
             second: Box::new(Node::Split {
                 axis: SplitAxis::Horizontal,
                 size: SplitSize::FixedSecond(380.0),
                 first: tabs(vec![Pane::Start, Pane::Model, Pane::Front, Pane::Parts, Pane::Cut]),
-                second: Box::new(Node::Split { axis: SplitAxis::Vertical, size: SplitSize::Ratio(0.4), first: tabs(vec![Pane::Structure]), second: tabs(vec![Pane::Properties]) }),
+                second: stack(vec![(Pane::Structure, true, Some(300.0)), (Pane::Properties, true, None)]),
             }),
         }),
         floating: Vec::new(),
@@ -706,7 +708,16 @@ impl eframe::App for App {
         });
         egui::CentralPanel::default().show(ui, |ui| {
             let layout = self.layout.clone();
-            let style = DockStyle::from_ui(ui);
+            // Цвета палитр — как в cadcraft: заголовки светлее фона, активная вкладка — синеватая.
+            let mut style = DockStyle::from_ui(ui);
+            style.min_pane = 96.0;
+            style.background = Color32::from_rgb(0x2b, 0x30, 0x3a);
+            style.tab_background = Color32::from_rgb(0x3a, 0x41, 0x4e);
+            style.active_background = Color32::from_rgb(0x4e, 0x5a, 0x6e);
+            style.text = Color32::from_rgb(0xdd, 0xe2, 0xea);
+            style.inactive_text = Color32::from_rgb(0x9a, 0xa3, 0xb0);
+            style.border = Stroke::new(1.0, Color32::from_rgb(0x1c, 0x20, 0x27));
+            style.accent = Color32::from_rgb(0x4f, 0xa3, 0xf7);
             let out = DockArea::new(egui::Id::new("dock")).show(ui, &layout, &style, |p| p.label().to_string(), permissions, |ui, pane| match pane {
                 Pane::Start => self.start_page(ui),
                 Pane::Tools => side(ui, "tools", |ui| self.tools_panel(ui)),
@@ -815,7 +826,6 @@ impl App {
         let project = s.project.clone();
         let mut cmds: Cmds = Vec::new();
 
-        ui.heading("Проект");
         if let Some(name) = text_field(ui, "project_name", &project.name) {
             cmds.push(("project.rename", json!({ "name": name })));
         }
@@ -1458,7 +1468,6 @@ impl App {
     /// «Свойства» выделенной детали: её размеры и редактор объекта, которому она принадлежит.
     fn properties_panel(&mut self, ui: &mut egui::Ui) {
         // Шапка как в cadcraft: заголовок и что выделено.
-        ui.label(egui::RichText::new("Свойства").size(17.0));
         let n = self.selected_all().len();
         let what = match (self.furniture_sel, self.selected(), &self.parts) {
             (Some(_), _, _) => "Фурнитура".to_string(),
