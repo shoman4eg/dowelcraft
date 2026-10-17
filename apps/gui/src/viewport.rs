@@ -431,7 +431,9 @@ impl Viewport {
         let (o, d) = self.camera.ray(off, depth);
         let m = &self.mesh;
         m.indices
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .filter_map(|t| {
                 let tri = [0, 1, 2].map(|i| m.vertices[t[i] as usize].pos);
                 Some((hit(o, d, &tri)?, m.vertices[t[0] as usize].part as usize))

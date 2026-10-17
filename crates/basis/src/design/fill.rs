@@ -17,9 +17,9 @@ fn blocks(p: &Part) -> bool {
 }
 
 /// Ближайшие границы по оси `axis` (0 — X, 1 — Y) от `at` среди деталей, чья проекция на другую ось
-/// видa спереди накрывает точку. Детали, накрывающие точку по `axis`, — не границы (полка не ограничивает
+/// вида спереди накрывает точку. Детали, накрывающие точку по `axis`, — не границы (полка не ограничивает
 /// проём по ширине, задняя стенка — ни по чему). Возвращает (ближняя слева/снизу, ближняя справа/сверху).
-fn bounds<'a>(parts: &'a [Part], at: [f64; 2], axis: usize) -> (Option<&'a Part>, Option<&'a Part>) {
+fn bounds(parts: &[Part], at: [f64; 2], axis: usize) -> (Option<&Part>, Option<&Part>) {
     let other = 1 - axis;
     let across = |p: &&Part| p.origin[other] <= at[other] && at[other] <= p.origin[other] + p.size[other];
     let cands: Vec<&Part> = parts.iter().filter(|p| blocks(p)).filter(across).collect();
