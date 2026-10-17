@@ -97,6 +97,28 @@ pub struct Cabinet {
     /// Зазор между дверями и по краям, мм.
     #[serde(default = "default_gap")]
     pub door_gap: f64,
+    /// Выдвижные ящики: высоты фасадов снизу вверх, мм. Двери закрывают высоту над ними.
+    #[serde(default)]
+    pub drawers: Vec<f64>,
+    /// Длина направляющих (глубина короба), мм; нет — глубина корпуса, округлённая вниз до 50 мм.
+    #[serde(default)]
+    pub drawer_depth: Option<f64>,
+}
+
+/// Столешница: лежит поверх корпусов, задаётся положением левого нижнего заднего угла.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Countertop {
+    pub id: u32,
+    #[serde(default)]
+    pub name: String,
+    pub material: String,
+    #[serde(default)]
+    pub position: [f64; 3],
+    pub length: f64,
+    pub depth: f64,
+    /// Кромка лицевого торца.
+    #[serde(default)]
+    pub edge: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -109,11 +131,13 @@ pub struct Project {
     pub edges: Vec<EdgeMaterial>,
     #[serde(default)]
     pub cabinets: Vec<Cabinet>,
+    #[serde(default)]
+    pub countertops: Vec<Countertop>,
 }
 
 impl Project {
     pub fn new(name: &str) -> Self {
-        Project { format: FORMAT.into(), name: name.into(), materials: Vec::new(), edges: Vec::new(), cabinets: Vec::new() }
+        Project { format: FORMAT.into(), name: name.into(), materials: Vec::new(), edges: Vec::new(), cabinets: Vec::new(), countertops: Vec::new() }
     }
 
     pub fn load(json: &str) -> Result<Self, String> {
@@ -151,6 +175,8 @@ pub enum Kind {
     Body,
     Back,
     Door,
+    /// Фасад ящика.
+    Drawer,
 }
 
 /// Деталь изделия: плита для отчётов и её габаритный параллелепипед в координатах проекта.
@@ -213,6 +239,9 @@ pub fn build(p: &Project) -> Result<Vec<Part>, String> {
     for c in &p.cabinets {
         cabinet(p, c, &mut parts).map_err(|e| format!("корпус {} «{}»: {e}", c.id, c.name))?;
     }
+    for ct in &p.countertops {
+        countertop(p, ct, &mut parts).map_err(|e| format!("столешница {} «{}»: {e}", ct.id, ct.name))?;
+    }
     // Номера позиций — по порядку деталей в проекте.
     for (i, part) in parts.iter_mut().enumerate() {
         part.panel.pos = (i + 1).to_string();
@@ -265,12 +294,25 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         return Err(format!("перегородки оставляют секцию шириной {sw} мм"));
     }
 
+    if !c.drawers.is_empty() && !c.partitions.is_empty() {
+        return Err("ящики пока строятся только в корпусе без перегородок".into());
+    }
+    // Длина направляющих кратна 50 мм; верх зоны ящиков — над верхним фасадом, от верха дна.
+    let drawer_depth = c.drawer_depth.unwrap_or(((d - 10.0) / 50.0).floor() * 50.0);
+    let drawer_zone = if c.drawers.is_empty() {
+        0.0
+    } else {
+        c.door_gap + c.drawers.iter().map(|hf| hf + c.door_gap).sum::<f64>() - t
+    };
     for s in &c.shelves {
         let &(sx, sw) = sections
             .get(s.section)
             .ok_or_else(|| format!("нет секции {} (всего {})", s.section, sections.len()))?;
         if s.height < 0.0 || s.height + t > inner_h {
             return Err(format!("полка на высоте {} мм не помещается (внутри {inner_h} мм)", s.height));
+        }
+        if s.height < drawer_zone {
+            return Err(format!("полка на высоте {} мм попадает в зону ящиков (до {drawer_zone} мм)", s.height));
         }
         add(Kind::Body, horizontal("Полка", sw), [sx, c.plinth + t + s.height, 0.0], [sw, t, d]);
     }
@@ -281,23 +323,66 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         add(Kind::Back, rect("Задняя стенка", bm, w, bh, Texture::Default, &[], None), [0.0, c.plinth, -bm.thickness], [w, bh, bm.thickness]);
     }
 
-    if c.doors > 0 {
-        let dm = match &c.door_material {
+    let dm = match &c.door_material {
+        Some(n) => p.material(n)?,
+        None => m,
+    };
+    let g = c.door_gap;
+    // Ящики: фасады снизу вверх с зазором g, короб под шариковые направляющие (13 мм на сторону).
+    let mut front_y = c.plinth + g;
+    for (i, &hf) in c.drawers.iter().enumerate() {
+        let fw = w - 2.0 * g;
+        let bw = inner_w - 2.0 * RAIL_GAP;
+        let bh = hf - 40.0;
+        let bd = drawer_depth;
+        if !(hf > 0.0 && fw > 0.0 && bw > 2.0 * t && bh >= 60.0 && bd >= 250.0 && bd <= d) {
+            return Err(format!("ящик {} (фасад {hf} мм, короб {bw:.0}×{bh:.0}×{bd:.0}) не строится: нужен фасад ≥ 100 мм и глубина ≥ 250 мм", i + 1));
+        }
+        let facade = rect("Фасад ящика", dm, fw, hf, Texture::Horizontal, &[BOTTOM, LEFT, TOP, RIGHT], edge);
+        add(Kind::Drawer, facade, [g, front_y, d], [fw, hf, dm.thickness]);
+        let (bx, by, bz) = (t + RAIL_GAP, front_y + 20.0, d - bd);
+        // Короб: боковины (X — глубина, Y — высота), стенки между боковинами, дно под коробом.
+        let side = |name| rect(name, m, bd, bh, Texture::Horizontal, &[TOP], edge);
+        add(Kind::Body, side("Боковина ящика"), [bx, by, bz], [t, bh, bd]);
+        add(Kind::Body, side("Боковина ящика"), [bx + bw - t, by, bz], [t, bh, bd]);
+        let wall = |name| rect(name, m, bw - 2.0 * t, bh, Texture::Horizontal, &[TOP], edge);
+        add(Kind::Body, wall("Передняя стенка ящика"), [bx + t, by, d - t], [bw - 2.0 * t, bh, t]);
+        add(Kind::Body, wall("Задняя стенка ящика"), [bx + t, by, bz], [bw - 2.0 * t, bh, t]);
+        let bm = match &c.back {
             Some(n) => p.material(n)?,
             None => m,
         };
+        add(Kind::Body, rect("Дно ящика", bm, bw, bd, Texture::Default, &[], None), [bx, by - bm.thickness, bz], [bw, bm.thickness, bd]);
+        front_y += hf + g;
+    }
+
+    if c.doors > 0 {
         let n = c.doors as f64;
-        let g = c.door_gap;
-        let (dw, dh) = ((w - (n + 1.0) * g) / n, h - c.plinth - 2.0 * g);
+        let (dw, dh) = ((w - (n + 1.0) * g) / n, h - front_y - g);
         if !(dw > 0.0 && dh > 0.0 && g >= 0.0) {
-            return Err(format!("{} дверей с зазором {g} мм не помещаются", c.doors));
+            return Err(format!("{} дверей с зазором {g} мм не помещаются над ящиками", c.doors));
         }
         for i in 0..c.doors {
             let x = g + i as f64 * (dw + g);
             let door = rect("Дверь", dm, dw, dh, Texture::Vertical, &[BOTTOM, LEFT, TOP, RIGHT], edge);
-            add(Kind::Door, door, [x, c.plinth + g, d], [dw, dh, dm.thickness]);
+            add(Kind::Door, door, [x, front_y, d], [dw, dh, dm.thickness]);
         }
+    } else if front_y > h {
+        return Err(format!("ящики выше корпуса: фасады до {front_y} мм при высоте {h} мм"));
     }
+    Ok(())
+}
+
+/// Зазор под шариковую направляющую с каждой стороны короба, мм.
+const RAIL_GAP: f64 = 13.0;
+
+fn countertop(p: &Project, ct: &Countertop, out: &mut Vec<Part>) -> Result<(), String> {
+    let m = p.material(&ct.material)?;
+    if !(ct.length > 0.0 && ct.depth > 0.0) {
+        return Err(format!("размеры {}×{} должны быть больше нуля", ct.length, ct.depth));
+    }
+    let panel = rect("Столешница", m, ct.length, ct.depth, Texture::Horizontal, &[TOP], p.edge(&ct.edge)?);
+    out.push(Part { cabinet: 0, kind: Kind::Body, panel, origin: ct.position, size: [ct.length, m.thickness, ct.depth] });
     Ok(())
 }
 
@@ -314,11 +399,12 @@ pub struct FrontRect {
 }
 
 /// Вид спереди: проекции деталей, от дальних к ближним (рисовать по порядку).
+/// Без `doors` скрыты двери и фасады ящиков.
 pub fn front_view(parts: &[Part], doors: bool) -> Vec<FrontRect> {
     let mut v: Vec<(f64, FrontRect)> = parts
         .iter()
         .enumerate()
-        .filter(|(_, p)| doors || p.kind != Kind::Door)
+        .filter(|(_, p)| doors || !matches!(p.kind, Kind::Door | Kind::Drawer))
         .map(|(i, p)| (p.origin[2], FrontRect { x: p.origin[0], y: p.origin[1], w: p.size[0], h: p.size[1], kind: p.kind, part: i }))
         .collect();
     v.sort_by(|a, b| a.0.total_cmp(&b.0));
@@ -347,13 +433,16 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("material.add", "{name, thickness, article?, sheet?: [длина, ширина], coef?}"),
     ("material.set", "{name, ...поля} — изменить материал"),
     ("edge.add", "{name, thickness, article?, width?}"),
-    ("cabinet.add", "{width, height, depth, material, name?, edge?, plinth?, back?, doors?, door_material?, door_gap?, position?: [x,y,z]} → {id}"),
+    ("cabinet.add", "{width, height, depth, material, name?, edge?, plinth?, back?, doors?, door_material?, door_gap?, drawers?: [высоты фасадов снизу вверх], drawer_depth?, position?: [x,y,z]} → {id}. Навесной модуль — plinth 0 и position с высотой, например [0, 1400, 250]"),
     ("cabinet.set", "{id, ...поля корпуса} — изменить параметры"),
     ("cabinet.remove", "{id}"),
     ("shelf.add", "{cabinet, height, section?}"),
     ("shelf.remove", "{cabinet, index}"),
     ("partition.add", "{cabinet, x}"),
     ("partition.remove", "{cabinet, index}"),
+    ("countertop.add", "{material, length, depth, position?: [x,y,z] левого нижнего заднего угла, edge?, name?} → {id}"),
+    ("countertop.set", "{id, ...поля}"),
+    ("countertop.remove", "{id}"),
     ("parts", "список деталей: имя, материал, длина, ширина, толщина, корпус"),
     ("undo", "отменить последнее изменение"),
     ("redo", "вернуть отменённое"),
@@ -512,6 +601,30 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
             }
             c.partitions.remove(i);
         }
+        "countertop.add" => {
+            let id = pr.countertops.iter().map(|c| c.id).max().map_or(1, |m| m + 1);
+            let mut v = p.clone();
+            v.as_object_mut().ok_or("параметры должны быть объектом")?.insert("id".into(), json!(id));
+            let mut ct: Countertop = serde_json::from_value(v).map_err(|e| format!("столешница: {e}"))?;
+            if ct.name.is_empty() {
+                ct.name = format!("Столешница {id}");
+            }
+            pr.countertops.push(ct);
+            return Ok(json!({ "id": id }));
+        }
+        "countertop.set" => {
+            let id = idx(p, "id")? as u32;
+            let ct = pr.countertops.iter_mut().find(|c| c.id == id).ok_or_else(|| format!("нет столешницы {id}"))?;
+            *ct = patch(&*ct, p, "id")?;
+        }
+        "countertop.remove" => {
+            let id = idx(p, "id")? as u32;
+            let n = pr.countertops.len();
+            pr.countertops.retain(|c| c.id != id);
+            if pr.countertops.len() == n {
+                return Err(format!("нет столешницы {id}"));
+            }
+        }
         _ => return Err(format!("неизвестная команда «{cmd}»")),
     }
     Ok(Value::Null)
@@ -589,6 +702,42 @@ mod tests {
         s.execute("redo", &json!({})).unwrap();
         assert_eq!(s.project.cabinets[0].width, 1000.0);
         assert!(s.execute("redo", &json!({})).is_err());
+    }
+
+    #[test]
+    fn drawers_countertop_and_wall_module() {
+        let mut s = wardrobe();
+        s.execute("cabinet.add", &json!({"name": "Стол с ящиками", "width": 600, "height": 820, "depth": 560,
+            "material": "ЛДСП Белый 16", "edge": "ПВХ 0,4 белая", "plinth": 100, "back": "ХДФ 3", "drawers": [140, 280, 280]})).unwrap();
+        let parts = build(&s.project).unwrap();
+        let mine: Vec<&Part> = parts.iter().filter(|p| p.cabinet == 2).collect();
+        let count = |n: &str| mine.iter().filter(|p| p.panel.name == n).count();
+        assert_eq!((count("Фасад ящика"), count("Боковина ящика"), count("Дно ящика")), (3, 6, 3));
+        // Короб: 600 − 2·16 − 2·13 = 542 по ширине, направляющие 550 (глубина 560 → кратно 50).
+        let bottom = mine.iter().find(|p| p.panel.name == "Дно ящика").unwrap();
+        assert_eq!(bottom.panel.size, (542.0, 550.0));
+        assert_eq!(bottom.panel.thickness, 3.0);
+        let side = mine.iter().find(|p| p.panel.name == "Боковина ящика").unwrap();
+        assert_eq!(side.panel.size, (550.0, 100.0));
+        // Фасады не выходят за корпус: 100 + 2 + 140+2 + 280+2 + 280+2 = 808 ≤ 820.
+        let top = mine.iter().filter(|p| p.kind == Kind::Drawer).map(|p| p.origin[1] + p.size[1]).fold(0.0, f64::max);
+        assert!(top <= 820.0, "{top}");
+        // Слишком высокие ящики и полка в зоне ящиков отклоняются.
+        assert!(s.execute("cabinet.set", &json!({"id": 2, "drawers": [400, 400]})).is_err());
+        assert!(s.execute("shelf.add", &json!({"cabinet": 2, "height": 100})).is_err());
+        // Ящики с перегородкой — честный отказ.
+        assert!(s.execute("partition.add", &json!({"cabinet": 2, "x": 292})).is_err());
+
+        s.execute("countertop.add", &json!({"material": "ЛДСП Белый 16", "length": 1400, "depth": 600,
+            "position": [0, 2000, 0], "edge": "ПВХ 0,4 белая"})).unwrap();
+        s.execute("cabinet.add", &json!({"name": "Навесной", "width": 600, "height": 720, "depth": 300,
+            "material": "ЛДСП Белый 16", "doors": 1, "position": [0, 1400, 300]})).unwrap();
+        let parts = build(&s.project).unwrap();
+        let ct = parts.iter().find(|p| p.panel.name == "Столешница").unwrap();
+        assert_eq!((ct.panel.size, ct.origin[1]), ((1400.0, 600.0), 2000.0));
+        let wall = parts.iter().filter(|p| p.cabinet == 3).map(|p| p.origin[1]).fold(f64::MAX, f64::min);
+        assert_eq!(wall, 1400.0);
+        assert!(s.execute("countertop.set", &json!({"id": 1, "length": -5})).is_err());
     }
 
     #[test]

@@ -317,6 +317,52 @@ impl App {
                 cabinet_editor(ui, &project, c, &mut cmds);
             });
         }
+        ui.separator();
+        ui.heading("Столешницы");
+        for ct in &project.countertops {
+            egui::CollapsingHeader::new(format!("{} ({}×{})", ct.name, ct.length, ct.depth)).id_salt(("ct", ct.id)).show(ui, |ui| {
+                let id = ct.id;
+                egui::Grid::new(("ctg", id)).num_columns(2).show(ui, |ui| {
+                    for (key, label, value) in [("length", "Длина", ct.length), ("depth", "Глубина", ct.depth)] {
+                        ui.label(label);
+                        let mut v = value;
+                        let r = ui.add(egui::DragValue::new(&mut v).range(10.0..=6000.0).suffix(" мм"));
+                        if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != value {
+                            cmds.push(("countertop.set", json!({ "id": id, key: v })));
+                        }
+                        ui.end_row();
+                    }
+                    ui.label("Положение X, Y, Z");
+                    ui.horizontal(|ui| {
+                        let mut pos = ct.position;
+                        let mut done = false;
+                        for v in &mut pos {
+                            let r = ui.add(egui::DragValue::new(v).range(-10000.0..=10000.0));
+                            done |= r.drag_stopped() || (r.changed() && !r.dragged());
+                        }
+                        if done && pos != ct.position {
+                            cmds.push(("countertop.set", json!({ "id": id, "position": pos })));
+                        }
+                    });
+                    ui.end_row();
+                });
+                if ui.button("Удалить столешницу").clicked() {
+                    cmds.push(("countertop.remove", json!({ "id": id })));
+                }
+            });
+        }
+        if let Some(m) = project.materials.first()
+            && ui.button("+ Столешница над корпусами").clicked()
+        {
+            // По умолчанию — на напольные корпуса (стоят на полу), по всей их длине, с выносом 20 мм вперёд.
+            let floor: Vec<&design::Cabinet> = project.cabinets.iter().filter(|c| c.position[1] <= 0.0).collect();
+            let x0 = floor.iter().map(|c| c.position[0]).fold(f64::MAX, f64::min).min(0.0);
+            let x1 = floor.iter().map(|c| c.position[0] + c.width).fold(600.0, f64::max);
+            let top = floor.iter().map(|c| c.height).fold(720.0, f64::max);
+            let depth = floor.iter().map(|c| c.depth).fold(560.0, f64::max) + 20.0;
+            cmds.push(("countertop.add", json!({ "material": m.name, "length": x1 - x0, "depth": depth,
+                "position": [x0, top, 0], "edge": project.edges.first().map(|e| e.name.clone()) })));
+        }
         let first = project.materials.first().map(|m| m.name.clone());
         if ui.add_enabled(first.is_some(), egui::Button::new("+ Корпус")).on_disabled_hover_text("Сначала добавьте материал").clicked() {
             cmds.push((
@@ -358,7 +404,7 @@ impl App {
         for fr in &rects {
             let r = Rect::from_two_pos(to(fr.x, fr.y), to(fr.x + fr.w, fr.y + fr.h));
             let fill = match fr.kind {
-                design::Kind::Door => Color32::from_rgba_unmultiplied(170, 200, 230, 150),
+                design::Kind::Door | design::Kind::Drawer => Color32::from_rgba_unmultiplied(170, 200, 230, 150),
                 design::Kind::Back => Color32::from_gray(225),
                 design::Kind::Body => Color32::from_rgb(236, 220, 190),
             };
@@ -600,6 +646,28 @@ fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet, cmd
             }
         }
     });
+    ui.label("Ящики (высота фасада снизу вверх, мм):");
+    for (i, &hf) in c.drawers.iter().enumerate() {
+        ui.horizontal(|ui| {
+            let mut v = hf;
+            let r = ui.add(egui::DragValue::new(&mut v).range(100.0..=1000.0).suffix(" мм"));
+            if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != hf {
+                let mut ds = c.drawers.clone();
+                ds[i] = v;
+                cmds.push(("cabinet.set", json!({ "id": id, "drawers": ds })));
+            }
+            if ui.small_button("удалить").clicked() {
+                let mut ds = c.drawers.clone();
+                ds.remove(i);
+                cmds.push(("cabinet.set", json!({ "id": id, "drawers": ds })));
+            }
+        });
+    }
+    if ui.button("+ Ящик").clicked() {
+        let mut ds = c.drawers.clone();
+        ds.push(if ds.is_empty() { 140.0 } else { 280.0 });
+        cmds.push(("cabinet.set", json!({ "id": id, "drawers": ds })));
+    }
     if ui.button("Удалить корпус").clicked() {
         cmds.push(("cabinet.remove", json!({ "id": id })));
     }

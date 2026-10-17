@@ -252,7 +252,7 @@ fn render_front(parts: &[design::Part], width: u32, doors: bool) -> Result<Vec<u
         let path = PathBuilder::from_rect(rect);
         let mut fill = Paint::default();
         match r.kind {
-            Kind::Door => fill.set_color_rgba8(170, 200, 230, 150),
+            Kind::Door | Kind::Drawer => fill.set_color_rgba8(170, 200, 230, 150),
             Kind::Back => fill.set_color_rgba8(225, 225, 225, 255),
             Kind::Body => fill.set_color_rgba8(236, 220, 190, 255),
         }
