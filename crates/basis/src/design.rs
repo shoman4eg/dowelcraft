@@ -162,6 +162,26 @@ pub struct Corner {
     pub door_gap: f64,
 }
 
+/// Свободная деталь: плита с произвольным контуром — так в проект попадают детали из моделей Базиса.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct FreePanel {
+    pub id: u32,
+    #[serde(default)]
+    pub name: String,
+    /// Номер позиции из исходной модели.
+    #[serde(default)]
+    pub pos: String,
+    pub material: String,
+    /// Контур с габаритом от (0, 0).
+    pub segs: Vec<Seg>,
+    pub texture: Texture,
+    #[serde(default)]
+    pub edges: Vec<Edge>,
+    /// Габарит в пространстве: минимальный угол и размеры по X, Y, Z, мм.
+    pub origin: [f64; 3],
+    pub size: [f64; 3],
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Project {
     pub format: String,
@@ -176,6 +196,8 @@ pub struct Project {
     pub countertops: Vec<Countertop>,
     #[serde(default)]
     pub corners: Vec<Corner>,
+    #[serde(default)]
+    pub panels: Vec<FreePanel>,
 }
 
 impl Project {
@@ -188,6 +210,7 @@ impl Project {
             cabinets: Vec::new(),
             countertops: Vec::new(),
             corners: Vec::new(),
+            panels: Vec::new(),
         }
     }
 
@@ -218,6 +241,53 @@ impl Project {
 /// Название и артикул в формате Базиса `Название\rАртикул`.
 fn full(name: &str, article: &str) -> String {
     if article.is_empty() { name.into() } else { format!("{name}\r{article}") }
+}
+
+/// Назначение детали Базиса по её имени — только для цвета на видах.
+/// shortcut: угадывание по словам «фасад», «дверь», «задняя стенка»; уточнить, если найдётся признак в модели.
+pub fn guess_kind(p: &Panel) -> Kind {
+    let name = p.name.to_lowercase();
+    if name.contains("фасад") || name.contains("двер") {
+        Kind::Door
+    } else if name.contains("задн") && name.contains("стен") && p.thickness <= 6.0 {
+        Kind::Back
+    } else {
+        Kind::Body
+    }
+}
+
+/// Проект из деталей модели Базиса: каждая плита — свободная деталь, материалы — из встреченных
+/// (формат листа и коэффициент по умолчанию). Плиты без положения в пространстве пропускаются.
+pub fn import(name: &str, panels: &[Panel]) -> Project {
+    let mut p = Project::new(name);
+    // (материал Базиса, толщина) → имя материала проекта. Один материал разной толщины — разные материалы.
+    let mut seen: Vec<((&str, f64), String)> = Vec::new();
+    for (i, src) in panels.iter().enumerate() {
+        let Some((lo, hi)) = src.bounds else { continue };
+        let (mat_name, article) = src.material.split_once('\r').unwrap_or((&src.material, ""));
+        let key = match seen.iter().find(|(k, _)| *k == (src.material.as_str(), src.thickness)) {
+            Some((_, name)) => name.clone(),
+            None => {
+                let taken = p.materials.iter().any(|m| m.name == mat_name);
+                let key = if taken { format!("{mat_name} ({})", src.thickness) } else { mat_name.to_string() };
+                p.materials.push(Material { name: key.clone(), article: article.into(), thickness: src.thickness, sheet: default_sheet(), coef: default_coef(), trim: None, kerf: None });
+                seen.push(((src.material.as_str(), src.thickness), key.clone()));
+                key
+            }
+        };
+        p.panels.push(FreePanel {
+            id: i as u32 + 1,
+            name: src.name.clone(),
+            pos: src.pos.clone(),
+            material: key,
+            segs: src.segs.clone(),
+            texture: src.texture,
+            edges: src.edges.clone(),
+            origin: lo,
+            size: std::array::from_fn(|k| hi[k] - lo[k]),
+        });
+    }
+    p
 }
 
 /// Назначение детали — для отображения.
@@ -295,12 +365,31 @@ pub fn build(p: &Project) -> Result<Vec<Part>, String> {
     for c in &p.corners {
         corner(p, c, &mut parts).map_err(|e| format!("угловой модуль {} «{}»: {e}", c.id, c.name))?;
     }
+    for fp in &p.panels {
+        let m = p.material(&fp.material).map_err(|e| format!("деталь {} «{}»: {e}", fp.id, fp.name))?;
+        let (_, hi) = crate::contour::bounds(&fp.segs).ok_or_else(|| format!("деталь {} «{}»: пустой контур", fp.id, fp.name))?;
+        let panel = Panel {
+            name: fp.name.clone(),
+            pos: fp.pos.clone(),
+            designation: String::new(),
+            material: full(&m.name, &m.article),
+            thickness: m.thickness,
+            segs: fp.segs.clone(),
+            size: (hi[0], hi[1]),
+            texture: fp.texture,
+            edges: fp.edges.clone(),
+            bounds: None,
+        };
+        parts.push(Part { cabinet: 0, kind: guess_kind(&panel), panel, origin: fp.origin, size: fp.size });
+    }
     for ct in &p.countertops {
         countertop(p, ct, &mut parts).map_err(|e| format!("столешница {} «{}»: {e}", ct.id, ct.name))?;
     }
-    // Номера позиций — по порядку деталей в проекте.
+    // Номера позиций — по порядку деталей в проекте; у импортированных деталей — свои.
     for (i, part) in parts.iter_mut().enumerate() {
-        part.panel.pos = (i + 1).to_string();
+        if part.panel.pos.is_empty() {
+            part.panel.pos = (i + 1).to_string();
+        }
     }
     Ok(parts)
 }
@@ -641,6 +730,8 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("corner.add", "{width_x, width_z, height, depth, material, edge?, plinth?, back?, shelves?: [высоты], doors?: true, door_material?, door_gap?, position?: [x,y,z] заднего угла, name?} → {id}. Г-образный угловой модуль: крылья вдоль X и Z от угла комнаты"),
     ("corner.set", "{id, ...поля}"),
     ("corner.remove", "{id}"),
+    ("panel.set", "{id, name?, material?, origin?: [x,y,z]} — свободная деталь (из импортированной модели Базиса)"),
+    ("panel.remove", "{id}"),
     ("parts", "список деталей: имя, материал, длина, ширина, толщина, корпус"),
     ("undo", "отменить последнее изменение"),
     ("redo", "вернуть отменённое"),
@@ -733,6 +824,14 @@ trait Item: Serialize + for<'de> Deserialize<'de> {
     fn name(&mut self) -> &mut String;
 }
 impl Item for Countertop {
+    fn id(&self) -> u32 {
+        self.id
+    }
+    fn name(&mut self) -> &mut String {
+        &mut self.name
+    }
+}
+impl Item for FreePanel {
     fn id(&self) -> u32 {
         self.id
     }
@@ -846,6 +945,7 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
         }
         "countertop.add" | "countertop.set" | "countertop.remove" => return item(&mut pr.countertops, cmd, p, "Столешница"),
         "corner.add" | "corner.set" | "corner.remove" => return item(&mut pr.corners, cmd, p, "Угловой модуль"),
+        "panel.set" | "panel.remove" => return item(&mut pr.panels, cmd, p, "Деталь"),
         _ => return Err(format!("неизвестная команда «{cmd}»")),
     }
     Ok(Value::Null)

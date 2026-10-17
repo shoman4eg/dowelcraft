@@ -255,6 +255,13 @@ impl App {
                 ui.label(format!("{} — деталей: {}", self.job.name, self.job.panels.len()));
                 if self.session.is_none() {
                     ui.weak("(модель Базиса, только просмотр)");
+                    if ui.button("Сделать редактируемой").on_hover_text("Импорт в свой проект: детали можно менять и дополнять корпусами").clicked() {
+                        let p = design::import(&self.job.name, &self.job.panels);
+                        self.status = format!("Импортировано деталей: {}", p.panels.len());
+                        self.session = Some(Session::new(p));
+                        self.path = None;
+                        self.refresh();
+                    }
                 }
             });
         });
@@ -330,6 +337,30 @@ impl App {
         for c in &project.cabinets {
             egui::CollapsingHeader::new(format!("{} ({}×{}×{})", c.name, c.width, c.height, c.depth)).id_salt(c.id).default_open(true).show(ui, |ui| {
                 cabinet_editor(ui, &project, c, &mut cmds);
+            });
+        }
+        if !project.panels.is_empty() {
+            ui.separator();
+            egui::CollapsingHeader::new(format!("Детали из модели ({})", project.panels.len())).show(ui, |ui| {
+                let names: Vec<String> = project.materials.iter().map(|m| m.name.clone()).collect();
+                egui::Grid::new("free").striped(true).num_columns(3).show(ui, |ui| {
+                    for fp in &project.panels {
+                        ui.label(format!("{} {}", fp.pos, fp.name));
+                        let mut chosen = fp.material.clone();
+                        egui::ComboBox::from_id_salt(("fp", fp.id)).selected_text(&chosen).show_ui(ui, |ui| {
+                            for n in &names {
+                                ui.selectable_value(&mut chosen, n.clone(), n);
+                            }
+                        });
+                        if chosen != fp.material {
+                            cmds.push(("panel.set", json!({ "id": fp.id, "material": chosen })));
+                        }
+                        if ui.small_button("удалить").clicked() {
+                            cmds.push(("panel.remove", json!({ "id": fp.id })));
+                        }
+                        ui.end_row();
+                    }
+                });
             });
         }
         ui.separator();

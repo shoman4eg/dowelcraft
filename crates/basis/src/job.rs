@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use crate::design::{self, Kind, Part, Project};
+use crate::design::{self, Part, Project};
 use crate::nest::{self, Item, Layout, Params};
 use crate::panel::{self, Panel, Side, material_name};
 use crate::report::{self, Card, Label};
@@ -89,16 +89,7 @@ pub fn parts(job: &Job) -> Result<Vec<Part>, String> {
         .iter()
         .filter_map(|p| {
             let (lo, hi) = p.bounds?;
-            // shortcut: назначение детали Базиса угадывается по имени — влияет только на цвет вида.
-            let name = p.name.to_lowercase();
-            let kind = if name.contains("фасад") || name.contains("двер") {
-                Kind::Door
-            } else if name.contains("задн") && name.contains("стен") && p.thickness <= 6.0 {
-                Kind::Back
-            } else {
-                Kind::Body
-            };
-            Some(Part { cabinet: 0, kind, panel: p.clone(), origin: lo, size: std::array::from_fn(|i| hi[i] - lo[i]) })
+            Some(Part { cabinet: 0, kind: design::guess_kind(p), panel: p.clone(), origin: lo, size: std::array::from_fn(|i| hi[i] - lo[i]) })
         })
         .collect())
 }

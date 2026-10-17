@@ -8,7 +8,7 @@ pub const TYPE_PANEL: i64 = 4002;
 
 /// Направление текстуры (`TexDir`): 1 — вдоль X контура, 2 — вдоль Y, нет — по умолчанию.
 /// Сверено с эталонными проектами Раскроя: горизонтальные детали — угол 0, стойки — π/2.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Texture {
     Default,
     Horizontal,
@@ -37,7 +37,7 @@ pub enum Side {
     Other,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Edge {
     /// Материал в формате Базиса `Название\rАртикул`.
     pub material: String,

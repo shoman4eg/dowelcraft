@@ -60,6 +60,29 @@ fn hardware_matches_bazis_estimate() {
     assert!(!hw.iter().any(|(n, _)| n.starts_with("Чашка петли")));
 }
 
+/// Импорт модели Базиса в свой проект сохраняет детали: те же пильные размеры, материалы, положение.
+#[test]
+fn import_basis_model_into_project() {
+    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/pairs/kuhnya-24-04/_Кухня 24.04.b3d");
+    let Ok(data) = std::fs::read(&p) else { return };
+    let src = basis::panel::panels(&basis::b3d::parse(&data).unwrap()).panels;
+    let project = basis::design::import("Кухня", &src);
+    assert_eq!(project.materials.len(), 3);
+    let project = basis::design::Project::load(&project.save()).expect("сохраняется и читается");
+    let parts = basis::design::build(&project).unwrap();
+    assert_eq!(parts.len(), src.len());
+    for (a, b) in src.iter().zip(&parts) {
+        assert_eq!((a.cut_size(), &a.name, a.thickness), (b.panel.cut_size(), &b.panel.name, b.panel.thickness));
+        let (lo, _) = a.bounds.unwrap();
+        assert_eq!(lo, b.origin);
+    }
+    // Деталь можно перевести в другой материал командой.
+    let mut s = basis::design::Session::new(project);
+    let other = s.project.materials[1].name.clone();
+    s.execute("panel.set", &serde_json::json!({"id": 1, "material": other})).unwrap();
+    assert!(s.execute("panel.set", &serde_json::json!({"id": 1, "material": "нет такого"})).is_err());
+}
+
 #[test]
 fn all_samples_parse() {
     let files = samples();

@@ -21,6 +21,7 @@ const USAGE: &str = "basis-craft — проектирование мебели �
   basis-craft dump    <файл.b3d> [глубина]            дерево модели Базиса
 
 Свой проект:
+  basis-craft import <файл.b3d> [-o проект.bcraft]   модель Базиса → свой проект (детали можно править)
   basis-craft design <проект.bcraft> <команда> ['{json-параметры}']
                                                      выполнить команду; файл создаётся, если его нет
   basis-craft design --help                          список команд
@@ -70,6 +71,14 @@ fn run(args: &[String]) -> Result<(), String> {
     };
     match cmd.as_str() {
         "design" => return design_cmd(path, &args[2..]),
+        "import" => {
+            let job = Job::open(Path::new(path))?;
+            let p = design::import(&job.name, &job.panels);
+            let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("bcraft"));
+            std::fs::write(&out, p.save()).map_err(|e| format!("{}: {e}", out.display()))?;
+            println!("деталей {}, материалов {} → {}", p.panels.len(), p.materials.len(), out.display());
+            return Ok(());
+        }
         "dump" => {
             let data = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
             let file = b3d::parse(&data).map_err(|e| format!("{path}: {e}"))?;

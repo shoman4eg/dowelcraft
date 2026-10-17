@@ -62,6 +62,8 @@ fn tools() -> Value {
          "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
         {"name": "project_open", "description": "Открыть свой проект .bcraft (можно править) или модель Базиса .b3d/.fr3d (только чтение).",
          "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}},
+        {"name": "project_import", "description": "Открыть модель Базиса .b3d как свой проект: плиты станут свободными деталями, которые можно править (panel.set, panel.remove) и дополнять корпусами.",
+         "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}},
         {"name": "project_save", "description": "Сохранить проект в .bcraft. Без path — в файл, из которого открыт.",
          "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}}},
         {"name": "command", "description": format!(
@@ -153,6 +155,16 @@ impl Server {
                 );
                 self.job = job;
                 self.path = Some(path);
+                Ok(text(msg))
+            }
+            "project_import" => {
+                let path = PathBuf::from(str_arg("path")?);
+                let job = Job::open(&path)?;
+                let p = design::import(&job.name, &job.panels);
+                let msg = format!("Импортировано деталей: {}, материалов: {}. Сохраните project_save с путём .bcraft.", p.panels.len(), p.materials.len());
+                self.session = Some(Session::new(p));
+                self.path = None;
+                self.refresh();
                 Ok(text(msg))
             }
             "project_save" => {

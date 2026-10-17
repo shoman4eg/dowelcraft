@@ -13,7 +13,7 @@ basis = { path = "crates/basis" }
 flate2 = "1.1"
 encoding_rs = "0.8.35"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["float_roundtrip"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
