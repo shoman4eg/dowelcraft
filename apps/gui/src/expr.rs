@@ -176,10 +176,10 @@ mod tests {
         let ctx = egui::Context::default();
         let mut field_rect = egui::Rect::NOTHING;
         let mut committed = None;
-        let mut frame = |events: Vec<egui::Event>, field_rect: &mut egui::Rect, committed: &mut Option<f64>| {
+        let frame = |events: Vec<egui::Event>, field_rect: &mut egui::Rect, committed: &mut Option<f64>| {
             let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 200.0))), events, ..Default::default() };
             let mut out = ctx.run_ui(input, |ui| {
-                egui::CentralPanel::default().show_inside(ui, |ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
                     let mut v = 10.0f64;
                     let r = add(ui, &mut v, |d| d.speed(1.0));
                     *field_rect = r.rect;
