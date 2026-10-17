@@ -353,3 +353,8 @@
 Шаг сетки	Grid spacing
 Основная линия каждые	Major line every
 При отдалении шаг сам укрупняется в 5 раз, чтобы линии не сливались.	When zoomed out the spacing grows 5× so lines do not merge.
+Закрыть	Close
+Закрыть проект	Close project
+Сохранить изменения в «{}»?	Save changes to “{}”?
+Не сохранять	Don't save
+Отмена	Cancel

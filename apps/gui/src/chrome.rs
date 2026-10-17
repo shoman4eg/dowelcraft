@@ -263,20 +263,51 @@ impl App {
             self.new_project();
         }
         x += 26.0;
-        let name = self.session.as_ref().map_or_else(|| self.job.name.clone(), |s| s.project.name.clone());
-        for (label, start, w) in [(crate::i18n::t("Начало"), true, 110.0), (name, false, 190.0)] {
+        // «Начало» и по вкладке на каждый открытый проект; «*» — есть несохранённые изменения.
+        let mut tabs: Vec<(String, Option<usize>, f32)> = vec![(crate::i18n::t("Начало"), None, 110.0)];
+        for i in 0..self.docs.len() {
+            let (title, dirty) = if i == self.active { (self.doc_title(), self.dirty) } else { (self.docs[i].title(), self.docs[i].dirty) };
+            tabs.push((format!("{title}{}", if dirty { " *" } else { "" }), Some(i), 180.0));
+        }
+        let (mut switch, mut close) = (None, None);
+        for (label, doc, w) in tabs {
             let tr = egui::Rect::from_min_size(egui::pos2(x, r.top()), egui::vec2(w, r.height()));
-            let resp = ui.interact(tr, ui.id().with(("doc", start)), egui::Sense::click());
-            let active = self.start == start;
+            let resp = ui.interact(tr, ui.id().with(("doc", doc)), egui::Sense::click());
+            let active = match doc {
+                None => self.start,
+                Some(i) => !self.start && i == self.active,
+            };
             let fill = if active { t.tab_active } else if resp.hovered() { t.chrome } else { t.chrome_dark };
             ui.painter().rect_filled(tr, 0.0, fill);
-            let clip = ui.painter().with_clip_rect(tr.shrink2(egui::vec2(8.0, 0.0)));
+            let text_w = if doc.is_some() { w - 30.0 } else { w - 16.0 };
+            let clip = ui.painter().with_clip_rect(egui::Rect::from_min_size(tr.min, egui::vec2(8.0 + text_w, tr.height())));
             clip.text(egui::pos2(tr.left() + 8.0, tr.center().y), egui::Align2::LEFT_CENTER, &label, egui::FontId::proportional(13.0), if active { t.text } else { t.text_dim });
+            if let Some(i) = doc
+                && (active || resp.hovered() || ui.rect_contains_pointer(tr))
+            {
+                let cr = egui::Rect::from_center_size(egui::pos2(tr.right() - 12.0, tr.center().y), egui::vec2(14.0, 14.0));
+                let cresp = ui.interact(cr, ui.id().with(("docx", i)), egui::Sense::click());
+                if cresp.hovered() {
+                    ui.painter().rect_filled(cr, 2.0, t.control_hover);
+                }
+                ui.painter().text(cr.center(), egui::Align2::CENTER_CENTER, "×", egui::FontId::proportional(14.0), t.text);
+                if cresp.on_hover_text(crate::i18n::t("Закрыть")).clicked() {
+                    close = Some(i);
+                }
+            }
             ui.painter().vline(tr.right(), tr.y_range(), egui::Stroke::new(1.0, t.border));
-            if resp.clicked() {
-                self.start = start;
+            if resp.on_hover_text(label.clone()).clicked() {
+                match doc {
+                    None => self.start = true,
+                    Some(i) => switch = Some(i),
+                }
             }
             x += w;
+        }
+        if let Some(i) = close {
+            self.request_close(i);
+        } else if let Some(i) = switch {
+            self.switch_doc(i);
         }
     }
 
@@ -343,7 +374,9 @@ impl App {
         match action {
             Some("open") => self.open_dialog(),
             Some("new") => {
-                self.new_project();
+                if !self.current_is_blank() {
+                    self.new_project();
+                }
                 self.leave_start();
             }
             Some("sample") => {

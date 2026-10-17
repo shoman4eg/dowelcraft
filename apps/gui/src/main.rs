@@ -4,6 +4,7 @@
 use std::path::PathBuf;
 
 mod chrome;
+mod docs;
 mod editors;
 mod expr;
 mod i18n;
@@ -441,6 +442,13 @@ struct App {
     new_panel: (&'static str, f64, f64),
     /// Режим «Панель в проём» на виде спереди: плоскость, материал, отступы.
     fill: Option<FillTool>,
+    /// Все открытые проекты; на месте активного (`active`) — пустышка, сам он — в полях окна.
+    docs: Vec<docs::Doc>,
+    active: usize,
+    /// В активном проекте есть несохранённые изменения.
+    dirty: bool,
+    /// Спросить «Сохранить изменения?» перед закрытием вкладки.
+    close_ask: Option<docs::CloseAsk>,
     /// Открыто окно «Настройки черчения».
     drafting: bool,
     /// Показана стартовая страница (вместо рабочих панелей), как вкладка «Start» в cadcraft.
@@ -509,6 +517,10 @@ impl Default for App {
             modify: None,
             start: false,
             drafting: false,
+            docs: vec![docs::Doc::empty()],
+            active: 0,
+            dirty: false,
+            close_ask: None,
             help: false,
             about: false,
             edging: (None, true, 0.0),
@@ -538,8 +550,15 @@ impl App {
     fn open(&mut self, path: PathBuf) {
         match Job::open(&path) {
             Ok(job) => {
+                // Пустой несохранённый проект заменяется файлом, иначе файл — в новой вкладке.
+                if !self.current_is_blank() {
+                    self.add_doc(docs::Doc::empty());
+                }
                 self.session = job.project.clone().map(Session::new);
                 self.job = job;
+                self.dirty = false;
+                self.selection.clear();
+                self.furniture_sel = None;
                 self.status = format!("Открыт {}", path.display());
                 chrome::remember(&path);
                 self.start = false;
@@ -578,6 +597,9 @@ impl App {
         match s.execute(cmd, &p) {
             Ok(r) => {
                 eprintln!("[команда] {cmd} {p} → {}", if r.is_null() { "ok".into() } else { r.to_string() });
+                if !matches!(cmd, "parts" | "check" | "project.get") {
+                    self.dirty = true;
+                }
                 self.error = None;
                 self.refresh();
                 Some(r)
@@ -614,8 +636,9 @@ impl App {
     }
 
     /// Новый пустой проект (параметры раскроя сохраняются).
+    /// Новый проект — в новой вкладке, открытые не трогаются.
     fn new_project(&mut self) {
-        *self = App { params: self.params, ..App::default() };
+        self.add_doc(docs::Doc::empty());
     }
 
     /// Открыть файл через диалог.
@@ -647,6 +670,7 @@ impl App {
             match std::fs::write(&p, s.project.save()) {
                 Ok(()) => {
                     self.status = format!("Сохранено: {}", p.display());
+                    self.dirty = false;
                     chrome::remember(&p);
                     self.path = Some(p);
                 }
@@ -796,6 +820,7 @@ impl eframe::App for App {
             self.menu_apply(MenuAct::Delete);
         }
         self.help_windows(&ctx);
+        self.close_window(&ctx);
         self.script_window(&ctx);
         self.problems_window(&ctx);
         self.take_screenshot(&ctx);

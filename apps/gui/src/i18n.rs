@@ -71,19 +71,21 @@ fn fill<'a>(parts: &[&str], text: &'a str) -> Option<Vec<&'a str>> {
 /// Перевод строки на текущий язык (нет перевода — как есть).
 pub fn t(text: impl AsRef<str>) -> String {
     let text = text.as_ref();
-    if !english() {
-        return text.to_string();
-    }
+    if english() { en(text) } else { text.to_string() }
+}
+
+/// Перевод на английский (независимо от выбранного языка).
+fn en(text: &str) -> String {
     let tb = table();
     if let Some(en) = tb.exact.get(text) {
         return (*en).to_string();
     }
-    for (ru, en) in &tb.templates {
+    for (ru, en_parts) in &tb.templates {
         if let Some(args) = fill(ru, text) {
-            let mut out = String::from(en[0]);
-            for (k, piece) in en.iter().enumerate().skip(1) {
+            let mut out = String::from(en_parts[0]);
+            for (k, piece) in en_parts.iter().enumerate().skip(1) {
                 // Вставка тоже может быть русской фразой из таблицы.
-                out.push_str(&args.get(k - 1).map(t).unwrap_or_default());
+                out.push_str(&args.get(k - 1).map(|a| en(a)).unwrap_or_default());
                 out.push_str(piece);
             }
             return out;
@@ -98,15 +100,14 @@ mod tests {
 
     #[test]
     fn translates_exact_and_templates() {
-        set_language("en");
+        // Без общего переключателя языка: тесты окна идут параллельно и меняют его.
+        let t = en;
         assert_eq!(t("Новый проект"), "New project");
         assert_eq!(t("Удалить (3)"), "Delete (3)");
         assert_eq!(t("строка, которой нет в таблице"), "строка, которой нет в таблице");
         // Вложенные шаблоны: вставка тоже переводится.
         assert_eq!(t("Корпус: Корпус 2 (6)"), "Cabinet: Корпус 2 (6)");
         assert_eq!(t("600 × 400 × 16 мм"), "600 × 400 × 16 mm");
-        set_language("ru");
-        assert_eq!(t("Новый проект"), "Новый проект");
     }
 
     #[test]
