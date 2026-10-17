@@ -246,25 +246,54 @@ struct Library {
     thumbs: library::Thumbs,
     /// Папки уже просмотрены (иначе — просмотреть при показе вкладки).
     scanned: bool,
+    /// Идёт просмотр папок в фоне: результат придёт сюда (окно не замирает на сотнях моделей).
+    pending: Option<std::sync::mpsc::Receiver<(Vec<basis::library::ModelInfo>, Vec<String>)>>,
 }
 
 impl Library {
     fn new(dirs: Vec<String>) -> Self {
-        Library { dirs, models: Vec::new(), errors: Vec::new(), search: String::new(), thumbs: Default::default(), scanned: false }
+        let mut lib = Library { dirs, models: Vec::new(), errors: Vec::new(), search: String::new(), thumbs: Default::default(), scanned: false, pending: None };
+        // Сразу при запуске — в фоне, чтобы к открытию вкладки всё было готово.
+        lib.scan();
+        lib
     }
 
-    /// Просмотреть все папки заново.
+    /// Просмотреть все папки заново — в фоновом потоке.
     fn scan(&mut self) {
-        (self.models, self.errors) = (Vec::new(), Vec::new());
-        for d in &self.dirs {
-            let (m, e) = basis::library::scan(std::path::Path::new(d));
-            if m.is_empty() && e.is_empty() {
-                self.errors.push(format!("в «{d}» нет моделей .fr3d"));
+        let dirs = self.dirs.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let (mut models, mut errors) = (Vec::new(), Vec::new());
+            for d in &dirs {
+                let (m, e) = basis::library::scan(std::path::Path::new(d));
+                if m.is_empty() && e.is_empty() {
+                    errors.push(format!("в «{d}» нет моделей .fr3d"));
+                }
+                models.extend(m);
+                errors.extend(e);
             }
-            self.models.extend(m);
-            self.errors.extend(e);
-        }
+            let _ = tx.send((models, errors));
+        });
+        self.pending = Some(rx);
         self.scanned = true;
+    }
+
+    /// Забрать результат фонового просмотра, если готов; true — ещё идёт.
+    fn poll(&mut self) -> bool {
+        let Some(rx) = &self.pending else { return false };
+        match rx.try_recv() {
+            Ok((models, errors)) => {
+                (self.models, self.errors) = (models, errors);
+                self.thumbs.clear();
+                self.pending = None;
+                false
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => true,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.pending = None;
+                false
+            }
+        }
     }
 }
 
@@ -1254,6 +1283,7 @@ impl App {
         if !self.library.scanned {
             self.library.scan();
         }
+        let loading = self.library.poll();
         let mut changed = false;
         egui::CollapsingHeader::new(crate::i18n::t(format!("Папки фурнитуры ({})", self.library.dirs.len()))).default_open(self.library.dirs.is_empty()).show(ui, |ui| {
             let mut remove = None;
@@ -1300,6 +1330,14 @@ impl App {
         let right = self.session.as_ref().map_or(0.0, |s| {
             s.project.cabinets.iter().map(|c| c.position[0] + c.width).chain(s.project.corners.iter().map(|c| c.position[0] + c.width_x)).fold(0.0, f64::max)
         });
+        if loading {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(crate::i18n::t("Читаю папки фурнитуры…"));
+            });
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+            return;
+        }
         let roots: Vec<PathBuf> = self.library.dirs.iter().map(PathBuf::from).collect();
         let place = library::show(ui, &roots, &self.library.models, &mut self.library.thumbs, editable, &self.library.search);
         if let Some(p) = place {
