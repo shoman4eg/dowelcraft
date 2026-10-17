@@ -561,7 +561,7 @@ pub fn iso_view(parts: &[Part], doors: bool) -> Vec<Face> {
         ([0.0, 1.0, 0.0], [2, 6, 7, 3]),
         ([0.0, -1.0, 0.0], [0, 1, 5, 4]),
     ];
-    let mut boxes: Vec<(f64, Vec<Face>, [f64; 3], [f64; 3])> = Vec::new();
+    let mut boxes: Vec<IsoBox> = Vec::new();
     for (i, p) in parts.iter().enumerate() {
         if !doors && matches!(p.kind, Kind::Door | Kind::Drawer) {
             continue;
@@ -586,21 +586,17 @@ pub fn iso_view(parts: &[Part], doors: bool) -> Vec<Face> {
     paint_order(&boxes).into_iter().flat_map(|i| boxes[i].1.clone()).collect()
 }
 
+/// Деталь для 3D: (глубина центра, грани, мин. угол, макс. угол).
+type IsoBox = (f64, Vec<Face>, [f64; 3], [f64; 3]);
+
 /// Порядок рисования параллелепипедов при взгляде справа-сверху-спереди: A раньше B,
 /// если A целиком левее, ниже или дальше B. Циклы (их проекции не пересекаются) разрываем по глубине центра.
-fn paint_order(boxes: &[(f64, Vec<Face>, [f64; 3], [f64; 3])]) -> Vec<usize> {
+fn paint_order(boxes: &[IsoBox]) -> Vec<usize> {
     let n = boxes.len();
     let behind = |a: usize, b: usize| (0..3).any(|k| boxes[a].3[k] <= boxes[b].2[k] + 1e-6);
-    let mut before: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let before: Vec<Vec<usize>> = (0..n).map(|a| (0..n).filter(|&b| a != b && behind(a, b) && !behind(b, a)).collect()).collect();
     let mut pending = vec![0usize; n];
-    for a in 0..n {
-        for b in 0..n {
-            if a != b && behind(a, b) && !behind(b, a) {
-                before[a].push(b);
-                pending[b] += 1;
-            }
-        }
-    }
+    before.iter().flatten().for_each(|&b| pending[b] += 1);
     let mut done = vec![false; n];
     let mut order = Vec::with_capacity(n);
     while order.len() < n {
