@@ -25,6 +25,7 @@ const USAGE: &str = "basis-craft — проектирование мебели �
   basis-craft b3d <проект.bcraft> [-o модель.b3d]     свой проект → модель Базис-Мебельщика
   basis-craft script <проект.bcraft> <скрипт.js>      выполнить скрипт Базиса над проектом и сохранить
   basis-craft check <модель>                          анализ модели: пересечения, крепёж, размеры
+  basis-craft drawings <модель> [-o чертежи.html]     сборочный и рабочие чертежи деталей (A4, для печати)
   basis-craft design <проект.bcraft> <команда> ['{json-параметры}']
                                                      выполнить команду; файл создаётся, если его нет
   basis-craft design --help                          список команд
@@ -105,6 +106,15 @@ fn run(args: &[String]) -> Result<(), String> {
                 std::fs::write(path, s.project.save()).map_err(|e| format!("{path}: {e}"))?;
             }
             println!("изменений: {}, окон: {}", r.changes, r.forms.len());
+            return Ok(());
+        }
+        "drawings" => {
+            let job = Job::open(Path::new(path))?;
+            let parts = basis::job::parts(&job)?;
+            let html = report::document_html(&format!("{} — чертежи", job.name), &basis::drawing::drawings(&parts, &job.name), "");
+            let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("drawings.html"));
+            std::fs::write(&out, html).map_err(|e| format!("{}: {e}", out.display()))?;
+            println!("листов {} → {}", parts.len().min(1) + basis::panel::spec(&job.panels).len(), out.display());
             return Ok(());
         }
         "check" => {

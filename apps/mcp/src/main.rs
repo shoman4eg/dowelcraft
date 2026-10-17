@@ -79,9 +79,9 @@ fn tools() -> Value {
          "inputSchema": {"type": "object", "properties": {
              "sheet": {"type": "array", "items": {"type": "number"}, "description": "лист по умолчанию [длина, ширина]"},
              "kerf": {"type": "number"}, "trim": {"type": "number"}}}},
-        {"name": "export", "description": "Сохранить документ: cards_html (карты раскроя и «Панели в производство»), raskroy_xml (проект БАЗИС-Раскроя), spec_csv, smeta_csv, b3d (модель Базис-Мебельщика из своего проекта).",
+        {"name": "export", "description": "Сохранить документ: cards_html (карты раскроя и «Панели в производство»), raskroy_xml (проект БАЗИС-Раскроя), spec_csv, smeta_csv, b3d (модель Базис-Мебельщика из своего проекта), drawings_html (сборочный и рабочие чертежи деталей с отверстиями).",
          "inputSchema": {"type": "object", "properties": {
-             "kind": {"type": "string", "enum": ["cards_html", "raskroy_xml", "spec_csv", "smeta_csv", "b3d"]},
+             "kind": {"type": "string", "enum": ["cards_html", "raskroy_xml", "spec_csv", "smeta_csv", "b3d", "drawings_html"]},
              "path": {"type": "string"}}, "required": ["kind", "path"]}},
         {"name": "render_iso", "description": "3D-картинка (PNG, аксонометрия спереди-справа-сверху) проекта или модели Базиса.",
          "inputSchema": {"type": "object", "properties": {
@@ -225,6 +225,7 @@ impl Server {
                     "raskroy_xml" => basis::raskroy::project_xml(&job.name, &job.panels, |m| job.sheet(m, p.sheet)),
                     "spec_csv" => basis::report::spec_csv(&panel::spec(&job.panels)).into_bytes(),
                     "smeta_csv" => basis::report::materials_csv(&job.estimate(1.2)).into_bytes(),
+                    "drawings_html" => basis::report::document_html(&job.name, &basis::drawing::drawings(&job::parts(job)?, &job.name), "").into_bytes(),
                     "b3d" => basis::export::b3d(job.project.as_ref().ok_or("b3d пишется из своего проекта: откройте или импортируйте его")?)?,
                     k => return Err(format!("неизвестный вид документа «{k}»")),
                 };

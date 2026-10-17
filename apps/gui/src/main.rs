@@ -444,10 +444,12 @@ impl App {
             "xml" => ("xml", "Проект БАЗИС-Раскроя"),
             "spec" | "smeta" => ("csv", "Таблица CSV"),
             "b3d" => ("b3d", "Модель Базис-Мебельщика"),
+            "drawings" => ("html", "Чертежи"),
             _ => return,
         };
         let suffix = match what {
             "spec" => " спецификация",
+            "drawings" => " чертежи",
             "smeta" => " смета",
             _ => "",
         };
@@ -460,6 +462,10 @@ impl App {
             "html" => job::document(job, &self.cuts).into_bytes(),
             "xml" => basis::raskroy::project_xml(&job.name, &job.panels, |m| job.sheet(m, sheet)),
             "spec" => basis::report::spec_csv(&panel::spec(&job.panels)).into_bytes(),
+            "drawings" => match job::parts(job) {
+                Ok(parts) => basis::report::document_html(&job.name, &basis::drawing::drawings(&parts, &job.name), "").into_bytes(),
+                Err(e) => return self.error = Some(e),
+            },
             "b3d" => match job.project.as_ref().map(basis::export::b3d) {
                 Some(Ok(b)) => b,
                 Some(Err(e)) => return self.error = Some(e),
@@ -553,6 +559,7 @@ impl App {
                         ("spec", "Спецификация (CSV)…"),
                         ("smeta", "Смета материалов (CSV)…"),
                         ("b3d", "Модель Базис-Мебельщика (.b3d)…"),
+                        ("drawings", "Чертежи: сборочный и детали (HTML для печати)…"),
                     ] {
                         if ui.button(label).clicked() {
                             self.export(what);

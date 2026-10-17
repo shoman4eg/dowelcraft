@@ -3,6 +3,7 @@
 pub mod b3d;
 pub mod contour;
 pub mod design;
+pub mod drawing;
 pub mod export;
 pub mod fasteners;
 pub mod geom;
