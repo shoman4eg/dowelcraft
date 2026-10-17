@@ -368,3 +368,22 @@
 Без текстуры	No texture
 Читаю папки текстур…	Reading texture folders…
 Найдено: {}, показаны первые {}	Found: {}, showing the first {}
+Крепёж: выбрать вид (конфирмат, эксцентрик, шкант…) и поставить на выделенный корпус или панели	Fasteners: choose a type (confirmat, cam lock, dowel…) and apply to the selected cabinet or panels
+Вид	Type
+Выделите корпус (щелчок по любой его детали) или несколько отдельных панелей (Ctrl+щелчок) и нажмите «Поставить». Отверстия с координатами появятся на обеих деталях каждого стыка.	Select a cabinet (click any of its parts) or several free panels (Ctrl+click) and press “Apply”. Holes with coordinates appear on both parts of every joint.
+Поставить на выделенное	Apply to selection
+Крепёж «{}»: корпусов {}, стыков панелей {}	“{}” fasteners: cabinets {}, panel joints {}
+Стыков не найдено: панели должны касаться — торец одной на пласти другой.	No joints found: panels must touch — the edge of one on the face of the other.
+Крепёж: выделите корпус или панели (Ctrl — несколько) и нажмите «Поставить на выделенное». Esc — выйти.	Fasteners: select a cabinet or panels (Ctrl for several) and press “Apply to selection”. Esc exits.
+Корпус	Cabinet
+Навесной	Wall
+Угловой	Corner
+Полка	Shelf
+Перегородка	Partition
+Ящики	Drawers
+Библиотека	Library
+Копия	Copy
+Зеркально	Mirrored
+В блок	Block
+Анализ	Analyze
+Скрипт	Script

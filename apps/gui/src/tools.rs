@@ -5,11 +5,9 @@ use basis::design;
 use eframe::egui::{self, Color32};
 use serde_json::{Value, json};
 
-use crate::icons::{Icon, button, button_if};
+use crate::icons::{Icon, tool};
 use crate::{App, FillTool, MenuAct, Pane};
 
-/// Размер иконки в палитре, точки.
-const BIG: f32 = 36.0;
 
 /// Инструмент изменения выделенного: параметры — под палитрой, «Применить» — Enter.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -47,6 +45,8 @@ enum Pick {
 
 /// Группа палитры: заголовок и иконки в строку с переносом.
 fn group(ui: &mut egui::Ui, title: &str, body: impl FnOnce(&mut egui::Ui)) {
+    // Без отступа слева: в ряд помещаются три подписанные кнопки.
+    ui.spacing_mut().indent = 0.0;
     egui::CollapsingHeader::new(egui::RichText::new(crate::i18n::t(title)).strong()).default_open(true).show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
@@ -78,7 +78,7 @@ impl App {
                 (Icon::Countertop, "countertop", "Столешница над напольными корпусами"),
                 (Icon::PanelFree, "panel", "Отдельная панель — размеры и положение в «Свойствах»"),
             ] {
-                if button_if(ui, can_add, icon, BIG, tip, false).clicked() {
+                if tool(ui, can_add, icon, tip, false).clicked() {
                     pick = Some(Pick::Add(kind));
                 }
             }
@@ -91,17 +91,16 @@ impl App {
                 (Icon::Door, "door", "Дверь в проём, с петлями и присадкой"),
                 (Icon::Drawers, "drawers", "Ящики в проём, с направляющими"),
             ] {
-                if button_if(ui, can_add, icon, BIG, tip, fill == Some(plane)).clicked() {
+                if tool(ui, can_add, icon, tip, fill == Some(plane)).clicked() {
                     pick = Some(Pick::Fill(plane));
                 }
             }
         });
         group(ui, "Фурнитура", |ui| {
-            if button(ui, Icon::Furniture, BIG, "Библиотека фурнитуры (.fr3d): корзины, петли, направляющие", false).clicked() {
+            if tool(ui, true, Icon::Furniture, "Библиотека фурнитуры (.fr3d): корзины, петли, направляющие", false).clicked() {
                 pick = Some(Pick::Library);
             }
-            let tip = format!("Крепёж «{}» на все стыки выделенных панелей (вид крепежа — в «Свойствах» панели)", self.fastener_kind);
-            if button_if(ui, editable && selected, Icon::Fastener, BIG, &tip, false).clicked() {
+            if tool(ui, editable, Icon::Fastener, "Крепёж: выбрать вид (конфирмат, эксцентрик, шкант…) и поставить на выделенный корпус или панели", self.fastening).clicked() {
                 pick = Some(Pick::Fasteners);
             }
         });
@@ -113,25 +112,25 @@ impl App {
                 (Icon::Mirror, Modify::Mirror, "Отразить"),
                 (Icon::MirrorCopy, Modify::MirrorCopy, "Зеркальная копия"),
             ] {
-                if button_if(ui, editable && selected, icon, BIG, tip, self.modify == Some(m)).clicked() {
+                if tool(ui, editable && selected, icon, tip, self.modify == Some(m)).clicked() {
                     pick = Some(Pick::Modify(m));
                 }
             }
-            if button_if(ui, editable && selected, Icon::Block, BIG, "Собрать в блок", false).clicked() {
+            if tool(ui, editable && selected, Icon::Block, "Собрать в блок", false).clicked() {
                 pick = Some(Pick::Menu(MenuAct::Block));
             }
-            if button_if(ui, editable && explodable, Icon::Explode, BIG, "Разрушить: корпус, угловой модуль, столешницу или блок — в отдельные панели", false).clicked() {
+            if tool(ui, editable && explodable, Icon::Explode, "Разрушить: корпус, угловой модуль, столешницу или блок — в отдельные панели", false).clicked() {
                 pick = Some(Pick::Menu(MenuAct::Explode));
             }
-            if button_if(ui, editable && deletable, Icon::Erase, BIG, "Удалить (Del)", false).clicked() {
+            if tool(ui, editable && deletable, Icon::Erase, "Удалить (Del)", false).clicked() {
                 pick = Some(Pick::Menu(MenuAct::Delete));
             }
         });
         group(ui, "Проверка и скрипты", |ui| {
-            if button(ui, Icon::Analyze, BIG, "Анализ модели: пересечения, крепёж мимо панели, деталь больше листа", false).clicked() {
+            if tool(ui, true, Icon::Analyze, "Анализ модели: пересечения, крепёж мимо панели, деталь больше листа", false).clicked() {
                 pick = Some(Pick::Analyze);
             }
-            if button_if(ui, editable, Icon::Script, BIG, "Выполнить скрипт Базиса (.js)", false).clicked() {
+            if tool(ui, editable, Icon::Script, "Выполнить скрипт Базиса (.js)", false).clicked() {
                 pick = Some(Pick::Script);
             }
         });
@@ -140,30 +139,28 @@ impl App {
             Some(Pick::Fill(plane)) => self.toggle_fill(plane),
             Some(Pick::Modify(m)) => {
                 self.fill = None;
+                self.fastening = false;
                 self.modify = (self.modify != Some(m)).then_some(m);
             }
             Some(Pick::Menu(a)) => self.menu_apply(a),
             Some(Pick::Library) => self.show_pane(Pane::Library),
             Some(Pick::Fasteners) => {
-                let ids: Vec<u32> = self.session.as_ref().map(|s| self.targets().into_iter().filter(|id| s.project.panels().iter().any(|p| p.id == *id)).collect()).unwrap_or_default();
-                if ids.is_empty() {
-                    self.error = Some("Крепёж ставится между отдельными панелями: выделите их (детали корпуса — после «Разрушить»).".into());
-                } else {
-                    let kind = self.fastener_kind.clone();
-                    self.exec("fastener.auto", json!({ "kind": kind, "ids": ids }));
-                }
+                (self.fill, self.modify) = (None, None);
+                self.fastening = !self.fastening;
             }
             Some(Pick::Analyze) => self.analyze(),
             Some(Pick::Script) => self.pick_script(),
             None => {}
         }
         // Параметры включённого инструмента.
-        if self.fill.is_some() || self.modify.is_some() {
+        if self.fill.is_some() || self.modify.is_some() || self.fastening {
             ui.separator();
             if self.fill.is_some() {
                 self.fill_params(ui);
-            } else {
+            } else if self.modify.is_some() {
                 self.modify_params(ui);
+            } else {
+                self.fastener_params(ui);
             }
         }
     }
@@ -171,6 +168,7 @@ impl App {
     /// Включить или выключить инструмент «в проём» и показать вид спереди, где им щёлкают.
     pub(crate) fn toggle_fill(&mut self, plane: &'static str) {
         self.modify = None;
+        self.fastening = false;
         if self.fill.as_ref().is_some_and(|f| f.plane == plane) {
             self.fill = None;
             return;
@@ -359,8 +357,61 @@ impl App {
         self.exec(cmd, args);
     }
 
+    /// Крепёж: вид из справочника, пояснение и «Поставить на выделенное».
+    /// Корпусу и угловому модулю крепёж задаётся целиком (все стыки), отдельным панелям — на их стыки.
+    fn fastener_params(&mut self, ui: &mut egui::Ui) {
+        let Some(s) = &self.session else { return };
+        let project = s.project.clone();
+        ui.strong(crate::i18n::t("Крепёж"));
+        let names = crate::editors::fastener_names(&project);
+        crate::editors::props(ui, "fastener_params", |ui| {
+            crate::editors::caption(ui, "Вид");
+            if let Some(Some(v)) = crate::editors::choose(ui, "fast_tool_kind", Some(&self.fastener_kind), &names, false) {
+                self.fastener_kind = v;
+            }
+            ui.end_row();
+        });
+        ui.weak(crate::i18n::t("Выделите корпус (щелчок по любой его детали) или несколько отдельных панелей (Ctrl+щелчок) и нажмите «Поставить». Отверстия с координатами появятся на обеих деталях каждого стыка."));
+        let ids = self.targets();
+        let go = ui.add_enabled(!ids.is_empty(), egui::Button::new(crate::i18n::t("Поставить на выделенное"))).clicked();
+        if !go {
+            return;
+        }
+        let kind = self.fastener_kind.clone();
+        let mut panels = Vec::new();
+        let mut modules = 0;
+        for id in ids {
+            if project.cabinets.iter().any(|c| c.id == id) {
+                self.exec("cabinet.set", json!({ "id": id, "fastener": kind }));
+                modules += 1;
+            } else if project.corners.iter().any(|c| c.id == id) {
+                self.exec("corner.set", json!({ "id": id, "fastener": kind }));
+                modules += 1;
+            } else {
+                // Панель или блок: все отдельные панели внутри.
+                let Ok(parts) = &self.parts else { continue };
+                panels.extend(parts.iter().filter(|p| p.id != 0 && (p.id == id || p.owner == id)).map(|p| p.id));
+            }
+        }
+        panels.sort_unstable();
+        panels.dedup();
+        let mut joints = 0;
+        if panels.len() >= 2
+            && let Some(r) = self.exec_ret("fastener.auto", json!({ "kind": kind, "ids": panels }))
+        {
+            joints = r.get("ids").and_then(Value::as_array).map_or(0, Vec::len);
+        }
+        self.status = crate::i18n::t(format!("Крепёж «{kind}»: корпусов {modules}, стыков панелей {joints}"));
+        if modules == 0 && joints == 0 && self.error.is_none() {
+            self.error = Some(crate::i18n::t("Стыков не найдено: панели должны касаться — торец одной на пласти другой."));
+        }
+    }
+
     /// Подсказка в строке состояния: что делать дальше.
     pub(crate) fn hint(&self) -> String {
+        if self.fastening {
+            return "Крепёж: выделите корпус или панели (Ctrl — несколько) и нажмите «Поставить на выделенное». Esc — выйти.".into();
+        }
         if let Some(t) = &self.fill {
             let what = match t.plane {
                 "horizontal" => "полку",

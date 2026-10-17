@@ -414,6 +414,59 @@ fn style() -> IconButtonStyle {
     }
 }
 
+/// Короткая подпись под иконкой в палитре «Инструменты».
+pub fn caption(icon: Icon) -> &'static str {
+    use Icon::*;
+    match icon {
+        Cabinet => "Корпус",
+        WallCabinet => "Навесной",
+        Corner => "Угловой",
+        Countertop => "Столешница",
+        PanelFree => "Панель",
+        PanelH => "Полка",
+        PanelV => "Перегородка",
+        PanelF => "Задняя стенка",
+        Door => "Дверь",
+        Drawers => "Ящики",
+        Furniture => "Библиотека",
+        Fastener => "Крепёж",
+        Move => "Сдвинуть",
+        Copy => "Копия",
+        Rotate => "Повернуть",
+        Mirror => "Отразить",
+        MirrorCopy => "Зеркально",
+        Block => "В блок",
+        Explode => "Разрушить",
+        Erase => "Удалить",
+        Analyze => "Анализ",
+        Script => "Скрипт",
+        _ => "",
+    }
+}
+
+/// Инструмент палитры: иконка и подпись под ней (как подписанные палитры), подсказка по наведению.
+pub fn tool(ui: &mut egui::Ui, enabled: bool, icon: Icon, tooltip: &str, selected: bool) -> egui::Response {
+    let enabled = enabled && ui.is_enabled();
+    let tooltip = crate::i18n::t(tooltip);
+    let text = crate::i18n::t(caption(icon));
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(74.0, 54.0), if enabled { egui::Sense::click() } else { egui::Sense::hover() });
+    let fill = if selected {
+        Color32::from_rgb(0x2f, 0x5f, 0x99)
+    } else if enabled && resp.hovered() {
+        Color32::from_rgb(0x5c, 0x67, 0x7c).gamma_multiply(0.6)
+    } else {
+        Color32::TRANSPARENT
+    };
+    ui.painter().rect_filled(rect, 4.0, fill);
+    let icon_rect = egui::Rect::from_center_size(egui::pos2(rect.center().x, rect.top() + 19.0), egui::vec2(30.0, 30.0));
+    paint(ui.painter(), icon_rect, icon, !enabled);
+    let color = if enabled { Color32::from_rgb(0xd7, 0xdb, 0xe0) } else { Color32::from_rgb(0x87, 0x8d, 0x96).gamma_multiply(0.7) };
+    let galley = ui.painter().layout(text, egui::FontId::proportional(11.0), color, rect.width());
+    ui.painter().galley(egui::pos2(rect.center().x - galley.size().x / 2.0, rect.top() + 37.0), galley, color);
+    remember_hover(&resp, &if enabled { tooltip.clone() } else { crate::i18n::t(format!("{tooltip} (сейчас недоступно)")) });
+    resp.on_hover_text(tooltip)
+}
+
 /// Кнопка-иконка, которая может быть неактивной (бледная, не нажимается). Без обёртки `add_enabled_ui`:
 /// та не переносится в `horizontal_wrapped`, и иконки уезжают за край панели.
 pub fn button_if(ui: &mut egui::Ui, enabled: bool, icon: Icon, size: f32, tooltip: &str, selected: bool) -> egui::Response {

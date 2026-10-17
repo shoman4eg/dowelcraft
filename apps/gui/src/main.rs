@@ -70,6 +70,7 @@ fn main() -> eframe::Result {
     // Для снимков: включить инструмент «в проём» (horizontal | vertical | front | door | drawers) или изменения (move).
     match args.iter().position(|a| a == "--tool").and_then(|i| args.get(i + 1)).map(String::as_str) {
         Some("move") => app.modify = Some(tools::Modify::Move),
+        Some("fasten") => app.fastening = true,
         Some(t @ ("horizontal" | "vertical" | "front" | "door" | "drawers")) => {
             let plane = ["horizontal", "vertical", "front", "door", "drawers"].into_iter().find(|p| *p == t).unwrap_or("horizontal");
             app.toggle_fill(plane);
@@ -134,8 +135,8 @@ fn default_layout() -> Layout<Pane> {
     Layout {
         root: Some(Node::Split {
             axis: SplitAxis::Horizontal,
-            size: SplitSize::FixedFirst(290.0),
-            first: stack(vec![(Pane::Tools, true, Some(380.0)), (Pane::Project, true, Some(300.0)), (Pane::Library, false, None)]),
+            size: SplitSize::FixedFirst(280.0),
+            first: stack(vec![(Pane::Tools, true, Some(600.0)), (Pane::Project, true, Some(260.0)), (Pane::Library, false, None)]),
             second: Box::new(Node::Split {
                 axis: SplitAxis::Horizontal,
                 size: SplitSize::FixedSecond(380.0),
@@ -465,6 +466,8 @@ struct App {
     drafting: bool,
     /// Показана стартовая страница (вместо рабочих панелей), как вкладка «Start» в cadcraft.
     start: bool,
+    /// Включён инструмент «Крепёж» (параметры под палитрой).
+    fastening: bool,
     /// Открыты окна «Как пользоваться» и «О программе».
     help: bool,
     about: bool,
@@ -537,6 +540,7 @@ impl Default for App {
             dirty: false,
             close_ask: None,
             help: false,
+            fastening: false,
             about: false,
             edging: (None, true, 0.0),
             contour_tool: (ContourTool::Edge, 50.0),
@@ -774,8 +778,8 @@ impl eframe::App for App {
         self.top_bar(ui);
         // Esc — выйти из инструмента, а без инструмента — снять выделение.
         if !ctx.text_edit_focused() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            if self.fill.is_some() || self.modify.is_some() {
-                (self.fill, self.modify) = (None, None);
+            if self.fill.is_some() || self.modify.is_some() || self.fastening {
+                (self.fill, self.modify, self.fastening) = (None, None, false);
             } else {
                 self.menu_apply(MenuAct::Deselect);
             }
