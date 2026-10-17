@@ -363,7 +363,7 @@ fn object_actions() {
     assert_eq!(after.size, before.size);
     assert_eq!(after.origin[0], 6000.0 - before.origin[0] - before.size[0]);
     after.panel.frame.unwrap().check().unwrap();
-    assert!(crate::mesh::build(&[after.clone()], |_| false).errors.is_empty());
+    assert!(crate::mesh::build(std::slice::from_ref(&after), |_| false).errors.is_empty());
     // Пильный размер и кромка зеркальной копии — те же.
     assert_eq!(after.panel.cut_size(), before.panel.cut_size());
     // Массив: 3 копии корпуса через 800 мм.
