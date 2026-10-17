@@ -317,6 +317,13 @@ fn num(v: f64) -> String {
     if r.fract() == 0.0 { format!("{r:.0}") } else { format!("{r:.1}") }
 }
 
+/// Боковая панель: отступ от краёв и прокрутка.
+fn side(ui: &mut egui::Ui, id: &str, body: impl FnOnce(&mut egui::Ui)) {
+    egui::ScrollArea::vertical().id_salt(id).show(ui, |ui| {
+        egui::Frame::new().inner_margin(egui::Margin { left: 10, right: 10, top: 6, bottom: 8 }).show(ui, body);
+    });
+}
+
 /// Свободное название: `base`, а если занято — «base (2)», «base (3)»…
 fn free_name(base: &str, taken: &[&str]) -> String {
     let base = base.trim();
@@ -654,15 +661,15 @@ impl eframe::App for App {
             let layout = self.layout.clone();
             let style = DockStyle::from_ui(ui);
             let out = DockArea::new(egui::Id::new("dock")).show(ui, &layout, &style, |p| p.label().to_string(), permissions, |ui, pane| match pane {
-                Pane::Tools => egui::ScrollArea::vertical().id_salt("tools").show(ui, |ui| self.tools_panel(ui)).inner,
+                Pane::Tools => side(ui, "tools", |ui| self.tools_panel(ui)),
                 Pane::Model => self.iso_view(ui, frame),
                 Pane::Front => self.front_view(ui),
                 Pane::Parts => self.parts_table(ui),
                 Pane::Cut => self.cut_view(ui),
-                Pane::Structure => egui::ScrollArea::vertical().id_salt("structure").show(ui, |ui| self.structure_panel(ui)).inner,
-                Pane::Project => egui::ScrollArea::vertical().id_salt("project").show(ui, |ui| self.project_panel(ui)).inner,
-                Pane::Properties => egui::ScrollArea::vertical().id_salt("props").show(ui, |ui| self.properties_panel(ui)).inner,
-                Pane::Library => self.library_panel(ui),
+                Pane::Structure => side(ui, "structure", |ui| self.structure_panel(ui)),
+                Pane::Project => side(ui, "project", |ui| self.project_panel(ui)),
+                Pane::Properties => side(ui, "props", |ui| self.properties_panel(ui)),
+                Pane::Library => egui::Frame::new().inner_margin(8).show(ui, |ui| self.library_panel(ui)).inner,
             });
             for a in out.actions {
                 if let Err(e) = self.layout.apply_with_permissions(a, permissions) {
@@ -779,7 +786,7 @@ impl App {
                     ui.set_width(ui.available_width());
                     ui.strong(&m.name);
                     ui.label(format!("{} мм, лист {}×{}, коэф. {}", m.thickness, m.sheet.0, m.sheet.1, m.coef));
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         let shown = m.texture.as_deref().and_then(|t| std::path::Path::new(t).file_name()).map_or("нет".into(), |f| f.to_string_lossy().into_owned());
                         ui.label(format!("текстура: {shown}"));
                         if ui.small_button("…").on_hover_text("Выбрать картинку").clicked()
@@ -794,6 +801,7 @@ impl App {
                             }
                         }
                         let mut tile = m.texture_size.unwrap_or([1000.0, 1000.0]);
+                        ui.label("плитка").on_hover_text("Размер картинки текстуры на детали, мм: вдоль волокон × поперёк");
                         let r1 = crate::expr::add(ui, &mut tile[0], |d| d.range(10.0..=5000.0).suffix(" мм"));
                         let r2 = crate::expr::add(ui, &mut tile[1], |d| d.range(10.0..=5000.0).suffix(" мм")).on_hover_text("Плитка текстуры: вдоль волокон × поперёк");
                         let done = |r: &egui::Response| r.drag_stopped() || (r.changed() && !r.dragged());
@@ -828,7 +836,7 @@ impl App {
                 ui.strong("➕ Новый материал");
                 egui::Grid::new("new_mat").num_columns(2).show(ui, |ui| {
                     ui.label("Название");
-                    ui.add(egui::TextEdit::singleline(&mut nm.name).id(name_id));
+                    ui.add(egui::TextEdit::singleline(&mut nm.name).id(name_id).desired_width(ui.available_width()));
                     ui.end_row();
                     if taken {
                         ui.label("");
@@ -877,7 +885,7 @@ impl App {
                 ui.strong("➕ Новая кромка");
                 egui::Grid::new("new_edge").num_columns(2).show(ui, |ui| {
                     ui.label("Название");
-                    ui.add(egui::TextEdit::singleline(n).id(name_id));
+                    ui.add(egui::TextEdit::singleline(n).id(name_id).desired_width(ui.available_width()));
                     ui.end_row();
                     if taken {
                         ui.label("");
