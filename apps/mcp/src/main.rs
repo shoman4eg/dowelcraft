@@ -87,6 +87,10 @@ fn tools() -> Value {
          "inputSchema": {"type": "object", "properties": {
              "width": {"type": "integer", "description": "ширина картинки, пикселей (по умолчанию 900)"},
              "doors": {"type": "boolean", "description": "рисовать двери и фасады (по умолчанию да)"}}}},
+        {"name": "run_script", "description": "Выполнить скрипт Базиса (BAZIS-Script, JavaScript) над открытым проектом: Model, AddFrontPanel/AddHorizPanel/AddVertPanel, objects3d, panelOperations, fs (только в папке скрипта). Изменения проверяются и применяются одной записью отмены; при ошибке модель не меняется.",
+         "inputSchema": {"type": "object", "properties": {
+             "source": {"type": "string", "description": "текст скрипта"},
+             "path": {"type": "string", "description": "или путь к файлу .js; его папка — песочница для файлов скрипта"}}}},
         {"name": "render_front", "description": "Картинка вида спереди (PNG) проекта или модели Базиса: корпус — бежевый, двери — голубые полупрозрачные, задняя стенка — серая.",
          "inputSchema": {"type": "object", "properties": {
              "width": {"type": "integer", "description": "ширина картинки, пикселей (по умолчанию 800)"},
@@ -226,6 +230,26 @@ impl Server {
                 };
                 std::fs::write(&path, bytes).map_err(|e| format!("{}: {e}", path.display()))?;
                 Ok(text(format!("Сохранено: {}", path.display())))
+            }
+            "run_script" => {
+                let s = self.session.as_mut().ok_or("открыта модель Базиса — сначала project_import")?;
+                let (source, dir) = match (a.get("source").and_then(Value::as_str), a.get("path").and_then(Value::as_str)) {
+                    (Some(src), _) => (src.to_string(), std::env::temp_dir().join("basis-craft-mcp-script")),
+                    (None, Some(p)) => {
+                        let p = PathBuf::from(p);
+                        (script::read_script(&p)?, p.parent().map(PathBuf::from).unwrap_or_default())
+                    }
+                    _ => return Err("нужен source или path".into()),
+                };
+                std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+                let r = script::run(s, &source, script::Options { sandbox: dir.clone(), script_dir: dir, ..Default::default() });
+                self.refresh();
+                let mut t = r.log.join("\n");
+                t += &format!("\nизменений: {}, окон: {}", r.changes, r.forms.len());
+                match r.error {
+                    Some(e) => Err(format!("{t}\nОшибка: {e} (модель не изменена)")),
+                    None => Ok(text(t)),
+                }
             }
             "render_front" => {
                 let parts = job::parts(&self.job)?;

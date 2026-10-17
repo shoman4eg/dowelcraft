@@ -13,6 +13,7 @@ workspace = true
 
 [dependencies]
 basis = { workspace = true }
+script = { path = "../../crates/script" }
 serde_json = { workspace = true }
 eframe = "0.36"
 egui = "0.36"

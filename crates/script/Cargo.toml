@@ -1,0 +1,14 @@
+[package]
+name = "script"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+basis = { workspace = true }
+serde_json = { workspace = true }
+boa_engine = "0.22"
+encoding_rs = { workspace = true }

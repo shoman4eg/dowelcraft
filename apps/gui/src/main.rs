@@ -106,6 +106,101 @@ fn permissions(_: &Pane) -> Permissions {
     Permissions { closable: false, ..Permissions::default() }
 }
 
+/// Скрипт Базиса с открытыми окнами.
+struct ScriptWin {
+    name: String,
+    rt: Option<script::Runtime>,
+    /// Итог, когда скрипт завершён (сообщения, ошибка).
+    done: Option<script::Run>,
+}
+
+/// Событие окна скрипта: щелчок или новое значение поля.
+enum ScriptEvent {
+    Click(i64),
+    Change(i64, &'static str, Value),
+}
+
+/// Элемент окна скрипта по его описанию (JSON из `__forms()`).
+fn script_control(ui: &mut egui::Ui, c: &Value, ev: &mut Vec<ScriptEvent>) {
+    let id = c["__id"].as_i64().unwrap_or(-1);
+    let caption = c["Caption"].as_str().unwrap_or("");
+    let kids = |ui: &mut egui::Ui, ev: &mut Vec<ScriptEvent>| {
+        for k in c["Children"].as_array().into_iter().flatten() {
+            script_control(ui, k, ev);
+        }
+    };
+    if c["Visible"] == json!(false) {
+        return;
+    }
+    match c["Kind"].as_str().unwrap_or("") {
+        "Form" | "GroupBox" | "Group" | "Panel" | "Tab" | "TabSheet" => {
+            if caption.is_empty() || c["Kind"] == "Form" {
+                kids(ui, ev);
+            } else {
+                ui.group(|ui| {
+                    ui.strong(caption);
+                    kids(ui, ev);
+                });
+            }
+        }
+        "Label" => {
+            ui.label(if caption.is_empty() { c["Text"].as_str().unwrap_or("") } else { caption });
+        }
+        "Button" | "ImageButton" => {
+            if ui.button(if caption.is_empty() { "Кнопка" } else { caption }).clicked() {
+                ev.push(ScriptEvent::Click(id));
+            }
+        }
+        "CheckBox" | "Bool" | "RadioButton" => {
+            let key = if c["Kind"] == "Bool" { "Value" } else { "Checked" };
+            let mut v = c[key].as_bool().unwrap_or(false);
+            if ui.checkbox(&mut v, caption).changed() {
+                ev.push(ScriptEvent::Change(id, key, json!(v)));
+                ev.push(ScriptEvent::Click(id));
+            }
+        }
+        "Number" => {
+            ui.horizontal(|ui| {
+                ui.label(caption);
+                let key = if c.get("Value").is_some() { "Value" } else { "Text" };
+                let mut v = c[key].as_f64().or_else(|| c[key].as_str().and_then(|s| s.replace(',', ".").parse().ok())).unwrap_or(0.0);
+                if ui.add(egui::DragValue::new(&mut v).speed(1.0)).changed() {
+                    ev.push(ScriptEvent::Change(id, "Value", json!(v)));
+                }
+            });
+        }
+        "ComboBox" | "Combo" | "ListBox" => {
+            let items: Vec<String> = c["Items"].as_array().into_iter().flatten().map(|v| v.as_str().map_or(v.to_string(), str::to_string)).collect();
+            let mut i = c["ItemIndex"].as_i64().unwrap_or(-1);
+            ui.horizontal(|ui| {
+                ui.label(caption);
+                let shown = usize::try_from(i).ok().and_then(|k| items.get(k)).cloned().unwrap_or_default();
+                egui::ComboBox::from_id_salt(("script", id)).selected_text(shown).show_ui(ui, |ui| {
+                    for (k, it) in items.iter().enumerate() {
+                        ui.selectable_value(&mut i, k as i64, it);
+                    }
+                });
+            });
+            if Some(i) != c["ItemIndex"].as_i64() {
+                ev.push(ScriptEvent::Change(id, "ItemIndex", json!(i)));
+            }
+        }
+        _ => {
+            // Текстовые поля и всё прочее с текстом.
+            ui.horizontal(|ui| {
+                if !caption.is_empty() {
+                    ui.label(caption);
+                }
+                let key = if c["Kind"] == "String" { "Value" } else { "Text" };
+                let mut t = c[key].as_str().map_or_else(|| c[key].to_string(), str::to_string);
+                if ui.text_edit_singleline(&mut t).changed() {
+                    ev.push(ScriptEvent::Change(id, key, json!(t)));
+                }
+            });
+        }
+    }
+}
+
 /// Библиотека моделей фурнитуры в окне.
 struct Library {
     dir: String,
@@ -227,6 +322,8 @@ struct App {
     edging: (Option<String>, bool, f64),
     /// Библиотека моделей фурнитуры: папка, найденные модели, превью (текстуры по пути), строка поиска.
     library: Library,
+    /// Выполняемый скрипт Базиса и его окна.
+    script: Option<ScriptWin>,
     /// Выделенная фурнитура (у неё нет деталей — выделяется отдельно).
     furniture_sel: Option<u32>,
     /// Крепёж для установки между панелями.
@@ -267,6 +364,7 @@ impl Default for App {
             contour_tool: (ContourTool::Edge, 50.0),
             fastener_kind: "Конфирмат 7х50".into(),
             library: Library::default(),
+            script: None,
             furniture_sel: None,
             screenshot: None,
             frames: 0,
@@ -405,6 +503,7 @@ impl eframe::App for App {
                 }
             }
         });
+        self.script_window(&ctx);
         self.take_screenshot(&ctx);
     }
 }
@@ -427,6 +526,13 @@ impl App {
                     }
                     if ui.button("Сохранить как…").clicked() {
                         self.save(true);
+                    }
+                });
+                ui.menu_button("Скрипты", |ui| {
+                    if ui.add_enabled(self.session.is_some(), egui::Button::new("Выполнить скрипт Базиса…")).on_disabled_hover_text("Сначала «Сделать редактируемой»").clicked()
+                        && let Some(p) = rfd::FileDialog::new().add_filter("BAZIS-Script", &["js"]).pick_file()
+                    {
+                        self.start_script(&p);
                     }
                 });
                 ui.menu_button("Экспорт", |ui| {
@@ -628,6 +734,84 @@ impl App {
             let (lo, hi) = acc.unwrap_or(([f64::MAX; 3], [f64::MIN; 3]));
             Some((std::array::from_fn(|k| lo[k].min(p.origin[k])), std::array::from_fn(|k| hi[k].max(p.origin[k] + p.size[k]))))
         })
+    }
+
+    /// Запуск скрипта: без окон — сразу завершается; с окнами — живёт, пока открыто его окно.
+    fn start_script(&mut self, path: &std::path::Path) {
+        let Some(s) = &self.session else { return };
+        let source = match script::read_script(path) {
+            Ok(t) => t,
+            Err(e) => return self.error = Some(e),
+        };
+        let dir = path.parent().map(PathBuf::from).unwrap_or_default();
+        let selection = self.selection.iter().map(|x| (x.owner, x.id, x.nth)).collect();
+        let opts = script::Options { sandbox: dir.clone(), script_dir: dir, selection, ..Default::default() };
+        let mut rt = script::Runtime::start(s, &source, opts);
+        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let win = if rt.error.is_none() && !rt.forms().is_empty() {
+            ScriptWin { name, rt: Some(rt), done: None }
+        } else {
+            let Some(s) = &mut self.session else { return };
+            let r = rt.finish(s);
+            ScriptWin { name, rt: None, done: Some(r) }
+        };
+        self.script = Some(win);
+        self.refresh();
+    }
+
+    /// Окно скрипта: его формы, сообщения, «Применить» / «Отменить».
+    fn script_window(&mut self, ctx: &egui::Context) {
+        let Some(win) = &mut self.script else { return };
+        let mut open = true;
+        let (mut apply, mut cancel) = (false, false);
+        let mut events = Vec::new();
+        egui::Window::new(format!("Скрипт: {}", win.name)).open(&mut open).default_width(420.0).show(ctx, |ui| {
+            if let Some(rt) = &mut win.rt {
+                for f in rt.forms() {
+                    ui.heading(f["Caption"].as_str().unwrap_or("Окно скрипта"));
+                    script_control(ui, &f, &mut events);
+                    ui.separator();
+                }
+                for l in rt.log() {
+                    ui.label(l);
+                }
+                if let Some(e) = &rt.error {
+                    ui.colored_label(Color32::from_rgb(200, 40, 40), e);
+                }
+                ui.horizontal(|ui| {
+                    apply = ui.button("Применить").on_hover_text("Изменения скрипта — в модель (одна отмена)").clicked();
+                    cancel = ui.button("Отменить").clicked();
+                });
+            } else if let Some(r) = &win.done {
+                for l in &r.log {
+                    ui.label(l);
+                }
+                match &r.error {
+                    Some(e) => ui.colored_label(Color32::from_rgb(200, 40, 40), format!("Ошибка: {e}\nМодель не изменена.")),
+                    None => ui.label(format!("Готово. Изменений: {}.", r.changes)),
+                };
+            }
+        });
+        if let Some(rt) = &mut win.rt {
+            for e in events {
+                match e {
+                    ScriptEvent::Click(id) => rt.click(id),
+                    ScriptEvent::Change(id, field, v) => rt.change(id, field, &v),
+                }
+            }
+            // Скрипт закрыл все свои окна — завершаем, как «Применить».
+            if rt.error.is_none() && rt.forms().is_empty() {
+                apply = true;
+            }
+        }
+        if apply && let (Some(rt), Some(s)) = (win.rt.take(), &mut self.session) {
+            win.done = Some(rt.finish(s));
+            self.refresh();
+            return;
+        }
+        if cancel || !open {
+            self.script = None;
+        }
     }
 
     /// «Фурнитура»: модели .fr3d из папки — превью, поиск, «Поставить».

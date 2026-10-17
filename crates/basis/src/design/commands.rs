@@ -92,6 +92,14 @@ impl Session {
         Session { project, undo: Vec::new(), redo: Vec::new() }
     }
 
+    /// Заменить проект целиком (итог скрипта): одна запись в истории отмены; проект должен строиться.
+    pub fn apply_project(&mut self, next: Project) -> Result<(), String> {
+        build(&next)?;
+        self.undo.push(std::mem::replace(&mut self.project, next));
+        self.redo.clear();
+        Ok(())
+    }
+
     pub fn can_undo(&self) -> bool {
         !self.undo.is_empty()
     }

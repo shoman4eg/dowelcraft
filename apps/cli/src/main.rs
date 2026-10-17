@@ -23,6 +23,7 @@ const USAGE: &str = "basis-craft — проектирование мебели �
 Свой проект:
   basis-craft import <файл.b3d> [-o проект.bcraft]   модель Базиса → свой проект (детали можно править)
   basis-craft b3d <проект.bcraft> [-o модель.b3d]     свой проект → модель Базис-Мебельщика
+  basis-craft script <проект.bcraft> <скрипт.js>      выполнить скрипт Базиса над проектом и сохранить
   basis-craft design <проект.bcraft> <команда> ['{json-параметры}']
                                                      выполнить команду; файл создаётся, если его нет
   basis-craft design --help                          список команд
@@ -86,6 +87,23 @@ fn run(args: &[String]) -> Result<(), String> {
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("b3d"));
             std::fs::write(&out, basis::export::b3d(&project)?).map_err(|e| format!("{}: {e}", out.display()))?;
             println!("деталей {} → {}", basis::design::build(&project)?.len(), out.display());
+            return Ok(());
+        }
+        "script" => {
+            let js = args.get(2).ok_or("нужен файл скрипта")?;
+            let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+            let mut s = basis::design::Session::new(basis::design::Project::load(&text)?);
+            let js_path = Path::new(js);
+            let dir = js_path.parent().map(PathBuf::from).unwrap_or_default();
+            let r = script::run(&mut s, &script::read_script(js_path)?, script::Options { sandbox: dir.clone(), script_dir: dir, ..Default::default() });
+            r.log.iter().for_each(|l| println!("{l}"));
+            if let Some(e) = r.error {
+                return Err(format!("скрипт: {e} (проект не изменён)"));
+            }
+            if r.changes > 0 {
+                std::fs::write(path, s.project.save()).map_err(|e| format!("{path}: {e}"))?;
+            }
+            println!("изменений: {}, окон: {}", r.changes, r.forms.len());
             return Ok(());
         }
         "dump" => {
