@@ -654,6 +654,13 @@ fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet, cmd
         }
     });
     ui.label("Ящики (высота фасада снизу вверх, мм):");
+    if !c.partitions.is_empty() {
+        let mut sec = c.drawer_section;
+        let r = ui.add(egui::DragValue::new(&mut sec).range(0..=c.partitions.len()).prefix("в секции "));
+        if (r.drag_stopped() || (r.changed() && !r.dragged())) && sec != c.drawer_section {
+            cmds.push(("cabinet.set", json!({ "id": id, "drawer_section": sec })));
+        }
+    }
     for (i, &hf) in c.drawers.iter().enumerate() {
         ui.horizontal(|ui| {
             let mut v = hf;

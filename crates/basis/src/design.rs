@@ -109,6 +109,9 @@ pub struct Cabinet {
     /// Длина направляющих (глубина короба), мм; нет — глубина корпуса, округлённая вниз до 50 мм.
     #[serde(default)]
     pub drawer_depth: Option<f64>,
+    /// Секция с ящиками (слева направо с 0), если есть перегородки.
+    #[serde(default)]
+    pub drawer_section: usize,
 }
 
 /// Столешница: лежит поверх корпусов, задаётся положением левого нижнего заднего угла.
@@ -301,9 +304,9 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         return Err(format!("перегородки оставляют секцию шириной {sw} мм"));
     }
 
-    if !c.drawers.is_empty() && !c.partitions.is_empty() {
-        return Err("ящики пока строятся только в корпусе без перегородок".into());
-    }
+    let &(dsx, dsw) = sections
+        .get(c.drawer_section)
+        .ok_or_else(|| format!("ящики: нет секции {} (всего {})", c.drawer_section, sections.len()))?;
     // Длина направляющих кратна 50 мм; верх зоны ящиков — над верхним фасадом, от верха дна.
     let drawer_depth = c.drawer_depth.unwrap_or(((d - 10.0) / 50.0).floor() * 50.0);
     let drawer_zone = if c.drawers.is_empty() {
@@ -318,7 +321,7 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         if s.height < 0.0 || s.height + t > inner_h {
             return Err(format!("полка на высоте {} мм не помещается (внутри {inner_h} мм)", s.height));
         }
-        if s.height < drawer_zone {
+        if s.section == c.drawer_section && s.height < drawer_zone {
             return Err(format!("полка на высоте {} мм попадает в зону ящиков (до {drawer_zone} мм)", s.height));
         }
         add(Kind::Body, horizontal("Полка", sw), [sx, c.plinth + t + s.height, 0.0], [sw, t, d]);
@@ -337,17 +340,20 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
     let g = c.door_gap;
     // Ящики: фасады снизу вверх с зазором g, короб под шариковые направляющие (13 мм на сторону).
     let mut front_y = c.plinth + g;
+    // Фасад ящика закрывает секцию до середины соседних перегородок (у крайних секций — до края корпуса).
+    let fx0 = if c.drawer_section == 0 { 0.0 } else { dsx - t / 2.0 };
+    let fx1 = if c.drawer_section + 1 == sections.len() { w } else { dsx + dsw + t / 2.0 };
     for (i, &hf) in c.drawers.iter().enumerate() {
-        let fw = w - 2.0 * g;
-        let bw = inner_w - 2.0 * RAIL_GAP;
+        let fw = fx1 - fx0 - 2.0 * g;
+        let bw = dsw - 2.0 * RAIL_GAP;
         let bh = hf - 40.0;
         let bd = drawer_depth;
         if !(hf > 0.0 && fw > 0.0 && bw > 2.0 * t && bh >= 60.0 && bd >= 250.0 && bd <= d) {
             return Err(format!("ящик {} (фасад {hf} мм, короб {bw:.0}×{bh:.0}×{bd:.0}) не строится: нужен фасад ≥ 100 мм и глубина ≥ 250 мм", i + 1));
         }
         let facade = rect("Фасад ящика", dm, fw, hf, Texture::Horizontal, &[BOTTOM, LEFT, TOP, RIGHT], edge);
-        add(Kind::Drawer, facade, [g, front_y, d], [fw, hf, dm.thickness]);
-        let (bx, by, bz) = (t + RAIL_GAP, front_y + 20.0, d - bd);
+        add(Kind::Drawer, facade, [fx0 + g, front_y, d], [fw, hf, dm.thickness]);
+        let (bx, by, bz) = (dsx + RAIL_GAP, front_y + 20.0, d - bd);
         // Короб: боковины (X — глубина, Y — высота), стенки между боковинами, дно под коробом.
         let side = |name| rect(name, m, bd, bh, Texture::Horizontal, &[TOP], edge);
         add(Kind::Body, side("Боковина ящика"), [bx, by, bz], [t, bh, bd]);
@@ -440,7 +446,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("material.add", "{name, thickness, article?, sheet?: [длина, ширина], coef?, trim?: обрезка края, kerf?: пропил}"),
     ("material.set", "{name, ...поля} — изменить материал"),
     ("edge.add", "{name, thickness, article?, width?}"),
-    ("cabinet.add", "{width, height, depth, material, name?, edge?, plinth?, back?, doors?, door_material?, door_gap?, drawers?: [высоты фасадов снизу вверх], drawer_depth?, position?: [x,y,z]} → {id}. Навесной модуль — plinth 0 и position с высотой, например [0, 1400, 250]"),
+    ("cabinet.add", "{width, height, depth, material, name?, edge?, plinth?, back?, doors?, door_material?, door_gap?, drawers?: [высоты фасадов снизу вверх], drawer_depth?, drawer_section?, position?: [x,y,z]} → {id}. Навесной модуль — plinth 0 и position с высотой, например [0, 1400, 250]"),
     ("cabinet.set", "{id, ...поля корпуса} — изменить параметры"),
     ("cabinet.remove", "{id}"),
     ("shelf.add", "{cabinet, height, section?}"),
@@ -732,8 +738,19 @@ mod tests {
         // Слишком высокие ящики и полка в зоне ящиков отклоняются.
         assert!(s.execute("cabinet.set", &json!({"id": 2, "drawers": [400, 400]})).is_err());
         assert!(s.execute("shelf.add", &json!({"cabinet": 2, "height": 100})).is_err());
-        // Ящики с перегородкой — честный отказ.
-        assert!(s.execute("partition.add", &json!({"cabinet": 2, "x": 292})).is_err());
+        // Ящики в правой секции корпуса с перегородкой: короб по ширине секции.
+        s.execute("cabinet.add", &json!({"name": "Тумба", "width": 1000, "height": 820, "depth": 560, "material": "ЛДСП Белый 16",
+            "partitions": [392], "drawers": [200, 200], "drawer_section": 1, "doors": 0})).unwrap();
+        let parts = build(&s.project).unwrap();
+        let tumba: Vec<&Part> = parts.iter().filter(|p| p.cabinet == 3).collect();
+        let bottom = tumba.iter().find(|p| p.panel.name == "Дно ящика").unwrap();
+        // Секция 408…984 (576 мм) − 2·13 = 550; короб начинается у перегородки + 13.
+        assert_eq!((bottom.panel.size.0, bottom.origin[0]), (550.0, 421.0));
+        let facade = tumba.iter().find(|p| p.kind == Kind::Drawer).unwrap();
+        // От середины перегородки (400) до правого края (1000), минус зазоры по 2.
+        assert_eq!((facade.origin[0], facade.size[0]), (402.0, 596.0));
+        assert!(s.execute("cabinet.set", &json!({"id": 3, "drawer_section": 5})).is_err());
+        s.execute("cabinet.remove", &json!({"id": 3})).unwrap();
 
         s.execute("countertop.add", &json!({"material": "ЛДСП Белый 16", "length": 1400, "depth": 600,
             "position": [0, 2000, 0], "edge": "ПВХ 0,4 белая"})).unwrap();
