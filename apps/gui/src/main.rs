@@ -11,6 +11,7 @@ mod i18n;
 mod icons;
 mod library;
 mod settings;
+mod textures;
 mod theme;
 mod tools;
 mod viewport;
@@ -57,6 +58,15 @@ fn main() -> eframe::Result {
     app.start = (file.is_none() && tab.is_none()) || tab.as_deref() == Some("start");
     let _ = app.layout.apply(Action::Activate { panel: pane });
     app.quad = args.iter().any(|a| a == "--quad");
+    // Для снимков: окно выбора текстуры нового материала.
+    if let Some(i) = args.iter().position(|a| a == "--pick-texture") {
+        app.textures.open_for = Some(textures::Target::New);
+        if let Some(q) = args.get(i + 1).filter(|q| !q.starts_with("--")) {
+            app.textures.set_search(q);
+        }
+    }
+    // Для снимков: сколько кадров ждать (фоновые превью успевают загрузиться).
+    app.shot_frames = args.iter().position(|a| a == "--frames").and_then(|i| args.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(5);
     // Для снимков: включить инструмент «в проём» (horizontal | vertical | front | door | drawers) или изменения (move).
     match args.iter().position(|a| a == "--tool").and_then(|i| args.get(i + 1)).map(String::as_str) {
         Some("move") => app.modify = Some(tools::Modify::Move),
@@ -412,6 +422,8 @@ struct NewMaterial {
     thickness: f64,
     sheet: (f64, f64),
     coef: f64,
+    /// Картинка текстуры (выбирается в библиотеке текстур).
+    texture: Option<String>,
 }
 
 struct App {
@@ -467,7 +479,7 @@ struct App {
     /// Выполняемый скрипт Базиса и его окна.
     script: Option<ScriptWin>,
     /// Папка текстур (как «Пути к файлам → Текстуры» в Базисе).
-    textures_dir: String,
+    textures: textures::TextureLib,
     /// Выделенная фурнитура (у неё нет деталей — выделяется отдельно).
     furniture_sel: Option<u32>,
     /// Настройки между запусками (папки фурнитуры, язык).
@@ -480,6 +492,8 @@ struct App {
     contour_tool: (ContourTool, f64),
     screenshot: Option<PathBuf>,
     frames: u32,
+    /// На каком кадре снимать окно (`--frames`).
+    shot_frames: u32,
     /// Детали изделия с положением (или ошибка сборки) — пересобираются в `refresh`.
     parts: Result<Vec<Part>, String>,
     /// Растёт при каждом изменении деталей или их видимости: окно модели перестраивает сетку.
@@ -494,6 +508,7 @@ impl Default for App {
     fn default() -> Self {
         let settings = settings::Settings::load();
         i18n::set_language(&settings.language);
+        let textures = textures::TextureLib::new(settings.texture_dirs.clone());
         let mut app = App {
             session: Some(Session::new(Project::new("Новый проект"))),
             job: Job::from_project(Project::new("Новый проект")),
@@ -510,7 +525,7 @@ impl Default for App {
             show_doors: true,
             error: None,
             status: String::new(),
-            new_material: NewMaterial { name: "ЛДСП 16".into(), thickness: 16.0, sheet: (2800.0, 2070.0), coef: 1.2 },
+            new_material: NewMaterial { name: "ЛДСП 16".into(), thickness: 16.0, sheet: (2800.0, 2070.0), coef: 1.2, texture: None },
             new_edge: ("ПВХ 0,4".into(), 0.4, 19.0),
             new_panel: ("vertical", 560.0, 720.0),
             fill: None,
@@ -532,9 +547,10 @@ impl Default for App {
             furniture_sel: None,
             meshes: Default::default(),
             settings,
-            textures_dir: "example/textures".into(),
+            textures,
             screenshot: None,
             frames: 0,
+            shot_frames: 5,
             parts: Ok(Vec::new()),
             revision: 0,
             viewport: viewport::Viewport::default(),
@@ -609,6 +625,26 @@ impl App {
                 self.error = Some(e);
                 None
             }
+        }
+    }
+
+    /// Окно библиотеки текстур: выбранная картинка — в материал или в форму нового.
+    fn texture_window(&mut self, ctx: &egui::Context) {
+        let current = match &self.textures.open_for {
+            Some(textures::Target::New) => self.new_material.texture.clone(),
+            Some(textures::Target::Material(name)) => self.session.as_ref().and_then(|s| s.project.materials.iter().find(|m| &m.name == name)).and_then(|m| m.texture.clone()),
+            None => return,
+        };
+        let picked = self.textures.window(ctx, current.as_deref());
+        if self.textures.dirs() != self.settings.texture_dirs.as_slice() {
+            self.settings.texture_dirs = self.textures.dirs().to_vec();
+            self.settings.save();
+        }
+        let Some((target, path)) = picked else { return };
+        let path = path.map(|p| p.display().to_string());
+        match target {
+            textures::Target::New => self.new_material.texture = path,
+            textures::Target::Material(name) => self.exec("material.set", json!({ "name": name, "texture": path })),
         }
     }
 
@@ -821,6 +857,7 @@ impl eframe::App for App {
         }
         self.help_windows(&ctx);
         self.close_window(&ctx);
+        self.texture_window(&ctx);
         self.script_window(&ctx);
         self.problems_window(&ctx);
         self.take_screenshot(&ctx);
@@ -919,17 +956,15 @@ impl App {
                     ui.strong(&m.name);
                     ui.label(crate::i18n::t(format!("{} мм, лист {}×{}, коэф. {}", m.thickness, m.sheet.0, m.sheet.1, m.coef)));
                     ui.horizontal_wrapped(|ui| {
-                        let shown = m.texture.as_deref().and_then(|t| std::path::Path::new(t).file_name()).map_or("нет".into(), |f| f.to_string_lossy().into_owned());
+                        let shown = m.texture.as_deref().map_or_else(|| crate::i18n::t("нет"), |t| textures::label(std::path::Path::new(t)));
                         ui.label(crate::i18n::t(format!("текстура: {shown}")));
-                        if ui.small_button("…").on_hover_text(crate::i18n::t("Выбрать картинку")).clicked()
-                            && let Some(p) = rfd::FileDialog::new().add_filter("Картинка", &["jpg", "jpeg", "png"]).pick_file()
-                        {
-                            cmds.push(("material.set", json!({ "name": m.name, "texture": p.display().to_string() })));
+                        if ui.small_button(crate::i18n::t("Выбрать…")).on_hover_text(crate::i18n::t("Библиотека текстур: папки, превью, поиск")).clicked() {
+                            self.textures.open_for = Some(textures::Target::Material(m.name.clone()));
                         }
-                        if ui.small_button(crate::i18n::t("по артикулу")).on_hover_text(crate::i18n::t("Найти d(<артикул>)1.jpg в папке текстур (Балтламинат)")).clicked() {
-                            match basis::library::find_texture(std::path::Path::new(&self.textures_dir), &m.article) {
+                        if ui.small_button(crate::i18n::t("по артикулу")).on_hover_text(crate::i18n::t("Найти d(<артикул>)1.jpg в папках текстур (Балтламинат)")).clicked() {
+                            match self.textures.dirs().iter().find_map(|d| basis::library::find_texture(std::path::Path::new(d), &m.article)) {
                                 Some(p) => cmds.push(("material.set", json!({ "name": m.name, "texture": p.display().to_string() }))),
-                                None => self.status = format!("Текстура для артикула «{}» в «{}» не найдена", m.article, self.textures_dir),
+                                None => self.status = format!("Текстура для артикула «{}» не найдена", m.article),
                             }
                         }
                         let mut tile = m.texture_size.unwrap_or([1000.0, 1000.0]);
@@ -985,13 +1020,22 @@ impl App {
                         crate::expr::add(ui, &mut nm.sheet.1, |d| d.range(100.0..=6000.0));
                     });
                     ui.end_row();
+                    editors::caption(ui, "Текстура");
+                    ui.horizontal(|ui| {
+                        let shown = nm.texture.as_deref().map_or_else(|| crate::i18n::t("нет"), |t| textures::label(std::path::Path::new(t)));
+                        ui.label(shown);
+                        if ui.small_button(crate::i18n::t("Выбрать…")).clicked() {
+                            self.textures.open_for = Some(textures::Target::New);
+                        }
+                    });
+                    ui.end_row();
                     editors::caption(ui, "Коэффициент");
                     crate::expr::add(ui, &mut nm.coef, |d| d.range(1.0..=3.0).speed(0.01));
                     ui.end_row();
                 });
                 let ok = !taken && !nm.name.trim().is_empty();
                 if ui.add_enabled(ok, egui::Button::new(crate::i18n::t("Добавить материал"))).clicked() {
-                    cmds.push(("material.add", json!({ "name": nm.name.trim(), "thickness": nm.thickness, "sheet": [nm.sheet.0, nm.sheet.1], "coef": nm.coef })));
+                    cmds.push(("material.add", json!({ "name": nm.name.trim(), "thickness": nm.thickness, "sheet": [nm.sheet.0, nm.sheet.1], "coef": nm.coef, "texture": nm.texture })));
                 }
             });
         });
@@ -2128,7 +2172,7 @@ impl App {
     fn take_screenshot(&mut self, ctx: &egui::Context) {
         let Some(path) = self.screenshot.clone() else { return };
         self.frames += 1;
-        if self.frames == 5 {
+        if self.frames == self.shot_frames {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(Default::default()));
         }
         let image = ctx.input(|i| {

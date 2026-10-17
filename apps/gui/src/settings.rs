@@ -12,6 +12,8 @@ pub struct Settings {
     pub library_dirs: Vec<String>,
     /// Язык окна: "ru" или "en".
     pub language: String,
+    /// Папки с картинками текстур (.jpg, .png); пусто — текстуры примеров, если есть.
+    pub texture_dirs: Vec<String>,
     /// Сетка (как «Настройки черчения» cadcraft): показывать, шаг в мм, основная линия — каждая N-я.
     pub grid: GridSettings,
 }
@@ -46,6 +48,9 @@ impl Settings {
         let mut s: Settings = file().and_then(|f| std::fs::read_to_string(f).ok()).and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
         if s.library_dirs.is_empty() && std::path::Path::new("example").exists() {
             s.library_dirs.push("example".into());
+        }
+        if s.texture_dirs.is_empty() && std::path::Path::new("example/textures").exists() {
+            s.texture_dirs.push("example/textures".into());
         }
         if s.language.is_empty() {
             s.language = "ru".into();

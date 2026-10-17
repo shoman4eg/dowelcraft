@@ -358,3 +358,13 @@
 Сохранить изменения в «{}»?	Save changes to “{}”?
 Не сохранять	Don't save
 Отмена	Cancel
+Выбрать…	Choose…
+Библиотека текстур: папки, превью, поиск	Texture library: folders, previews, search
+Найти d(<артикул>)1.jpg в папках текстур (Балтламинат)	Find d(<article>)1.jpg in the texture folders (Baltlaminat)
+Текстура для артикула «{}» не найдена	No texture for article “{}”
+Текстура нового материала	New material texture
+Текстура материала «{}»	Texture of material “{}”
+Папки текстур ({})	Texture folders ({})
+Без текстуры	No texture
+Читаю папки текстур…	Reading texture folders…
+Найдено: {}, показаны первые {}	Found: {}, showing the first {}
