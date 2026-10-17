@@ -216,10 +216,10 @@ impl App {
                     if ui.button("Новый проект").clicked() {
                         *self = App { params: self.params, ..App::default() };
                     }
-                    if ui.button("Открыть…").clicked() {
-                        if let Some(p) = rfd::FileDialog::new().add_filter("Модели", &["bcraft", "b3d", "fr3d"]).pick_file() {
-                            self.open(p);
-                        }
+                    if ui.button("Открыть…").clicked()
+                        && let Some(p) = rfd::FileDialog::new().add_filter("Модели", &["bcraft", "b3d", "fr3d"]).pick_file()
+                    {
+                        self.open(p);
                     }
                     if ui.button("Сохранить").clicked() {
                         self.save(false);

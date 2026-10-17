@@ -200,7 +200,7 @@ impl<'a> Reader<'a> {
             6 => {
                 let k = self.len(2)?;
                 let units: Vec<u16> =
-                    self.take(2 * k)?.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+                    self.take(2 * k)?.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
                 // В некоторых строках Базиса встречаются одиночные суррогаты.
                 Value::Str(String::from_utf16_lossy(&units))
             }

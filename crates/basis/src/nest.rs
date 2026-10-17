@@ -85,7 +85,9 @@ pub fn nest(items: &[Item], p: &Params) -> Layout {
             continue;
         }
         // Лучший свободный прямоугольник на уже открытых листах, иначе новый лист.
-        let mut best: Option<(f64, usize, usize, (f64, f64, bool))> = None;
+        // (оценка, лист, свободный прямоугольник, (ширина, высота, повёрнута))
+        type Choice = (f64, usize, usize, (f64, f64, bool));
+        let mut best: Option<Choice> = None;
         for (s, rects) in free.iter().enumerate() {
             for (r, f) in rects.iter().enumerate() {
                 for o in orients(it) {
