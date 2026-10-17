@@ -287,6 +287,15 @@ impl Sel {
     }
 }
 
+/// Пункт меню правой кнопки (и клавиша Delete).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum MenuAct {
+    Delete,
+    Block,
+    Explode,
+    Deselect,
+}
+
 /// Поля формы нового материала / кромки.
 struct NewMaterial {
     name: String,
@@ -536,6 +545,10 @@ impl eframe::App for App {
                 }
             }
         });
+        // Delete — удалить выделенное, если курсор не в поле ввода.
+        if !ctx.text_edit_focused() && ui.input(|i| i.key_pressed(egui::Key::Delete)) {
+            self.menu_apply(MenuAct::Delete);
+        }
         self.script_window(&ctx);
         self.problems_window(&ctx);
         self.take_screenshot(&ctx);
@@ -800,6 +813,99 @@ impl App {
             let (lo, hi) = acc.unwrap_or(([f64::MAX; 3], [f64::MIN; 3]));
             Some((std::array::from_fn(|k| lo[k].min(p.origin[k])), std::array::from_fn(|k| hi[k].max(p.origin[k] + p.size[k]))))
         })
+    }
+
+    /// Команда «Разрушить» для объекта: блок, корпус, угловой модуль или столешница.
+    fn explode_cmd(&self, id: u32) -> Option<&'static str> {
+        let pr = &self.session.as_ref()?.project;
+        if pr.cabinets.iter().any(|c| c.id == id) {
+            Some("cabinet.explode")
+        } else if pr.corners.iter().any(|c| c.id == id) {
+            Some("corner.explode")
+        } else if pr.countertops.iter().any(|c| c.id == id) {
+            Some("countertop.explode")
+        } else {
+            matches!(pr.objects.iter().find(|o| o.id() == id), Some(design::Object::Block(_))).then_some("block.explode")
+        }
+    }
+
+    /// Объекты, которые удалит Delete: выделенные детали или выделенная фурнитура.
+    fn delete_targets(&self) -> Vec<u32> {
+        let ids = self.targets();
+        if ids.is_empty() { self.furniture_sel.into_iter().collect() } else { ids }
+    }
+
+    /// Пункты меню правой кнопки; возвращает выбранный.
+    fn menu_items(&self, ui: &mut egui::Ui) -> Option<MenuAct> {
+        let editable = self.session.is_some();
+        let del = self.delete_targets();
+        let ids = self.targets();
+        let mut act = None;
+        if del.is_empty() {
+            ui.label("Ничего не выделено");
+            return None;
+        }
+        if ui.add_enabled(editable && !del.is_empty(), egui::Button::new(format!("Удалить ({})", del.len())).shortcut_text("Del")).clicked() {
+            act = Some(MenuAct::Delete);
+        }
+        if ui.add_enabled(editable && !ids.is_empty(), egui::Button::new("Собрать в блок")).clicked() {
+            act = Some(MenuAct::Block);
+        }
+        let explodable = ids.iter().any(|&id| self.explode_cmd(id).is_some());
+        if ui.add_enabled(editable && explodable, egui::Button::new("Разрушить")).on_hover_text("Блок — содержимое в корень проекта; корпус, угловой модуль, столешница — в отдельные панели").clicked() {
+            act = Some(MenuAct::Explode);
+        }
+        ui.separator();
+        if ui.button("Снять выделение").clicked() {
+            act = Some(MenuAct::Deselect);
+        }
+        if act.is_some() {
+            ui.close();
+        }
+        act
+    }
+
+    fn menu_apply(&mut self, act: MenuAct) {
+        if self.session.is_none() && act != MenuAct::Deselect {
+            return;
+        }
+        match act {
+            MenuAct::Delete => {
+                let ids = self.delete_targets();
+                if ids.is_empty() {
+                    return;
+                }
+                self.exec("object.remove", json!({ "ids": ids }));
+                self.selection.clear();
+                self.furniture_sel = None;
+            }
+            MenuAct::Block => {
+                let ids = self.targets();
+                self.exec("block.create", json!({ "ids": ids }));
+            }
+            MenuAct::Explode => {
+                for id in self.targets() {
+                    if let Some(cmd) = self.explode_cmd(id) {
+                        self.exec(cmd, json!({ "id": id }));
+                    }
+                }
+                self.selection.clear();
+            }
+            MenuAct::Deselect => {
+                self.selection.clear();
+                self.furniture_sel = None;
+            }
+        }
+    }
+
+    /// Правая кнопка по детали `hit`: если она не выделена — выделить только её (как в Базисе).
+    fn menu_pick(&mut self, hit: Option<usize>) {
+        if let Some(i) = hit
+            && !self.selected_all().contains(&i)
+        {
+            self.selection.clear();
+            self.select(Some(i));
+        }
     }
 
     /// Окно «Анализ модели»: щелчок по проблеме выделяет её детали.
@@ -1116,10 +1222,17 @@ impl App {
         let sel = self.selected();
         let all = self.selected_all();
         let mut pick = None;
+        let mut menu_hit = None;
+        let mut act = None;
         let mut row = |ui: &mut egui::Ui, i: usize, text: String| {
-            if ui.selectable_label(all.contains(&i), text).clicked() {
+            let r = ui.selectable_label(all.contains(&i), text);
+            if r.clicked() {
                 pick = Some(i);
             }
+            if r.secondary_clicked() {
+                menu_hit = Some(i);
+            }
+            r.context_menu(|ui| act = self.menu_items(ui));
         };
         // Группы по объекту верхнего уровня, в порядке деталей.
         let mut owners: Vec<u32> = Vec::new();
@@ -1169,6 +1282,13 @@ impl App {
         if let Some(i) = pick {
             self.select(Some(i));
             self.furniture_sel = None;
+        }
+        if menu_hit.is_some() {
+            self.menu_pick(menu_hit);
+            self.furniture_sel = None;
+        }
+        if let Some(a) = act {
+            self.menu_apply(a);
         }
         if fsel.is_some() {
             self.furniture_sel = fsel;
@@ -1534,7 +1654,16 @@ impl App {
         if resp.clicked() {
             self.select(hovered);
         }
-        if resp.drag_started() && hovered.is_some_and(|h| selected.contains(&h)) && self.session.is_some() {
+        if resp.secondary_clicked() {
+            self.menu_pick(hovered);
+        }
+        let mut act = None;
+        resp.context_menu(|ui| act = self.menu_items(ui));
+        if let Some(a) = act {
+            self.menu_apply(a);
+            return;
+        }
+        if resp.drag_started_by(egui::PointerButton::Primary) && hovered.is_some_and(|h| selected.contains(&h)) && self.session.is_some() {
             self.drag = Some([0.0; 2]);
         }
         if let Some(d) = &mut self.drag {
@@ -1614,12 +1743,20 @@ impl App {
         } else {
             clicks.push(self.viewport.show(ui, frame, parts, self.revision, &selected, skip));
         }
-        for c in clicks {
+        let mut act = None;
+        for (c, resp) in clicks {
             match c {
                 viewport::Click::Part(i) => self.select(Some(i)),
                 viewport::Click::Empty => self.select(None),
+                viewport::Click::Menu(hit) => self.menu_pick(hit),
                 viewport::Click::None => {}
             }
+            if let Some(r) = resp {
+                r.context_menu(|ui| act = self.menu_items(ui).or(act));
+            }
+        }
+        if let Some(a) = act {
+            self.menu_apply(a);
         }
     }
 

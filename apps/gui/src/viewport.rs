@@ -34,6 +34,8 @@ pub enum Click {
     Part(usize),
     /// Щелчок по пустому месту — снять выделение.
     Empty,
+    /// Правая кнопка (без перетаскивания) — меню; деталь под курсором, если есть.
+    Menu(Option<usize>),
 }
 
 /// Камера: точка взгляда, углы и масштаб (мм на пиксель), параллельная проекция.
@@ -625,11 +627,11 @@ impl Viewport {
     }
 
     /// Окно модели. `revision` меняется, когда меняются детали — тогда сетка строится заново.
-    /// Возвращает щелчок: по детали или по пустому месту.
-    pub fn show(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame, parts: &[Part], revision: u64, selected: &[usize], skip: impl Fn(&Part) -> bool) -> Click {
+    /// Возвращает щелчок (по детали, по пустому месту, правой кнопкой) и отклик окна — к нему цепляется меню.
+    pub fn show(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame, parts: &[Part], revision: u64, selected: &[usize], skip: impl Fn(&Part) -> bool) -> (Click, Option<egui::Response>) {
         let Some(rs) = frame.wgpu_render_state() else {
             ui.label("3D недоступно: окно запущено без видеокарты (wgpu).");
-            return Click::None;
+            return (Click::None, None);
         };
         if self.gpu.is_none() {
             self.gpu = Some(Gpu::new(&rs.device, &rs.queue));
@@ -665,6 +667,11 @@ impl Viewport {
         {
             click = self.pick(pos - rect.center()).map_or(Click::Empty, Click::Part);
         }
+        if resp.secondary_clicked()
+            && let Some(pos) = resp.interact_pointer_pos()
+        {
+            click = Click::Menu(self.pick(pos - rect.center()));
+        }
         if resp.dragged_by(egui::PointerButton::Primary) {
             let d = resp.drag_delta();
             self.camera.yaw += d.x * 0.01;
@@ -686,7 +693,7 @@ impl Viewport {
 
         let ppp = ui.ctx().pixels_per_point();
         let size = [(rect.width() * ppp).round().max(1.0) as u32, (rect.height() * ppp).round().max(1.0) as u32];
-        let Some(scene) = &self.scene else { return click };
+        let Some(scene) = &self.scene else { return (click, Some(resp)) };
         let depth = (0..3).map(|k| (scene.hi[k] - scene.lo[k]).powi(2)).sum::<f32>().sqrt().max(100.0) * 2.0
             + (0..3).map(|k| (self.camera.target[k] - (scene.lo[k] + scene.hi[k]) / 2.0).powi(2)).sum::<f32>().sqrt();
         let mut cam = self.camera;
@@ -699,7 +706,7 @@ impl Viewport {
             u.extend_from_slice(&f32::to_le_bytes(v));
         }
 
-        let Some(gpu) = self.gpu.as_mut() else { return click };
+        let Some(gpu) = self.gpu.as_mut() else { return (click, Some(resp)) };
         gpu.ensure_target(rs, size);
         if textured {
             for (_, path, _) in &self.textures {
@@ -707,7 +714,7 @@ impl Viewport {
             }
         }
         rs.queue.write_buffer(&gpu.uniforms, 0, &u);
-        let Some(target) = &gpu.target else { return click };
+        let Some(target) = &gpu.target else { return (click, Some(resp)) };
         let mut enc = rs.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("3d") });
         {
             let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -794,6 +801,6 @@ impl Viewport {
             let text = format!("Не построены контуры деталей ({}): {}", self.errors.len(), self.errors.iter().map(|(n, e)| format!("«{n}» — {e}")).collect::<Vec<_>>().join("; "));
             ui.painter().text(rect.left_bottom() + Vec2::new(8.0, -8.0), egui::Align2::LEFT_BOTTOM, text, egui::FontId::proportional(13.0), Color32::from_rgb(200, 40, 40));
         }
-        click
+        (click, Some(resp))
     }
 }
