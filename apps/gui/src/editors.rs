@@ -236,7 +236,7 @@ pub fn panel_editor(ui: &mut egui::Ui, project: &Project, fp: &design::FreePanel
         ui.label("Размеры");
         ui.label(format!("{} × {} × {} мм", size.0, size.1, size.2));
         ui.end_row();
-        ui.label("Начало X, Y, Z");
+        ui.label("Начало осей панели").on_hover_text("Угол контура (0, 0) на тыльной пласти; толщина идёт вдоль оси Z панели");
         if let Some(origin) = position_editor(ui, fp.frame.origin) {
             set("frame", json!(basis::geom::Frame { origin, ..fp.frame }));
         }
@@ -424,4 +424,71 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
     if ui.button("Удалить корпус").clicked() {
         cmds.push(("cabinet.remove", json!({ "id": id })));
     }
+}
+
+/// Точки сегмента для рисования (дуги — ломаной).
+fn seg_points(s: &basis::contour::Seg) -> Vec<[f64; 2]> {
+    use basis::contour::Seg;
+    match *s {
+        Seg::Line { a, b } => vec![a, b],
+        Seg::Arc { a, b, c, ccw } => {
+            let r = (a[0] - c[0]).hypot(a[1] - c[1]);
+            let ang = |p: [f64; 2]| (p[1] - c[1]).atan2(p[0] - c[0]);
+            let tau = std::f64::consts::TAU;
+            let sweep = if ccw { ang(b) - ang(a) } else { ang(a) - ang(b) }.rem_euclid(tau);
+            let sweep = if sweep < 1e-12 { tau } else { sweep };
+            let sign = if ccw { 1.0 } else { -1.0 };
+            (0..=32).map(|i| {
+                let t = ang(a) + sign * sweep * i as f64 / 32.0;
+                [c[0] + r * t.cos(), c[1] + r * t.sin()]
+            }).collect()
+        }
+        Seg::Circle { c, r } => (0..=48).map(|i| {
+            let t = std::f64::consts::TAU * i as f64 / 48.0;
+            [c[0] + r * t.cos(), c[1] + r * t.sin()]
+        }).collect(),
+    }
+}
+
+/// Схема контура панели (как в Базисе при облицовке: панель параллельно экрану). Торцы с кромкой —
+/// толстой линией с подписью толщины, торец под курсором — оранжевым. Возвращает торец, по которому щёлкнули.
+pub fn contour_view(ui: &mut egui::Ui, segs: &[basis::contour::Seg], edges: &[basis::panel::Edge], height: f32) -> Option<usize> {
+    use egui::{Color32, Pos2, Stroke};
+    let (resp, painter) = ui.allocate_painter(egui::vec2(ui.available_width(), height), egui::Sense::click());
+    let (lo, hi) = basis::contour::bounds(segs)?;
+    let area = resp.rect.shrink(18.0);
+    let k = (area.width() as f64 / (hi[0] - lo[0]).max(1.0)).min(area.height() as f64 / (hi[1] - lo[1]).max(1.0));
+    let off = egui::vec2((area.width() - ((hi[0] - lo[0]) * k) as f32) / 2.0, -(area.height() - ((hi[1] - lo[1]) * k) as f32) / 2.0);
+    let to = |p: [f64; 2]| Pos2::new(area.left() + ((p[0] - lo[0]) * k) as f32, area.bottom() - ((p[1] - lo[1]) * k) as f32) + off;
+    painter.rect_filled(resp.rect, 4.0, Color32::from_gray(245));
+    let mouse = ui.ctx().pointer_hover_pos().filter(|m| resp.rect.contains(*m));
+    let polylines: Vec<Vec<Pos2>> = segs.iter().map(|s| seg_points(s).into_iter().map(to).collect()).collect();
+    let dist = |m: Pos2, pl: &[Pos2]| pl.windows(2).map(|w| {
+        let (a, b) = (w[0], w[1]);
+        let ab = b - a;
+        let t = ((m - a).dot(ab) / ab.length_sq().max(1e-6)).clamp(0.0, 1.0);
+        (a + ab * t - m).length()
+    }).fold(f32::MAX, f32::min);
+    let hovered = mouse.and_then(|m| (0..segs.len()).map(|i| (i, dist(m, &polylines[i]))).filter(|(_, d)| *d < 10.0).min_by(|a, b| a.1.total_cmp(&b.1)).map(|(i, _)| i));
+    for (i, pl) in polylines.iter().enumerate() {
+        let edge = edges.iter().find(|e| e.segment == i && e.thickness > 0.0);
+        let stroke = match (Some(i) == hovered, edge) {
+            (true, _) => Stroke::new(4.0, Color32::from_rgb(230, 120, 0)),
+            (false, Some(_)) => Stroke::new(4.0, Color32::from_rgb(40, 40, 40)),
+            (false, None) => Stroke::new(1.0, Color32::from_gray(90)),
+        };
+        painter.add(egui::Shape::line(pl.clone(), stroke));
+        // Середина ломаной: у отрезка — между концами.
+        let mid = if pl.len() == 2 { pl[0] + (pl[1] - pl[0]) / 2.0 } else { pl[pl.len() / 2] };
+        let label = match edge {
+            Some(e) => format!("{} · {}", i, e.thickness),
+            None => i.to_string(),
+        };
+        painter.text(mid, egui::Align2::CENTER_CENTER, label, egui::FontId::proportional(11.0), Color32::from_rgb(20, 60, 160));
+    }
+    if let Some(i) = hovered {
+        let len = basis::contour::length(&segs[i]);
+        resp.clone().on_hover_text(format!("Торец {i}: {len:.1} мм — щелчок наносит или снимает кромку"));
+    }
+    if resp.clicked() { hovered } else { None }
 }

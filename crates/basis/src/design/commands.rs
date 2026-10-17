@@ -31,6 +31,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("corner.remove", "{id}"),
     ("panel.add", "{material, plane: front|horizontal|vertical, size: [a, b], position?: [x,y,z] мин. угол габарита, name?, texture?: Horizontal|Vertical|Default, kind?: body|back|door|drawer, block?} → {id}. Размеры контура: front — ширина×высота, horizontal — ширина×глубина, vertical — глубина×высота; толщина — из материала"),
     ("panel.fill", "{material, plane, at: [x, y] точка в проёме на виде спереди, gaps?: [4 отступа], name?, kind?} → {id}. Панель во весь проём между ближайшими деталями (двери не в счёт), как «~» в Базисе. horizontal — нижней пластью на высоту y, gaps [слева, справа, сзади, спереди]; vertical — левой пластью на x, gaps [сзади, спереди, снизу, сверху]; front — вровень с передом проёма, gaps [слева, справа, снизу, сверху]"),
+    ("panel.edge", "{id, segments: [номера торцов], edge: имя кромки | null, clip?: true — подрезать заготовку на толщину кромки, allowance?: припуск на прифуговку, мм} — кромка на торцах панели; null — снять"),
     ("panel.set", "{id, name?, material?, frame?: {origin, x, y, z}, ...поля} — панель дерева объектов"),
     ("panel.remove", "{id}"),
     ("block.set", "{id, name?, frame?} — блок дерева объектов"),
@@ -249,6 +250,7 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
         }
         "panel.add" => return panel_add(pr, p),
         "panel.fill" => return panel_fill(pr, p),
+        "panel.edge" => return panel_edge(pr, p),
         "cabinet.explode" | "corner.explode" | "countertop.explode" => return explode(pr, idx(p, "id")? as u32),
         "panel.set" | "block.set" => {
             let id = idx(p, "id")? as u32;
@@ -311,6 +313,43 @@ fn explode(pr: &mut Project, id: u32) -> Result<Value, String> {
     pr.countertops.retain(|c| c.id != id);
     pr.objects.push(Object::Block(Block { id, name, frame: Frame::IDENTITY, children }));
     Ok(json!({ "id": id }))
+}
+
+/// `panel.edge`: кромка на торцах (сегментах контура) панели дерева; `edge: null` — снять.
+fn panel_edge(pr: &mut Project, p: &Value) -> Result<Value, String> {
+    let id = idx(p, "id")? as u32;
+    let segments: Vec<usize> = serde_json::from_value(field(p, "segments")?.clone()).map_err(|e| format!("segments: {e}"))?;
+    let edge = match field(p, "edge")? {
+        Value::Null => None,
+        v => {
+            let name = v.as_str().ok_or("«edge» — имя кромки или null")?;
+            Some(pr.edges.iter().find(|e| e.name == name).ok_or_else(|| format!("нет кромки «{name}»"))?.clone())
+        }
+    };
+    let clip = p.get("clip").and_then(Value::as_bool).unwrap_or(true);
+    let allowance = p.get("allowance").and_then(Value::as_f64).unwrap_or(0.0);
+    if !(0.0..=50.0).contains(&allowance) {
+        return Err(format!("припуск {allowance} мм вне 0…50"));
+    }
+    let Some(Object::Panel(fp)) = find_mut(&mut pr.objects, id) else {
+        return Err(format!("нет панели {id}: кромку деталей корпуса меняют параметром «edge» корпуса или после «Разрушить»"));
+    };
+    if let Some(&bad) = segments.iter().find(|&&i| i >= fp.segs.len()) {
+        return Err(format!("у панели {} торцов, торца {bad} нет", fp.segs.len()));
+    }
+    fp.edges.retain(|e| !segments.contains(&e.segment));
+    if let Some(e) = edge {
+        fp.edges.extend(segments.iter().map(|&segment| Edge {
+            material: full(&e.name, &e.article),
+            thickness: e.thickness,
+            width: e.width,
+            allowance,
+            clip,
+            segment,
+        }));
+        fp.edges.sort_by_key(|e| e.segment);
+    }
+    Ok(Value::Null)
 }
 
 /// `panel.fill`: панель в проёме у точки вида спереди (см. [`fill::fill`]).

@@ -145,7 +145,9 @@ impl Panel {
             .iter()
             .filter(|e| self.rect_side(e.segment) == Some(side))
             .map(|e| if e.clip { e.thickness } else { 0.0 } - e.allowance)
-            .fold(0.0, f64::max)
+            // Припуск больше толщины кромки делает заготовку больше габарита; без кромки — 0.
+            .reduce(f64::max)
+            .unwrap_or(0.0)
     }
 
     /// Заготовка в осях контура: габарит минус толщина подрезающих (`ClipPanel`) кромок плюс припуск.

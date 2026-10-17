@@ -278,3 +278,23 @@ fn panel_fill_takes_the_opening() {
     // Вне шкафа проёма нет.
     assert!(s.execute("panel.fill", &json!({"material": "ЛДСП Белый 16", "plane": "horizontal", "at": [5000, 500]})).is_err());
 }
+
+/// Кромка по торцам панели: наносится, подрезает заготовку, снимается; ошибки — понятные.
+#[test]
+fn panel_edges_by_segment() {
+    let mut s = wardrobe();
+    let id = s.execute("panel.add", &json!({"material": "ЛДСП Белый 16", "plane": "horizontal", "size": [600, 400], "position": [2000, 0, 0]})).unwrap()["id"].clone();
+    let cut = |s: &Session| build(&s.project).unwrap().into_iter().find(|p| json!(p.id) == id).unwrap().panel.cut_size();
+    assert_eq!(cut(&s), (600.0, 400.0));
+    // Торцы прямоугольника: 0 — низ, 1 — лево, 2 — верх, 3 — право.
+    s.execute("panel.edge", &json!({"id": id, "segments": [2], "edge": "ПВХ 0,4 белая"})).unwrap();
+    s.execute("panel.edge", &json!({"id": id, "segments": [1, 3], "edge": "ПВХ 0,4 белая", "allowance": 1})).unwrap();
+    // Длина: 600 − 2·0,4 + 2·1 (припуск); ширина: 400 − 0,4.
+    let (l, w) = cut(&s);
+    assert!((l - 601.2).abs() < 1e-9 && (w - 399.6).abs() < 1e-9, "{l} × {w}");
+    s.execute("panel.edge", &json!({"id": id, "segments": [1, 2, 3], "edge": null})).unwrap();
+    assert_eq!(cut(&s), (600.0, 400.0));
+    assert!(s.execute("panel.edge", &json!({"id": id, "segments": [7], "edge": "ПВХ 0,4 белая"})).is_err());
+    assert!(s.execute("panel.edge", &json!({"id": id, "segments": [0], "edge": "нет такой"})).is_err());
+    assert!(s.execute("panel.edge", &json!({"id": 1, "segments": [0], "edge": "ПВХ 0,4 белая"})).unwrap_err().contains("Разрушить"));
+}

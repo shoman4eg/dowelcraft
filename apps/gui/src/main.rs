@@ -159,6 +159,8 @@ struct App {
     new_panel: (&'static str, f64, f64),
     /// Режим «Панель в проём» на виде спереди: плоскость, материал, отступы.
     fill: Option<FillTool>,
+    /// Облицовка: кромка, «Подрезать», припуск.
+    edging: (Option<String>, bool, f64),
     screenshot: Option<PathBuf>,
     frames: u32,
     /// Детали изделия с положением (или ошибка сборки) — пересобираются в `refresh`.
@@ -186,6 +188,7 @@ impl Default for App {
             new_edge: ("ПВХ 0,4".into(), 0.4, 19.0),
             new_panel: ("vertical", 560.0, 720.0),
             fill: None,
+            edging: (None, true, 0.0),
             screenshot: None,
             frames: 0,
             parts: Ok(Vec::new()),
@@ -607,6 +610,37 @@ impl App {
         } else if let Some(fp) = project.panels().into_iter().find(|f| f.id == part.id) {
             ui.heading("Панель");
             editors::panel_editor(ui, &project, fp, (p.size.0, p.size.1, p.thickness), &mut cmds);
+            ui.separator();
+            ui.heading("Облицовка кромки");
+            let names: Vec<String> = project.edges.iter().map(|e| e.name.clone()).collect();
+            if names.is_empty() {
+                ui.weak("Добавьте кромку на вкладке «Проект».");
+            }
+            let (edge, clip, allowance) = &mut self.edging;
+            if edge.is_none() {
+                *edge = names.first().cloned();
+            }
+            ui.horizontal(|ui| {
+                if let Some(Some(v)) = editors::choose(ui, "edging", edge.as_deref(), &names, false) {
+                    *edge = Some(v);
+                }
+                ui.checkbox(clip, "Подрезать").on_hover_text("Заготовка меньше на толщину кромки: размер детали — чистовой");
+                ui.add(egui::DragValue::new(allowance).range(0.0..=10.0).speed(0.1).prefix("припуск ").suffix(" мм"));
+            });
+            let all: Vec<usize> = (0..fp.segs.len()).collect();
+            ui.horizontal(|ui| {
+                if ui.button("На все торцы").clicked() {
+                    cmds.push(("panel.edge", json!({ "id": fp.id, "segments": all, "edge": edge, "clip": clip, "allowance": allowance })));
+                }
+                if ui.button("Снять со всех").clicked() {
+                    cmds.push(("panel.edge", json!({ "id": fp.id, "segments": all, "edge": null })));
+                }
+            });
+            if let Some(i) = editors::contour_view(ui, &fp.segs, &fp.edges, 220.0) {
+                let same = fp.edges.iter().any(|e| e.segment == i && edge.as_deref().is_some_and(|n| panel::material_name(&e.material) == n));
+                let edge = if same { None } else { edge.clone() };
+                cmds.push(("panel.edge", json!({ "id": fp.id, "segments": [i], "edge": edge, "clip": clip, "allowance": allowance })));
+            }
         }
         for (cmd, v) in cmds {
             self.exec(cmd, v);
