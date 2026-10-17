@@ -18,10 +18,12 @@ pub enum Mode {
     Wire,
     /// «Прозрачность» (рентген): полупрозрачные тела, все рёбра, оси деталей.
     XRay,
+    /// «В текстурах»: материалы картинками (Балтламинат и свои), с видимыми рёбрами.
+    Textured,
 }
 
 impl Mode {
-    pub const ALL: [(Mode, &str); 4] = [(Mode::Solid, "Без невидимых"), (Mode::Hidden, "Невидимые тонкие"), (Mode::Wire, "Каркас"), (Mode::XRay, "Прозрачность")];
+    pub const ALL: [(Mode, &str); 5] = [(Mode::Solid, "Без невидимых"), (Mode::Hidden, "Невидимые тонкие"), (Mode::Wire, "Каркас"), (Mode::XRay, "Прозрачность"), (Mode::Textured, "В текстурах")];
 }
 
 /// Результат щелчка в окне модели.
@@ -128,20 +130,23 @@ fn color(kind: Kind) -> [f32; 3] {
 const SAMPLES: u32 = 4;
 const COLOR: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-/// Байт на вершину: позиция, нормаль, цвет RGBA.
-const STRIDE: u64 = 40;
+/// Байт на вершину: позиция, нормаль, цвет RGBA, координаты текстуры.
+const STRIDE: u64 = 48;
 
 const SHADER: &str = r#"
 struct U { view_proj: mat4x4<f32>, light: vec4<f32>, params: vec4<f32> };
 @group(0) @binding(0) var<uniform> u: U;
-struct VIn { @location(0) pos: vec3<f32>, @location(1) normal: vec3<f32>, @location(2) color: vec4<f32> };
-struct VOut { @builtin(position) clip: vec4<f32>, @location(0) color: vec4<f32> };
+@group(1) @binding(0) var tex: texture_2d<f32>;
+@group(1) @binding(1) var samp: sampler;
+struct VIn { @location(0) pos: vec3<f32>, @location(1) normal: vec3<f32>, @location(2) color: vec4<f32>, @location(3) uv: vec2<f32> };
+struct VOut { @builtin(position) clip: vec4<f32>, @location(0) color: vec4<f32>, @location(1) uv: vec2<f32> };
 
 @vertex fn vs_tri(v: VIn) -> VOut {
     var o: VOut;
     o.clip = u.view_proj * vec4<f32>(v.pos, 1.0);
     let k = 0.45 + 0.55 * abs(dot(normalize(v.normal), u.light.xyz));
     o.color = vec4<f32>(v.color.rgb * k, v.color.a * u.params.x);
+    o.uv = v.uv;
     return o;
 }
 
@@ -151,10 +156,12 @@ struct VOut { @builtin(position) clip: vec4<f32>, @location(0) color: vec4<f32> 
     // Рёбра чуть ближе к камере, чтобы не тонули в гранях своей детали.
     o.clip.z = o.clip.z - u.params.y * o.clip.w;
     o.color = v.color;
+    o.uv = vec2<f32>(0.0, 0.0);
     return o;
 }
 
-@fragment fn fs(i: VOut) -> @location(0) vec4<f32> { return i.color; }
+// Цвет на текстуру: у материалов без картинки текстура — белая точка.
+@fragment fn fs(i: VOut) -> @location(0) vec4<f32> { return i.color * textureSample(tex, samp, i.uv); }
 "#;
 
 /// Буферы сцены на видеокарте.
@@ -162,6 +169,8 @@ struct Scene {
     tris: wgpu::Buffer,
     indices: wgpu::Buffer,
     index_count: u32,
+    /// Треугольники по картинкам: (номер текстуры в `Viewport::textures` или нет, диапазон индексов).
+    batches: Vec<(Option<usize>, std::ops::Range<u32>)>,
     /// Рёбра, оси проекта и оси деталей (рентген).
     lines: wgpu::Buffer,
     line_count: u32,
@@ -191,6 +200,11 @@ struct Gpu {
     lines_hidden: wgpu::RenderPipeline,
     lines_all: wgpu::RenderPipeline,
     target: Option<Target>,
+    tex_layout: wgpu::BindGroupLayout,
+    sampler: wgpu::Sampler,
+    white: wgpu::BindGroup,
+    /// Загруженные картинки: путь → привязка (нет — картинку не прочитать).
+    images: Vec<(String, Option<wgpu::BindGroup>)>,
 }
 
 pub struct Viewport {
@@ -212,6 +226,10 @@ pub struct Viewport {
     fitted: bool,
     /// Подпись вида в углу окна («Спереди», «Сверху»…).
     pub label: Option<&'static str>,
+    /// Текстуры материалов: (полное имя материала, путь к картинке, плитка мм вдоль волокон × поперёк).
+    pub textures: Vec<(String, String, [f64; 2])>,
+    textures_built: Vec<(String, String, [f64; 2])>,
+    mode_built: Option<Mode>,
 }
 
 impl Default for Viewport {
@@ -230,18 +248,25 @@ impl Default for Viewport {
             errors: Vec::new(),
             fitted: false,
             label: None,
+            textures: Vec::new(),
+            textures_built: Vec::new(),
+            mode_built: None,
         }
     }
 }
 
 fn push_vertex(out: &mut Vec<u8>, pos: [f32; 3], normal: [f32; 3], rgba: [f32; 4]) {
-    for v in pos.iter().chain(&normal).chain(&rgba) {
+    push_vertex_uv(out, pos, normal, rgba, [0.0; 2]);
+}
+
+fn push_vertex_uv(out: &mut Vec<u8>, pos: [f32; 3], normal: [f32; 3], rgba: [f32; 4], uv: [f32; 2]) {
+    for v in pos.iter().chain(&normal).chain(&rgba).chain(&uv) {
         out.extend_from_slice(&v.to_le_bytes());
     }
 }
 
 fn pipeline(device: &wgpu::Device, layout: &wgpu::PipelineLayout, module: &wgpu::ShaderModule, lines: bool, depth: (bool, wgpu::CompareFunction), blend: bool) -> wgpu::RenderPipeline {
-    let attributes = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x4];
+    let attributes = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x4, 3 => Float32x2];
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("basis-craft 3d"),
         layout: Some(layout),
@@ -279,7 +304,7 @@ fn pipeline(device: &wgpu::Device, layout: &wgpu::PipelineLayout, module: &wgpu:
 }
 
 impl Gpu {
-    fn new(device: &wgpu::Device) -> Gpu {
+    fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Gpu {
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("basis-craft 3d"), source: wgpu::ShaderSource::Wgsl(SHADER.into()) });
         let uniforms = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("uniforms"),
@@ -301,7 +326,28 @@ impl Gpu {
             layout: &bind_layout,
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: uniforms.as_entire_binding() }],
         });
-        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("3d"), bind_group_layouts: &[Some(&bind_layout)], immediate_size: 0 });
+        let tex_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("texture"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
+            ],
+        });
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("texture"),
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+        let white = upload(device, queue, &tex_layout, &sampler, 1, 1, &[255, 255, 255, 255]);
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("3d"), bind_group_layouts: &[Some(&bind_layout), Some(&tex_layout)], immediate_size: 0 });
         use wgpu::CompareFunction::{Always, Greater, LessEqual};
         Gpu {
             solid: pipeline(device, &layout, &module, false, (true, LessEqual), false),
@@ -312,7 +358,29 @@ impl Gpu {
             uniforms,
             bind,
             target: None,
+            tex_layout,
+            sampler,
+            white,
+            images: Vec::new(),
         }
+    }
+
+    /// Уже загруженная картинка (иначе — белая).
+    fn image_ref(&self, path: &str) -> &wgpu::BindGroup {
+        self.images.iter().find(|(p, _)| p == path).and_then(|(_, b)| b.as_ref()).unwrap_or(&self.white)
+    }
+
+    /// Привязка картинки по пути (читается один раз; нечитаемая — белая).
+    fn image(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, path: &str) -> &wgpu::BindGroup {
+        if !self.images.iter().any(|(p, _)| p == path) {
+            let bg = image::open(path).ok().map(|img| {
+                let rgba = img.to_rgba8();
+                upload(device, queue, &self.tex_layout, &self.sampler, rgba.width(), rgba.height(), rgba.as_raw())
+            });
+            self.images.push((path.to_string(), bg));
+        }
+        let i = self.images.iter().position(|(p, _)| p == path).expect("добавлена выше");
+        self.images[i].1.as_ref().unwrap_or(&self.white)
     }
 
     /// Текстуры под размер окна; при изменении размера — новые, под тем же номером текстуры egui.
@@ -348,13 +416,60 @@ impl Gpu {
     }
 }
 
+/// Картинка RGBA → текстура видеокарты и её привязка.
+fn upload(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout, sampler: &wgpu::Sampler, w: u32, h: u32, rgba: &[u8]) -> wgpu::BindGroup {
+    let size = wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 };
+    let tex = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("material"),
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    queue.write_texture(
+        wgpu::TexelCopyTextureInfo { texture: &tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+        rgba,
+        wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(4 * w), rows_per_image: Some(h) },
+        size,
+    );
+    let view = tex.create_view(&Default::default());
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("material"),
+        layout,
+        entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) }, wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler) }],
+    })
+}
+
 impl Scene {
-    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: &[usize], furniture: &[(basis::geom::Frame, [f64; 3], [f64; 3], bool)]) -> Scene {
+    /// `textures` — для режима «В текстурах»: картинка материала детали (номер, плитка мм).
+    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: &[usize], furniture: &[(basis::geom::Frame, [f64; 3], [f64; 3], bool)], textures: Option<&[(String, String, [f64; 2])]>) -> Scene {
         let mut tris = Vec::with_capacity(m.vertices.len() * STRIDE as usize);
         let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
+        let tex_of = |part: usize| textures.and_then(|t| t.iter().position(|(mat, _, _)| *mat == parts[part].panel.material));
         for v in &m.vertices {
-            let c = if selected.contains(&(v.part as usize)) { SELECTED } else { color(m.kinds[v.part as usize]) };
-            push_vertex(&mut tris, v.pos, v.normal, [c[0], c[1], c[2], 1.0]);
+            let part = v.part as usize;
+            let tex = tex_of(part);
+            let c = if selected.contains(&part) {
+                SELECTED
+            } else if tex.is_some() {
+                [1.0, 1.0, 1.0]
+            } else {
+                color(m.kinds[part])
+            };
+            // Волокна — вдоль длины плитки: у вертикальной текстуры — вдоль Y контура.
+            let uv = match (tex, textures) {
+                (Some(i), Some(t)) => {
+                    let tile = t[i].2;
+                    let vertical = parts[part].panel.texture == basis::panel::Texture::Vertical;
+                    let (a, b) = if vertical { (v.uv[1], v.uv[0]) } else { (v.uv[0], v.uv[1]) };
+                    [a / tile[0] as f32, b / tile[1] as f32]
+                }
+                _ => [0.0; 2],
+            };
+            push_vertex_uv(&mut tris, v.pos, v.normal, [c[0], c[1], c[2], 1.0], uv);
             for k in 0..3 {
                 lo[k] = lo[k].min(v.pos[k]);
                 hi[k] = hi[k].max(v.pos[k]);
@@ -410,7 +525,21 @@ impl Scene {
                 holes += 2;
             }
         }
-        let index_bytes: Vec<u8> = m.indices.iter().flat_map(|i| i.to_le_bytes()).collect();
+        // Треугольники — пачками по картинке.
+        let mut order: Vec<usize> = (0..m.indices.len() / 3).collect();
+        order.sort_by_key(|&t| tex_of(m.vertices[m.indices[3 * t] as usize].part as usize).map_or(0, |i| i + 1));
+        let mut batches: Vec<(Option<usize>, std::ops::Range<u32>)> = Vec::new();
+        let mut sorted = Vec::with_capacity(m.indices.len());
+        for t in order {
+            let key = tex_of(m.vertices[m.indices[3 * t] as usize].part as usize);
+            let at = sorted.len() as u32;
+            match batches.last_mut() {
+                Some((k, r)) if *k == key => r.end = at + 3,
+                _ => batches.push((key, at..at + 3)),
+            }
+            sorted.extend_from_slice(&m.indices[3 * t..3 * t + 3]);
+        }
+        let index_bytes: Vec<u8> = sorted.iter().flat_map(|i| i.to_le_bytes()).collect();
         let buf = |data: &[u8], usage| {
             // Пустой буфер wgpu не создаёт — кладём хотя бы 4 байта.
             let data = if data.is_empty() { &[0u8; 4][..] } else { data };
@@ -420,6 +549,7 @@ impl Scene {
             tris: buf(&tris, wgpu::BufferUsages::VERTEX),
             indices: buf(&index_bytes, wgpu::BufferUsages::INDEX),
             index_count: m.indices.len() as u32,
+            batches,
             lines: buf(&lines, wgpu::BufferUsages::VERTEX),
             line_count,
             axes_count: 6,
@@ -502,7 +632,7 @@ impl Viewport {
             return Click::None;
         };
         if self.gpu.is_none() {
-            self.gpu = Some(Gpu::new(&rs.device));
+            self.gpu = Some(Gpu::new(&rs.device, &rs.queue));
         }
         if self.revision != Some(revision) {
             self.mesh = mesh::build(parts, skip);
@@ -513,10 +643,14 @@ impl Viewport {
             self.revision = Some(revision);
             self.selected = None;
         }
-        if self.selected.as_deref() != Some(selected) || self.furniture_built != self.furniture {
-            self.scene = Some(Scene::new(&rs.device, parts, &self.mesh, selected, &self.furniture));
+        let textured = self.mode == Mode::Textured;
+        if self.selected.as_deref() != Some(selected) || self.furniture_built != self.furniture || self.textures_built != self.textures || self.mode_built.map(|m| m == Mode::Textured) != Some(textured) {
+            let tex = textured.then_some(&self.textures[..]);
+            self.scene = Some(Scene::new(&rs.device, parts, &self.mesh, selected, &self.furniture, tex));
             self.selected = Some(selected.to_vec());
             self.furniture_built = self.furniture.clone();
+            self.textures_built = self.textures.clone();
+            self.mode_built = Some(self.mode);
         }
 
         let (rect, resp) = ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
@@ -567,6 +701,11 @@ impl Viewport {
 
         let Some(gpu) = self.gpu.as_mut() else { return click };
         gpu.ensure_target(rs, size);
+        if textured {
+            for (_, path, _) in &self.textures {
+                gpu.image(&rs.device, &rs.queue, path);
+            }
+        }
         rs.queue.write_buffer(&gpu.uniforms, 0, &u);
         let Some(target) = &gpu.target else { return click };
         let mut enc = rs.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("3d") });
@@ -589,6 +728,7 @@ impl Viewport {
                 multiview_mask: None,
             });
             pass.set_bind_group(0, &gpu.bind, &[]);
+            pass.set_bind_group(1, &gpu.white, &[]);
             let edges = 0..scene.line_count;
             let axes = scene.line_count..scene.line_count + scene.axes_count;
             let part_axes = axes.end..axes.end + scene.part_axes_count;
@@ -608,6 +748,20 @@ impl Viewport {
                     pass.set_pipeline(&gpu.lines_visible);
                     pass.draw(edges, 0..1);
                     pass.draw(holes.clone(), 0..1);
+                }
+                Mode::Textured => {
+                    pass.set_pipeline(&gpu.solid);
+                    pass.set_vertex_buffer(0, scene.tris.slice(..));
+                    pass.set_index_buffer(scene.indices.slice(..), wgpu::IndexFormat::Uint32);
+                    for (tex, range) in &scene.batches {
+                        let group = tex.and_then(|i| self.textures.get(i)).map_or(&gpu.white, |(_, path, _)| gpu.image_ref(path));
+                        pass.set_bind_group(1, group, &[]);
+                        pass.draw_indexed(range.clone(), 0, 0..1);
+                    }
+                    pass.set_bind_group(1, &gpu.white, &[]);
+                    pass.set_vertex_buffer(0, scene.lines.slice(..));
+                    pass.set_pipeline(&gpu.lines_visible);
+                    pass.draw(edges, 0..1);
                 }
                 Mode::Wire => {
                     pass.set_vertex_buffer(0, scene.lines.slice(..));

@@ -3,3 +3,4 @@ target/
 example/**/*.zip
 *.cut.html
 out/
+example/textures/

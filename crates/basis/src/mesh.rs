@@ -12,6 +12,8 @@ pub const TOLERANCE: f64 = 0.1;
 pub struct Vertex {
     pub pos: [f32; 3],
     pub normal: [f32; 3],
+    /// Координаты для текстуры, мм: на пластях — точка контура, на торцах — (вдоль торца, по толщине).
+    pub uv: [f32; 2],
     /// Индекс детали в списке `parts`.
     pub part: u32,
 }
@@ -208,7 +210,7 @@ pub fn build(parts: &[Part], skip: impl Fn(&Part) -> bool) -> Mesh {
         // Пласти: лицевая (z = t) смотрит по +Z панели, тыльная — против.
         for (z, normal, flip) in [(t, [0.0, 0.0, 1.0], false), (0.0, [0.0, 0.0, -1.0], true)] {
             let base = m.vertices.len() as u32;
-            m.vertices.extend(pts.iter().map(|&p| Vertex { pos: w(p, z), normal: n(normal), part: pi }));
+            m.vertices.extend(pts.iter().map(|&p| Vertex { pos: w(p, z), normal: n(normal), uv: [p[0] as f32, p[1] as f32], part: pi }));
             for tri in &tris {
                 let [a, b, c] = tri.map(|i| base + i as u32);
                 m.indices.extend(if flip { [a, c, b] } else { [a, b, c] });
@@ -226,8 +228,8 @@ pub fn build(parts: &[Part], skip: impl Fn(&Part) -> bool) -> Mesh {
                 }
                 let normal = n([(b[1] - a[1]) / len, -(b[0] - a[0]) / len, 0.0]);
                 let base = m.vertices.len() as u32;
-                for (p, z) in [(a, 0.0), (b, 0.0), (b, t), (a, t)] {
-                    m.vertices.push(Vertex { pos: w(p, z), normal, part: pi });
+                for (s, p, z) in [(0.0, a, 0.0), (len, b, 0.0), (len, b, t), (0.0, a, t)] {
+                    m.vertices.push(Vertex { pos: w(p, z), normal, uv: [s as f32, z as f32], part: pi });
                 }
                 m.indices.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
             }

@@ -49,6 +49,32 @@ pub fn read(path: &Path) -> Result<ModelInfo, String> {
     Ok(ModelInfo { path: path.to_path_buf(), name, kind, thumbnail, holes, lo, hi })
 }
 
+/// Текстура по артикулу материала в библиотеке (как у Базиса: `d(<артикул>)1.jpg`, напр. Балтламинат).
+pub fn find_texture(dir: &Path, article: &str) -> Option<PathBuf> {
+    let article = article.trim().to_lowercase();
+    if article.is_empty() {
+        return None;
+    }
+    let wanted = [format!("d({article})1"), format!("d({article})"), article.clone()];
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        let Ok(rd) = std::fs::read_dir(&d) else { continue };
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                stack.push(p);
+                continue;
+            }
+            let ext = p.extension().map(|x| x.to_string_lossy().to_lowercase()).unwrap_or_default();
+            let stem = p.file_stem().map(|s| s.to_string_lossy().to_lowercase()).unwrap_or_default();
+            if matches!(ext.as_str(), "jpg" | "jpeg" | "png") && wanted.contains(&stem) {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
 /// Модели в папке и её подпапках (`.fr3d`); нечитаемые файлы пропускаются с причиной.
 pub fn scan(dir: &Path) -> (Vec<ModelInfo>, Vec<String>) {
     let (mut ok, mut bad) = (Vec::new(), Vec::new());

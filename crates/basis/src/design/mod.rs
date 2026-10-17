@@ -46,6 +46,12 @@ pub struct Material {
     /// Пропил, мм; нет — общий.
     #[serde(default)]
     pub kerf: Option<f64>,
+    /// Картинка текстуры для 3D (путь к файлу).
+    #[serde(default)]
+    pub texture: Option<String>,
+    /// Размер плитки текстуры на детали, мм (длина вдоль волокон × ширина); нет — 1000 × 1000.
+    #[serde(default)]
+    pub texture_size: Option<[f64; 2]>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -468,7 +474,7 @@ pub fn import(name: &str, panels: &[Panel], blocks: &[BlockInfo], panel_block: &
             None => {
                 let taken = p.materials.iter().any(|m| m.name == mat_name);
                 let key = if taken { format!("{mat_name} ({})", src.thickness) } else { mat_name.to_string() };
-                p.materials.push(Material { name: key.clone(), article: article.into(), thickness: src.thickness, sheet: default_sheet(), coef: default_coef(), trim: None, kerf: None });
+                p.materials.push(Material { name: key.clone(), article: article.into(), thickness: src.thickness, sheet: default_sheet(), coef: default_coef(), trim: None, kerf: None, texture: None, texture_size: None });
                 seen.push(((src.material.as_str(), src.thickness), key.clone()));
                 key
             }

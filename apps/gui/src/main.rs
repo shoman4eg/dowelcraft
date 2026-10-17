@@ -34,6 +34,7 @@ fn main() -> eframe::Result {
         Some("hidden") => viewport::Mode::Hidden,
         Some("wire") => viewport::Mode::Wire,
         Some("xray") => viewport::Mode::XRay,
+        Some("textured") => viewport::Mode::Textured,
         _ => viewport::Mode::Solid,
     };
     let pane = match tab.as_deref() {
@@ -330,6 +331,8 @@ struct App {
     problems: Option<Vec<design::analysis::Problem>>,
     /// Выполняемый скрипт Базиса и его окна.
     script: Option<ScriptWin>,
+    /// Папка текстур (как «Пути к файлам → Текстуры» в Базисе).
+    textures_dir: String,
     /// Выделенная фурнитура (у неё нет деталей — выделяется отдельно).
     furniture_sel: Option<u32>,
     /// Крепёж для установки между панелями.
@@ -377,6 +380,7 @@ impl Default for App {
             script: None,
             problems: None,
             furniture_sel: None,
+            textures_dir: "example/textures".into(),
             screenshot: None,
             frames: 0,
             parts: Ok(Vec::new()),
@@ -612,6 +616,28 @@ impl App {
         egui::CollapsingHeader::new(format!("Материалы ({})", project.materials.len())).default_open(project.materials.is_empty()).show(ui, |ui| {
             for m in &project.materials {
                 ui.label(format!("{} — {} мм, лист {}×{}, коэф. {}", m.name, m.thickness, m.sheet.0, m.sheet.1, m.coef));
+                ui.horizontal(|ui| {
+                    let shown = m.texture.as_deref().and_then(|t| std::path::Path::new(t).file_name()).map_or("нет".into(), |f| f.to_string_lossy().into_owned());
+                    ui.label(format!("текстура: {shown}"));
+                    if ui.small_button("…").on_hover_text("Выбрать картинку").clicked()
+                        && let Some(p) = rfd::FileDialog::new().add_filter("Картинка", &["jpg", "jpeg", "png"]).pick_file()
+                    {
+                        cmds.push(("material.set", json!({ "name": m.name, "texture": p.display().to_string() })));
+                    }
+                    if ui.small_button("по артикулу").on_hover_text("Найти d(<артикул>)1.jpg в папке текстур (Балтламинат)").clicked() {
+                        match basis::library::find_texture(std::path::Path::new(&self.textures_dir), &m.article) {
+                            Some(p) => cmds.push(("material.set", json!({ "name": m.name, "texture": p.display().to_string() }))),
+                            None => self.status = format!("Текстура для артикула «{}» в «{}» не найдена", m.article, self.textures_dir),
+                        }
+                    }
+                    let mut tile = m.texture_size.unwrap_or([1000.0, 1000.0]);
+                    let r1 = ui.add(crate::expr::drag(&mut tile[0]).range(10.0..=5000.0).suffix(" мм"));
+                    let r2 = ui.add(crate::expr::drag(&mut tile[1]).range(10.0..=5000.0).suffix(" мм")).on_hover_text("Плитка текстуры: вдоль волокон × поперёк");
+                    let done = |r: &egui::Response| r.drag_stopped() || (r.changed() && !r.dragged());
+                    if (done(&r1) || done(&r2)) && Some(tile) != m.texture_size {
+                        cmds.push(("material.set", json!({ "name": m.name, "texture_size": tile })));
+                    }
+                });
                 ui.horizontal(|ui| {
                     // Пусто — общие параметры раскроя со вкладки «Раскрой».
                     for (key, label, value, general) in [("trim", "обрезка", m.trim, self.params.trim), ("kerf", "пропил", m.kerf, self.params.kerf)] {
@@ -1534,9 +1560,18 @@ impl App {
         // Общие режим, рамки фурнитуры и «Показать всё» — для всех окон.
         let boxes: Vec<(basis::geom::Frame, [f64; 3], [f64; 3], bool)> = self.session.as_ref().map(|s| design::furniture(&s.project).into_iter().map(|(f, fr)| (fr, f.lo, f.hi, self.furniture_sel == Some(f.id))).collect()).unwrap_or_default();
         let refit = self.viewport.needs_fit();
+        // Текстуры материалов: полное имя «Название\rАртикул» → картинка и плитка.
+        let textures: Vec<(String, String, [f64; 2])> = self.session.as_ref().map(|s| {
+            s.project.materials.iter().filter_map(|m| {
+                let full = if m.article.is_empty() { m.name.clone() } else { format!("{}\r{}", m.name, m.article) };
+                Some((full, m.texture.clone()?, m.texture_size.unwrap_or([1000.0, 1000.0])))
+            }).collect()
+        }).unwrap_or_default();
+        self.viewport.textures = textures.clone();
         for v in &mut self.views {
             v.mode = self.viewport.mode;
             v.furniture = boxes.clone();
+            v.textures = textures.clone();
             if refit {
                 v.refit();
             }
