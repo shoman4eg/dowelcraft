@@ -22,6 +22,7 @@ const USAGE: &str = "basis-craft — проектирование мебели �
 
 Свой проект:
   basis-craft import <файл.b3d> [-o проект.bcraft]   модель Базиса → свой проект (детали можно править)
+  basis-craft b3d <проект.bcraft> [-o модель.b3d]     свой проект → модель Базис-Мебельщика
   basis-craft design <проект.bcraft> <команда> ['{json-параметры}']
                                                      выполнить команду; файл создаётся, если его нет
   basis-craft design --help                          список команд
@@ -77,6 +78,14 @@ fn run(args: &[String]) -> Result<(), String> {
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("bcraft"));
             std::fs::write(&out, p.save()).map_err(|e| format!("{}: {e}", out.display()))?;
             println!("деталей {}, материалов {} → {}", p.panels().len(), p.materials.len(), out.display());
+            return Ok(());
+        }
+        "b3d" => {
+            let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+            let project = basis::design::Project::load(&text)?;
+            let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("b3d"));
+            std::fs::write(&out, basis::export::b3d(&project)?).map_err(|e| format!("{}: {e}", out.display()))?;
+            println!("деталей {} → {}", basis::design::build(&project)?.len(), out.display());
             return Ok(());
         }
         "dump" => {

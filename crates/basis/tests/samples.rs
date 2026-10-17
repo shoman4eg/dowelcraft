@@ -126,6 +126,8 @@ fn all_samples_parse() {
     for f in &files {
         let file = basis::b3d::parse(&std::fs::read(f).unwrap()).unwrap_or_else(|e| panic!("{}: {e}", f.display()));
         assert!(file.section("Header").is_some(), "{}: нет Header", f.display());
+        // Запись и повторное чтение дают то же дерево (A3: запись .b3d).
+        assert!(basis::b3d::parse(&basis::b3d::write(&file)).as_ref() == Ok(&file), "{}: запись меняет дерево", f.display());
         let ex = basis::panel::panels(&file);
         assert!(ex.skipped.is_empty(), "{}: не разобраны контуры {:?}", f.display(), ex.skipped);
         for p in &ex.panels {

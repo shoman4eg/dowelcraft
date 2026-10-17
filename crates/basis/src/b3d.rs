@@ -216,3 +216,109 @@ impl<'a> Reader<'a> {
         Ok(Node { name, value, children })
     }
 }
+
+/// Запись контейнера BZ85: секция `Header` — без сжатия, остальные — zlib (как у Базиса).
+/// Словарь имён строится заново; числа сохраняют свой вид (u8/i32/f64).
+/// shortcut: 64-байтный хвост (вероятно, подпись Базиса) не пишется — его устройство неизвестно.
+pub fn write(file: &File) -> Vec<u8> {
+    use std::io::Write;
+    let mut out = MAGIC.to_vec();
+    for s in &file.sections {
+        out.extend_from_slice(&SECTION);
+        let body = section_bytes(s);
+        if s.name == "Header" {
+            out.push(0);
+            out.extend_from_slice(&body);
+        } else {
+            out.push(1);
+            let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+            z.write_all(&body).expect("запись в память");
+            out.extend_from_slice(&z.finish().expect("запись в память"));
+        }
+    }
+    out
+}
+
+fn section_bytes(root: &Node) -> Vec<u8> {
+    fn collect<'a>(n: &'a Node, names: &mut Vec<&'a str>) {
+        if !n.name.is_empty() && !names.contains(&n.name.as_str()) {
+            names.push(&n.name);
+        }
+        n.children.iter().for_each(|c| collect(c, names));
+    }
+    let mut names = vec![""];
+    collect(root, &mut names);
+    let mut out = Vec::new();
+    out.extend_from_slice(&(names.len() as u32).to_le_bytes());
+    for n in &names {
+        // Имена — латиница: символ = байт (так их и читает `section`).
+        let bytes: Vec<u8> = n.chars().map(|c| c as u32 as u8).collect();
+        out.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+        out.extend_from_slice(&bytes);
+    }
+    let index = |name: &str| -> i32 { if name.is_empty() { -1 } else { names.iter().position(|n| *n == name).expect("имя в словаре") as i32 } };
+    fn node(n: &Node, index: &dyn Fn(&str) -> i32, out: &mut Vec<u8>, root: bool) {
+        // Корень секции записан с индексом своего имени; элементы списков — с −1.
+        let i = if root && n.name.is_empty() { 0 } else { index(&n.name) };
+        out.extend_from_slice(&i.to_le_bytes());
+        out.extend_from_slice(&(n.children.len() as u32).to_le_bytes());
+        match &n.value {
+            Value::Obj => out.push(0),
+            Value::True => out.push(1),
+            Value::False => out.push(2),
+            Value::U8(v) => out.extend_from_slice(&[3, *v]),
+            Value::I32(v) => {
+                out.push(4);
+                out.extend_from_slice(&v.to_le_bytes());
+            }
+            Value::F64(v) => {
+                out.push(5);
+                out.extend_from_slice(&v.to_le_bytes());
+            }
+            Value::Str(s) => {
+                out.push(6);
+                let units: Vec<u16> = s.encode_utf16().collect();
+                out.extend_from_slice(&(units.len() as u32).to_le_bytes());
+                units.iter().for_each(|u| out.extend_from_slice(&u.to_le_bytes()));
+            }
+            Value::Blob(b) => {
+                out.push(7);
+                out.extend_from_slice(&(b.len() as u32).to_le_bytes());
+                out.extend_from_slice(b);
+            }
+            Value::Nil => out.push(8),
+            Value::DateTime(v) => {
+                out.push(9);
+                out.extend_from_slice(&v.to_le_bytes());
+            }
+        }
+        n.children.iter().for_each(|c| node(c, index, out, false));
+    }
+    node(root, &index, &mut out, true);
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn write_then_parse_is_identity() {
+        let leaf = |name: &str, value: Value| Node { name: name.into(), value, children: Vec::new() };
+        let file = File {
+            sections: vec![
+                Node { name: "Header".into(), value: Value::Obj, children: vec![leaf("Version", Value::U8(15)), leaf("Thumbnail", Value::Blob(vec![1, 2, 3]))] },
+                Node {
+                    name: "Document".into(),
+                    value: Value::Obj,
+                    children: vec![Node {
+                        name: "Model".into(),
+                        value: Value::Obj,
+                        children: vec![Node { name: String::new(), value: Value::Obj, children: vec![leaf("Name", Value::Str("Полка «1»".into())), leaf("ID", Value::I32(-7)), leaf("X", Value::F64(1.5)), leaf("Clip", Value::False), leaf("N", Value::Nil), leaf("T", Value::DateTime(46000.5))] }],
+                    }],
+                },
+            ],
+        };
+        assert_eq!(parse(&write(&file)).unwrap(), file);
+    }
+}

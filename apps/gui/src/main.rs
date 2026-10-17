@@ -289,6 +289,7 @@ impl App {
             "html" => ("html", "Карты раскроя"),
             "xml" => ("xml", "Проект БАЗИС-Раскроя"),
             "spec" | "smeta" => ("csv", "Таблица CSV"),
+            "b3d" => ("b3d", "Модель Базис-Мебельщика"),
             _ => return,
         };
         let suffix = match what {
@@ -305,6 +306,11 @@ impl App {
             "html" => job::document(job, &self.cuts).into_bytes(),
             "xml" => basis::raskroy::project_xml(&job.name, &job.panels, |m| job.sheet(m, sheet)),
             "spec" => basis::report::spec_csv(&panel::spec(&job.panels)).into_bytes(),
+            "b3d" => match job.project.as_ref().map(basis::export::b3d) {
+                Some(Ok(b)) => b,
+                Some(Err(e)) => return self.error = Some(e),
+                None => return self.error = Some("Модель Базиса открыта для просмотра: «Сделать редактируемой», затем экспорт".into()),
+            },
             _ => basis::report::materials_csv(&job.estimate(1.2)).into_bytes(),
         };
         match std::fs::write(&p, bytes) {
@@ -375,6 +381,7 @@ impl App {
                         ("xml", "Проект для БАЗИС-Раскроя (XML)…"),
                         ("spec", "Спецификация (CSV)…"),
                         ("smeta", "Смета материалов (CSV)…"),
+                        ("b3d", "Модель Базис-Мебельщика (.b3d)…"),
                     ] {
                         if ui.button(label).clicked() {
                             self.export(what);
