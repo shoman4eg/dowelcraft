@@ -1639,24 +1639,32 @@ impl App {
         let area = resp.rect.shrink(30.0);
         let k = ((area.width() as f64) / (hi[0] - lo[0]).max(1.0)).min((area.height() as f64) / (hi[1] - lo[1]).max(1.0));
         let to = |x: f64, y: f64| Pos2::new(area.left() + ((x - lo[0]) * k) as f32, area.bottom() - ((y - lo[1]) * k) as f32);
-        painter.rect_filled(resp.rect, 0.0, Color32::from_gray(245));
-        // Сетка-миллиметровка, как фон cadcraft: шаг такой, чтобы линии были не чаще 12 пикселей; каждая десятая темнее.
+        // Холст как в cadcraft: тёмный фон, сетка на весь экран (каждая десятая линия ярче), оси через начало.
+        painter.rect_filled(resp.rect, 0.0, Color32::from_rgb(0x22, 0x28, 0x2f));
         {
-            let step = [10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0].into_iter().find(|s| s * k >= 12.0).unwrap_or(5000.0);
+            let (minor, major) = (Color32::from_rgb(0x29, 0x30, 0x3a), Color32::from_rgb(0x31, 0x39, 0x45));
+            let step = [10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0].into_iter().find(|s| s * k >= 8.0).unwrap_or(5000.0);
             let mm = |p: Pos2| [(p.x - area.left()) as f64 / k + lo[0], (area.bottom() - p.y) as f64 / k + lo[1]];
             let (a, b) = (mm(resp.rect.left_bottom()), mm(resp.rect.right_top()));
-            let line = |v: f64| if (v / (step * 10.0)).round() * step * 10.0 == v { Stroke::new(1.0, Color32::from_gray(212)) } else { Stroke::new(1.0, Color32::from_gray(232)) };
+            let is_major = |v: f64| ((v / (step * 10.0)) - (v / (step * 10.0)).round()).abs() < 1e-6;
             let mut x = (a[0] / step).ceil() * step;
             while x <= b[0] {
                 let px = to(x, 0.0).x;
-                painter.line_segment([Pos2::new(px, resp.rect.top()), Pos2::new(px, resp.rect.bottom())], line(x));
+                painter.line_segment([Pos2::new(px, resp.rect.top()), Pos2::new(px, resp.rect.bottom())], Stroke::new(1.0, if is_major(x) { major } else { minor }));
                 x += step;
             }
             let mut y = (a[1] / step).ceil() * step;
             while y <= b[1] {
                 let py = to(0.0, y).y;
-                painter.line_segment([Pos2::new(resp.rect.left(), py), Pos2::new(resp.rect.right(), py)], line(y));
+                painter.line_segment([Pos2::new(resp.rect.left(), py), Pos2::new(resp.rect.right(), py)], Stroke::new(1.0, if is_major(y) { major } else { minor }));
                 y += step;
+            }
+            let o = to(0.0, 0.0);
+            if resp.rect.y_range().contains(o.y) {
+                painter.line_segment([Pos2::new(resp.rect.left(), o.y), Pos2::new(resp.rect.right(), o.y)], Stroke::new(1.0, Color32::from_rgb(0x56, 0x28, 0x29)));
+            }
+            if resp.rect.x_range().contains(o.x) {
+                painter.line_segment([Pos2::new(o.x, resp.rect.top()), Pos2::new(o.x, resp.rect.bottom())], Stroke::new(1.0, Color32::from_rgb(0x28, 0x4a, 0x2e)));
             }
         }
         let selected = self.selected_all();
@@ -1690,8 +1698,8 @@ impl App {
         // Габаритные размеры корпусов.
         if let Some(s) = &self.session {
             for c in &s.project.cabinets {
-                painter.text(to(c.position[0] + c.width / 2.0, c.position[1]) + Vec2::new(0.0, 14.0), egui::Align2::CENTER_CENTER, format!("{}", c.width), egui::FontId::proportional(13.0), Color32::BLACK);
-                painter.text(to(c.position[0], c.position[1] + c.height / 2.0) - Vec2::new(16.0, 0.0), egui::Align2::CENTER_CENTER, format!("{}", c.height), egui::FontId::proportional(13.0), Color32::BLACK);
+                painter.text(to(c.position[0] + c.width / 2.0, c.position[1]) + Vec2::new(0.0, 14.0), egui::Align2::CENTER_CENTER, format!("{}", c.width), egui::FontId::proportional(13.0), Color32::from_rgb(0xdd, 0xe2, 0xea));
+                painter.text(to(c.position[0], c.position[1] + c.height / 2.0) - Vec2::new(16.0, 0.0), egui::Align2::CENTER_CENTER, format!("{}", c.height), egui::FontId::proportional(13.0), Color32::from_rgb(0xdd, 0xe2, 0xea));
             }
         }
         // Режим «в проём»: фантом будущей панели под курсором, щелчок — поставить.

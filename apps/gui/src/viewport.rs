@@ -564,10 +564,12 @@ impl Scene {
         // Сетка пола под изделием с запасом в метр; на больших проектах шаг крупнее.
         let mut grid = 0;
         {
-            let (x0, x1) = (((lo[0] / 1000.0).floor() - 1.0) * 1000.0, ((hi[0] / 1000.0).ceil() + 1.0) * 1000.0);
-            let (z0, z1) = (((lo[2] / 1000.0).floor() - 1.0) * 1000.0, ((hi[2] / 1000.0).ceil() + 1.0) * 1000.0);
-            let step = if (x1 - x0).max(z1 - z0) > 12000.0 { 500.0 } else { 100.0 };
-            let color = |v: f32| if (v / 1000.0).fract().abs() < 1e-3 { [0.70, 0.73, 0.78, 1.0] } else { [0.86, 0.87, 0.89, 1.0] };
+            // Запас 3 м во все стороны — сетка уходит за край окна, как в cadcraft.
+            let (x0, x1) = (((lo[0] / 1000.0).floor() - 3.0) * 1000.0, ((hi[0] / 1000.0).ceil() + 3.0) * 1000.0);
+            let (z0, z1) = (((lo[2] / 1000.0).floor() - 3.0) * 1000.0, ((hi[2] / 1000.0).ceil() + 3.0) * 1000.0);
+            let step = if (x1 - x0).max(z1 - z0) > 16000.0 { 500.0 } else { 100.0 };
+            // Цвета cadcraft (тёмный холст): линейные значения, цель — sRGB.
+            let color = |v: f32| if (v / 1000.0).fract().abs() < 1e-3 { [0.1022, 0.1329, 0.1878, 1.0] } else { [0.0467, 0.0612, 0.0908, 1.0] };
             let mut v = x0;
             while v <= x1 + 0.5 {
                 push_vertex(&mut lines, [v, 0.0, z0], [0.0; 3], color(v));
@@ -834,7 +836,7 @@ impl Viewport {
                     view: &target.msaa,
                     depth_slice: None,
                     resolve_target: Some(&target.resolve),
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.96, g: 0.96, b: 0.96, a: 1.0 }), store: wgpu::StoreOp::Discard },
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.016, g: 0.0212, b: 0.0284, a: 1.0 }), store: wgpu::StoreOp::Discard },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &target.depth,
