@@ -127,7 +127,30 @@ pub fn resize(fp: &FreePanel, size: [f64; 2]) -> Result<Vec<Seg>, String> {
     }).collect())
 }
 
-/// Команды `panel.contour`, `panel.corner`, `panel.cutout`, `panel.resize`.
+/// Прямоугольная панель вдоль осей проекта занимает габарит [lo, hi] (маркеры размера): по осям контура —
+/// новые размеры, по толщине габарит должен совпадать с толщиной; начало осей сдвигается так, чтобы
+/// габарит лёг точно в [lo, hi].
+pub fn fit_box(fp: &mut FreePanel, thickness: f64, lo: [f64; 3], hi: [f64; 3]) -> Result<(), String> {
+    let f = fp.frame;
+    let axis = |v: [f64; 3]| (0..3).find(|&k| (v[k].abs() - 1.0).abs() < 1e-9).ok_or("панель не вдоль осей проекта");
+    let (ax, ay, az) = (axis(f.x)?, axis(f.y)?, axis(f.z)?);
+    let size = [hi[ax] - lo[ax], hi[ay] - lo[ay]];
+    if (hi[az] - lo[az] - thickness).abs() > 1e-6 {
+        return Err(format!("по толщине габарит {} ≠ толщине {thickness}", hi[az] - lo[az]));
+    }
+    let segs = resize(fp, size)?;
+    // Габарит: по каждой оси — от min до max проекций контура [0,size] и толщины [0,t].
+    let mut origin = [0.0; 3];
+    for (k, (ext, sign)) in [(ax, (size[0], f.x[ax])), (ay, (size[1], f.y[ay])), (az, (thickness, f.z[az]))] {
+        // Начало — на нижней границе, если ось смотрит в плюс, иначе — на верхней.
+        origin[k] = if sign > 0.0 { lo[k] } else { lo[k] + ext };
+    }
+    fp.segs = segs;
+    fp.frame.origin = origin;
+    Ok(())
+}
+
+/// Команды `panel.contour`, `panel.corner`, `panel.cutout`, `panel.resize`, `panel.box`.
 pub fn command(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
     #[derive(Deserialize)]
     struct Args {
@@ -138,8 +161,11 @@ pub fn command(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> 
         chamfer: Option<f64>,
         center: Option<[f64; 2]>,
         size: Option<[f64; 2]>,
+        lo: Option<[f64; 3]>,
+        hi: Option<[f64; 3]>,
     }
     let a: Args = serde_json::from_value(p.clone()).map_err(|e| format!("{cmd}: {e}"))?;
+    let pr_thickness = super::panels_thickness(pr, a.id)?;
     let Some(Object::Panel(fp)) = find_mut(&mut pr.objects, a.id) else {
         return Err(format!("нет панели {}: контур деталей корпуса правят после «Разрушить»", a.id));
     };
@@ -154,6 +180,10 @@ pub fn command(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> 
         "panel.cutout" => {
             let segs = cutout(&next, a.center.ok_or("нужен center: [x, y]")?, a.radius, a.size)?;
             set_contour(&mut next, segs)?;
+        }
+        "panel.box" => {
+            let t = pr_thickness;
+            fit_box(&mut next, t, a.lo.ok_or("нужен lo: [x,y,z]")?, a.hi.ok_or("нужен hi: [x,y,z]")?)?;
         }
         "panel.resize" => {
             let segs = resize(&next, a.size.ok_or("нужен size: [a, b]")?)?;

@@ -306,6 +306,8 @@ struct App {
     actions: ([f64; 3], char, f64, u32),
     /// Перетаскивание на виде спереди: сдвиг в мм.
     drag: Option<[f64; 2]>,
+    /// Маркер размера на виде спереди: (какой край X: −1/0/1, Y: −1/0/1) и сдвиг в мм.
+    handle: Option<([i8; 2], [f64; 2])>,
     /// Нажат Ctrl (на этом кадре): щелчок добавляет к выделению.
     ctx_ctrl: bool,
     params: Params,
@@ -356,6 +358,7 @@ impl Default for App {
             selection: Vec::new(),
             actions: ([0.0; 3], 'x', 90.0, 1),
             drag: None,
+            handle: None,
             ctx_ctrl: false,
             params: Params { sheet: (2800.0, 2070.0), kerf: 4.0, trim: 10.0 },
             cuts: Vec::new(),
@@ -1422,6 +1425,73 @@ impl App {
                 None => {}
             }
             return;
+        }
+        // Маркеры размера: у одной выделенной прямоугольной панели дерева, по осям без толщины.
+        let target = (selected.len() == 1).then(|| selected[0]).filter(|&i| parts[i].id != 0 && parts[i].panel.is_rect() && self.session.is_some());
+        if let Some(i) = target {
+            let p = &parts[i];
+            let f = p.panel.frame.unwrap_or(basis::geom::Frame::IDENTITY);
+            let locked = |k: usize| f.z[k].abs() > 0.5;
+            let (lo, hi) = ([p.origin[0], p.origin[1]], [p.origin[0] + p.size[0], p.origin[1] + p.size[1]]);
+            let tol = 10.0 / k;
+            let others: Vec<&Part> = parts.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, q)| q).collect();
+            let snap = |axis: usize, v: f64| -> f64 {
+                let best = others.iter().flat_map(|q| [q.origin[axis], q.origin[axis] + q.size[axis]]).map(|e| e - v).filter(|d| d.abs() < tol).min_by(|a, b| a.abs().total_cmp(&b.abs()));
+                (v + best.unwrap_or(0.0)).round()
+            };
+            // Новый габарит при перетаскивании маркера.
+            let moved = |h: [i8; 2], d: [f64; 2]| -> ([f64; 2], [f64; 2]) {
+                let (mut a, mut b) = (lo, hi);
+                for ax in 0..2 {
+                    match h[ax] {
+                        -1 => a[ax] = snap(ax, lo[ax] + d[ax]).min(b[ax] - 1.0),
+                        1 => b[ax] = snap(ax, hi[ax] + d[ax]).max(a[ax] + 1.0),
+                        _ => {}
+                    }
+                }
+                (a, b)
+            };
+            let (pa, pb) = match self.handle { Some((h, d)) => moved(h, d), None => (lo, hi) };
+            let r = Rect::from_two_pos(to(pa[0], pa[1]), to(pb[0], pb[1]));
+            if self.handle.is_some() {
+                painter.rect(r, 0.0, Color32::from_rgba_unmultiplied(255, 170, 70, 60), Stroke::new(1.5, Color32::from_rgb(220, 110, 0)), StrokeKind::Inside);
+                painter.text(r.center_top() - Vec2::new(0.0, 4.0), egui::Align2::CENTER_BOTTOM, format!("{} × {}", pb[0] - pa[0], pb[1] - pa[1]), egui::FontId::proportional(13.0), Color32::from_rgb(160, 70, 0));
+            }
+            let mut grabbed = None;
+            for hx in [-1i8, 0, 1] {
+                for hy in [-1i8, 0, 1] {
+                    if (hx, hy) == (0, 0) || (hx != 0 && locked(0)) || (hy != 0 && locked(1)) {
+                        continue;
+                    }
+                    let x = match hx { -1 => r.left(), 1 => r.right(), _ => r.center().x };
+                    let y = match hy { -1 => r.bottom(), 1 => r.top(), _ => r.center().y };
+                    let hr = Rect::from_center_size(Pos2::new(x, y), Vec2::splat(9.0));
+                    painter.rect(hr, 1.0, Color32::WHITE, Stroke::new(1.2, Color32::from_rgb(220, 110, 0)), StrokeKind::Inside);
+                    if resp.drag_started() && ui.ctx().pointer_interact_pos().is_some_and(|m| hr.expand(3.0).contains(m)) {
+                        grabbed = Some([hx, hy]);
+                    }
+                }
+            }
+            if let Some(h) = grabbed {
+                self.handle = Some((h, [0.0; 2]));
+            }
+            if let Some((h, d)) = &mut self.handle {
+                let delta = resp.drag_delta();
+                d[0] += delta.x as f64 / k;
+                d[1] -= delta.y as f64 / k;
+                if resp.drag_stopped() {
+                    let (h, d) = (*h, *d);
+                    self.handle = None;
+                    let (a, b) = moved(h, d);
+                    if (a, b) != (lo, hi) {
+                        let id = p.id;
+                        let lo3 = [a[0], a[1], p.origin[2]];
+                        let hi3 = [b[0], b[1], p.origin[2] + p.size[2]];
+                        self.exec("panel.box", json!({ "id": id, "lo": lo3, "hi": hi3 }));
+                    }
+                }
+                return;
+            }
         }
         if resp.clicked() {
             self.select(hovered);

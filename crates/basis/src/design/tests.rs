@@ -531,3 +531,21 @@ fn analysis_finds_real_problems_only() {
     assert_eq!(kinds, vec!["Пересечение", "Размер"], "{found:#?}");
     assert_eq!(found[0].parts.len(), 2);
 }
+
+/// Маркеры размера: панель занимает заданный габарит в любой плоскости, одной командой.
+#[test]
+fn panel_box_resizes_exactly() {
+    let mut s = Session::new(Project::new("Т"));
+    s.execute("material.add", &json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
+    for (plane, size, pos, lo, hi) in [
+        ("front", [600, 400], [0, 0, 0], [10.0, 20.0, 0.0], [710.0, 520.0, 16.0]),
+        ("horizontal", [600, 400], [0, 0, 0], [-50.0, 0.0, 0.0], [550.0, 16.0, 450.0]),
+        ("vertical", [400, 700], [0, 0, 0], [0.0, 100.0, 30.0], [16.0, 900.0, 530.0]),
+    ] {
+        let id = s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": plane, "size": size, "position": pos})).unwrap()["id"].clone();
+        s.execute("panel.box", &json!({"id": id, "lo": lo, "hi": hi})).unwrap();
+        let p = build(&s.project).unwrap().into_iter().find(|p| json!(p.id) == id).unwrap();
+        assert_eq!((p.origin, std::array::from_fn::<f64, 3, _>(|k| p.origin[k] + p.size[k])), (lo, hi), "{plane}");
+        assert!(s.execute("panel.box", &json!({"id": id, "lo": [0, 0, 0], "hi": [100, 100, 100]})).is_err(), "толщина не совпадает");
+    }
+}

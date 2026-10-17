@@ -263,6 +263,12 @@ impl Object {
     }
 }
 
+/// Толщина панели дерева (из её материала).
+fn panels_thickness(p: &Project, id: u32) -> Result<f64, String> {
+    let fp = p.panels().into_iter().find(|f| f.id == id).ok_or_else(|| format!("нет панели {id}"))?;
+    Ok(p.material(&fp.material)?.thickness)
+}
+
 /// Все панели дерева, в глубину.
 fn walk_panels<'a>(objects: &'a [Object], out: &mut Vec<&'a FreePanel>) {
     for o in objects {

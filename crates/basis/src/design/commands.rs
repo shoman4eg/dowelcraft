@@ -32,6 +32,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("panel.add", "{material, plane: front|horizontal|vertical, size: [a, b], position?: [x,y,z] мин. угол габарита, name?, texture?: Horizontal|Vertical|Default, kind?: body|back|door|drawer, block?} → {id}. Размеры контура: front — ширина×высота, horizontal — ширина×глубина, vertical — глубина×высота; толщина — из материала"),
     ("panel.fill", "{material, plane, at: [x, y] точка в проёме на виде спереди, gaps?: [4 отступа], name?, kind?} → {id}. Панель во весь проём между ближайшими деталями (двери не в счёт), как «~» в Базисе. horizontal — нижней пластью на высоту y, gaps [слева, справа, сзади, спереди]; vertical — левой пластью на x, gaps [сзади, спереди, снизу, сверху]; front — вровень с передом проёма, gaps [слева, справа, снизу, сверху]"),
     ("panel.edge", "{id, segments: [номера торцов], edge: имя кромки | null, clip?: true — подрезать заготовку на толщину кромки, allowance?: припуск на прифуговку, мм} — кромка на торцах панели; null — снять"),
+    ("panel.box", "{id, lo: [x,y,z], hi: [x,y,z]} — прямоугольная панель вдоль осей занимает габарит (маркеры размера); по толщине габарит = толщине"),
     ("panel.resize", "{id, size: [a, b]} — новые размеры прямоугольной панели (кромка сохраняется)"),
     ("panel.corner", "{id, at: [x, y] вершина контура, radius? | chamfer?} — скругление или фаска угла между двумя отрезками"),
     ("panel.cutout", "{id, center: [x, y], radius? | size?: [w, h]} — круглый или прямоугольный вырез"),
@@ -296,7 +297,7 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
             return Ok(json!({ "id": id }));
         }
         "fastener.add" | "fastener.remove" | "fastener.auto" | "fastener.def" => return fastener_cmd(pr, cmd, p),
-        "panel.contour" | "panel.corner" | "panel.cutout" | "panel.resize" => return shape::command(pr, cmd, p),
+        "panel.contour" | "panel.corner" | "panel.cutout" | "panel.resize" | "panel.box" => return shape::command(pr, cmd, p),
         "object.move" | "object.rotate" | "object.mirror" | "object.copy" | "object.remove" | "block.create" | "block.explode" => return actions::command(pr, cmd, p),
         "cabinet.explode" | "corner.explode" | "countertop.explode" => return explode(pr, idx(p, "id")? as u32),
         "panel.set" | "block.set" => {
