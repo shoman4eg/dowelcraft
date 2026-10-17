@@ -1687,20 +1687,26 @@ impl App {
         let mut cmds: Cmds = Vec::new();
         if let Some(c) = project.cabinets.iter().find(|c| c.id == part.owner) {
             ui.heading(crate::i18n::t(format!("Корпус «{}»", c.name)));
-            editors::cabinet_editor(ui, &project, c, &mut cmds);
+            // Формулы в полях корпуса: Ш/2, В-100, Г-Т…
+            let t = project.material(&c.material).map_or(16.0, |m| m.thickness);
+            let vars = vec![(&["Ш", "W"][..], c.width, "ширина"), (&["В", "H"][..], c.height, "высота"), (&["Г", "D"][..], c.depth, "глубина"), (&["Ц", "P"][..], c.plinth, "цоколь"), (&["Т", "T"][..], t, "толщина материала")];
+            expr::with_vars(vars, || editors::cabinet_editor(ui, &project, c, &mut cmds));
             if ui.button(crate::i18n::t("Разрушить в панели")).on_hover_text(crate::i18n::t("Детали станут отдельными панелями блока; параметры корпуса больше не действуют")).clicked() {
                 cmds.push(("cabinet.explode", json!({ "id": c.id })));
             }
         } else if let Some(c) = project.corners.iter().find(|c| c.id == part.owner) {
             ui.heading(crate::i18n::t(format!("Угловой модуль «{}»", c.name)));
-            editors::corner_editor(ui, &project, c, &mut cmds);
+            let t = project.material(&c.material).map_or(16.0, |m| m.thickness);
+            let vars = vec![(&["Ш", "W"][..], c.width_x, "крыло X"), (&["ШZ", "WZ"][..], c.width_z, "крыло Z"), (&["В", "H"][..], c.height, "высота"), (&["Г", "D"][..], c.depth, "глубина"), (&["Ц", "P"][..], c.plinth, "цоколь"), (&["Т", "T"][..], t, "толщина материала")];
+            expr::with_vars(vars, || editors::corner_editor(ui, &project, c, &mut cmds));
         } else if let Some(c) = project.countertops.iter().find(|c| c.id == part.owner) {
             ui.heading(crate::i18n::t(format!("Столешница «{}»", c.name)));
             editors::countertop_editor(ui, &project, c, &mut cmds);
         } else if let Some(fp) = project.panels().into_iter().find(|f| f.id == part.id) {
             self.fastener_panel(ui, &project, fp.id, &mut cmds);
             ui.heading(crate::i18n::t("Панель"));
-            editors::panel_editor(ui, &project, fp, (p.size.0, p.size.1, p.thickness), &mut cmds);
+            let vars = vec![(&["Д", "L"][..], p.size.0, "длина"), (&["Ш", "W"][..], p.size.1, "ширина"), (&["Т", "T"][..], p.thickness, "толщина")];
+            expr::with_vars(vars, || editors::panel_editor(ui, &project, fp, (p.size.0, p.size.1, p.thickness), &mut cmds));
             ui.separator();
             ui.heading(crate::i18n::t("Облицовка кромки"));
             let names: Vec<String> = project.edges.iter().map(|e| e.name.clone()).collect();

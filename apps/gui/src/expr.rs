@@ -1,12 +1,69 @@
-//! Числовые поля с вычислением выражений: можно набрать `600-4`, `720+18`, `(800-36)/2`, «600 мм + 100».
+//! Числовые поля с вычислением выражений: можно набрать `600-4`, `720+18`, `(800-36)/2`, «600 мм + 100»,
+//! а в редакторе корпуса — его размеры буквами: `Ш/2`, `В-100`, `Г-Т` (как формулы в Базисе).
 //! Вычислитель взят из QuadFurn (github.com/rbm13s/QuadFurn, `src/ui_panels.rs`) с разрешения автора.
 
+use std::cell::RefCell;
+
 use eframe::egui;
+
+thread_local! {
+    /// Переменные формул текущего редактора: (имена, значение, пояснение).
+    static VARS: RefCell<Vec<(&'static [&'static str], f64, &'static str)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Переменные для формул на время `body` (редактор корпуса: ширина, высота…).
+pub fn with_vars<R>(vars: Vec<(&'static [&'static str], f64, &'static str)>, body: impl FnOnce() -> R) -> R {
+    VARS.with(|v| *v.borrow_mut() = vars);
+    let r = body();
+    VARS.with(|v| v.borrow_mut().clear());
+    r
+}
+
+/// Подставить переменные и убрать «мм»; неизвестное слово — ошибка (а не тихий пропуск).
+fn substitute(input: &str) -> Option<String> {
+    let mut out = String::new();
+    let mut word = String::new();
+    let flush = |word: &mut String, out: &mut String| -> Option<()> {
+        if word.is_empty() {
+            return Some(());
+        }
+        let w = word.to_lowercase();
+        if !matches!(w.as_str(), "мм" | "mm") {
+            let value = VARS.with(|v| v.borrow().iter().find(|(names, _, _)| names.iter().any(|n| n.to_lowercase() == w)).map(|(_, x, _)| *x))?;
+            out.push_str(&format!("({value})"));
+        }
+        word.clear();
+        Some(())
+    };
+    for c in input.chars() {
+        if c.is_alphabetic() {
+            word.push(c);
+        } else {
+            flush(&mut word, &mut out)?;
+            out.push(c);
+        }
+    }
+    flush(&mut word, &mut out)?;
+    Some(out)
+}
+
+/// Подсказка к числовому полю: что можно написать.
+fn formula_help() -> String {
+    let vars = VARS.with(|v| v.borrow().iter().map(|(names, x, what)| format!("{} — {what} ({x})", names[0])).collect::<Vec<_>>());
+    let mut s = crate::i18n::t("Щёлкните, чтобы ввести число или формулу: 600-4, (800-36)/2. Тяните влево-вправо, чтобы менять.");
+    if !vars.is_empty() {
+        s.push('\n');
+        s.push_str(&crate::i18n::t("В формуле можно: "));
+        s.push_str(&vars.join(", "));
+    }
+    s
+}
 
 /// Вычисляет математическое выражение в числовом поле ввода (поддерживает `+`, `-`, `*`, `/`, скобки `(...)`,
 /// точку и запятую в качестве десятичного разделителя, а также пробелы и суффиксы единиц измерения).
 /// Примеры: `"600+100"` -> `700.0`, `"600-4"` -> `596.0`, `"800-18-18"` -> `764.0`, `"(800-36)/2"` -> `382.0`.
 pub fn eval_math_expression(input: &str) -> Option<f64> {
+    let input = substitute(input)?;
     let cleaned: String = input
         .chars()
         .map(|c| match c {
@@ -145,7 +202,14 @@ pub fn add<N: egui::emath::Numeric + Send + Sync + 'static>(ui: &mut egui::Ui, v
     if let Some(v) = ui.data(|d| d.get_temp::<N>(id)) {
         *value = v;
     }
-    let r = ui.add(style(drag(value)));
+    // Поле пошире, чтобы набирать формулу было удобно.
+    let r = ui.scope(|ui| {
+        let w = ui.spacing().interact_size.x.max(80.0);
+        ui.spacing_mut().interact_size.x = w;
+        ui.add(style(drag(value)))
+    })
+    .inner;
+    let r = r.on_hover_text(formula_help());
     if r.dragged() {
         ui.data_mut(|d| d.insert_temp(id, *value));
     } else {
@@ -201,5 +265,19 @@ mod tests {
         frame(vec![egui::Event::PointerButton { pos: end, button: egui::PointerButton::Primary, pressed: false, modifiers: Default::default() }], &mut field_rect, &mut committed);
         let v = committed.expect("перетаскивание закончено");
         assert!((v - 70.0).abs() < 2.0, "получилось {v}, ждали около 70");
+    }
+
+    /// Переменные редактора: Ш/2, В-100, «ш» строчной; неизвестное слово — ошибка.
+    #[test]
+    fn variables_in_formulas() {
+        with_vars(vec![(&["Ш", "W"][..], 800.0, "ширина"), (&["Т", "T"][..], 16.0, "толщина")], || {
+            assert_eq!(eval_math_expression("Ш/2"), Some(400.0));
+            assert_eq!(eval_math_expression("ш-2*Т"), Some(768.0));
+            assert_eq!(eval_math_expression("(W - T) / 2 мм"), Some(392.0));
+            assert_eq!(eval_math_expression("Х+1"), None);
+        });
+        // Вне редактора букв нет.
+        assert_eq!(eval_math_expression("Ш/2"), None);
+        assert_eq!(eval_math_expression("600 мм + 100"), Some(700.0));
     }
 }
