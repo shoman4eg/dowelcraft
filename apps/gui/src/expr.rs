@@ -137,6 +137,23 @@ pub fn drag<N: egui::emath::Numeric>(value: &mut N) -> egui::DragValue<'_> {
     egui::DragValue::new(value).custom_parser(eval_math_expression).max_decimals(2)
 }
 
+/// Числовое поле, которое можно тянуть мышью, даже если значение каждый кадр берётся заново из проекта:
+/// пока тянут, промежуточное число хранится в памяти egui и подставляется вместо значения из проекта.
+/// Без этого сдвиг мыши за кадр терялся и поле «не тянулось». Команду вызывающий шлёт, когда отпустили.
+pub fn add<N: egui::emath::Numeric + Send + Sync + 'static>(ui: &mut egui::Ui, value: &mut N, style: impl FnOnce(egui::DragValue<'_>) -> egui::DragValue<'_>) -> egui::Response {
+    let id = ui.next_auto_id().with("drag_in_progress");
+    if let Some(v) = ui.data(|d| d.get_temp::<N>(id)) {
+        *value = v;
+    }
+    let r = ui.add(style(drag(value)));
+    if r.dragged() {
+        ui.data_mut(|d| d.insert_temp(id, *value));
+    } else {
+        ui.data_mut(|d| d.remove::<N>(id));
+    }
+    r
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,5 +167,39 @@ mod tests {
         assert_eq!(eval_math_expression("1,5*2"), Some(3.0));
         assert_eq!(eval_math_expression("10/0"), None);
         assert_eq!(eval_math_expression("abc"), None);
+    }
+
+    /// Значение каждый кадр берётся «из проекта» (10), а мышь тянет поле на 60 точек:
+    /// после отпускания должно получиться 10 + 60, а не 10 + сдвиг последнего кадра.
+    #[test]
+    fn drag_survives_value_from_project() {
+        let ctx = egui::Context::default();
+        let mut field_rect = egui::Rect::NOTHING;
+        let mut committed = None;
+        let mut frame = |events: Vec<egui::Event>, field_rect: &mut egui::Rect, committed: &mut Option<f64>| {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 200.0))), events, ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| {
+                egui::CentralPanel::default().show_inside(ui, |ui| {
+                    let mut v = 10.0f64;
+                    let r = add(ui, &mut v, |d| d.speed(1.0));
+                    *field_rect = r.rect;
+                    if r.drag_stopped() {
+                        *committed = Some(v);
+                    }
+                });
+            });
+            out.textures_delta.clear();
+        };
+        frame(vec![], &mut field_rect, &mut committed);
+        let start = field_rect.center();
+        let press = |pressed| egui::Event::PointerButton { pos: start, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        frame(vec![egui::Event::PointerMoved(start), press(true)], &mut field_rect, &mut committed);
+        for k in 1..=6 {
+            frame(vec![egui::Event::PointerMoved(start + egui::vec2(10.0 * k as f32, 0.0))], &mut field_rect, &mut committed);
+        }
+        let end = start + egui::vec2(60.0, 0.0);
+        frame(vec![egui::Event::PointerButton { pos: end, button: egui::PointerButton::Primary, pressed: false, modifiers: Default::default() }], &mut field_rect, &mut committed);
+        let v = committed.expect("перетаскивание закончено");
+        assert!((v - 70.0).abs() < 2.0, "получилось {v}, ждали около 70");
     }
 }

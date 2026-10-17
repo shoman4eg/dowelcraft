@@ -190,7 +190,7 @@ fn script_control(ui: &mut egui::Ui, c: &Value, ev: &mut Vec<ScriptEvent>) {
                 ui.label(caption);
                 let key = if c.get("Value").is_some() { "Value" } else { "Text" };
                 let mut v = c[key].as_f64().or_else(|| c[key].as_str().and_then(|s| s.replace(',', ".").parse().ok())).unwrap_or(0.0);
-                if ui.add(crate::expr::drag(&mut v).speed(1.0)).changed() {
+                if crate::expr::add(ui, &mut v, |d| d.speed(1.0)).changed() {
                     ev.push(ScriptEvent::Change(id, "Value", json!(v)));
                 }
             });
@@ -794,8 +794,8 @@ impl App {
                             }
                         }
                         let mut tile = m.texture_size.unwrap_or([1000.0, 1000.0]);
-                        let r1 = ui.add(crate::expr::drag(&mut tile[0]).range(10.0..=5000.0).suffix(" мм"));
-                        let r2 = ui.add(crate::expr::drag(&mut tile[1]).range(10.0..=5000.0).suffix(" мм")).on_hover_text("Плитка текстуры: вдоль волокон × поперёк");
+                        let r1 = crate::expr::add(ui, &mut tile[0], |d| d.range(10.0..=5000.0).suffix(" мм"));
+                        let r2 = crate::expr::add(ui, &mut tile[1], |d| d.range(10.0..=5000.0).suffix(" мм")).on_hover_text("Плитка текстуры: вдоль волокон × поперёк");
                         let done = |r: &egui::Response| r.drag_stopped() || (r.changed() && !r.dragged());
                         if (done(&r1) || done(&r2)) && Some(tile) != m.texture_size {
                             cmds.push(("material.set", json!({ "name": m.name, "texture_size": tile })));
@@ -806,7 +806,7 @@ impl App {
                         for (key, label, value, general) in [("trim", "обрезка", m.trim, self.params.trim), ("kerf", "пропил", m.kerf, self.params.kerf)] {
                             let mut v = value.unwrap_or(general);
                             ui.label(label);
-                            let r = ui.add(crate::expr::drag(&mut v).range(0.0..=50.0).speed(0.1).suffix(" мм"));
+                            let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=50.0).speed(0.1).suffix(" мм"));
                             if (r.drag_stopped() || (r.changed() && !r.dragged())) && Some(v) != value {
                                 cmds.push(("material.set", json!({ "name": m.name, key: v })));
                             }
@@ -836,17 +836,17 @@ impl App {
                         ui.end_row();
                     }
                     ui.label("Толщина, мм");
-                    ui.add(crate::expr::drag(&mut nm.thickness).range(0.1..=100.0));
+                    crate::expr::add(ui, &mut nm.thickness, |d| d.range(0.1..=100.0));
                     ui.end_row();
                     ui.label("Лист, мм");
                     ui.horizontal(|ui| {
-                        ui.add(crate::expr::drag(&mut nm.sheet.0).range(100.0..=6000.0));
+                        crate::expr::add(ui, &mut nm.sheet.0, |d| d.range(100.0..=6000.0));
                         ui.label("×");
-                        ui.add(crate::expr::drag(&mut nm.sheet.1).range(100.0..=6000.0));
+                        crate::expr::add(ui, &mut nm.sheet.1, |d| d.range(100.0..=6000.0));
                     });
                     ui.end_row();
                     ui.label("Коэффициент");
-                    ui.add(crate::expr::drag(&mut nm.coef).range(1.0..=3.0).speed(0.01));
+                    crate::expr::add(ui, &mut nm.coef, |d| d.range(1.0..=3.0).speed(0.01));
                     ui.end_row();
                 });
                 let ok = !taken && !nm.name.trim().is_empty();
@@ -885,10 +885,10 @@ impl App {
                         ui.end_row();
                     }
                     ui.label("Толщина");
-                    ui.add(crate::expr::drag(t).range(0.1..=5.0).speed(0.1).suffix(" мм"));
+                    crate::expr::add(ui, t, |d| d.range(0.1..=5.0).speed(0.1).suffix(" мм"));
                     ui.end_row();
                     ui.label("Ширина");
-                    ui.add(crate::expr::drag(w).range(1.0..=100.0).suffix(" мм"));
+                    crate::expr::add(ui, w, |d| d.range(1.0..=100.0).suffix(" мм"));
                     ui.end_row();
                 });
                 if ui.add_enabled(!taken && !n.trim().is_empty(), egui::Button::new("Добавить кромку")).clicked() {
@@ -1280,7 +1280,7 @@ impl App {
             for a in ['x', 'y', 'z'] {
                 ui.selectable_value(axis, a, a.to_ascii_uppercase().to_string());
             }
-            ui.add(crate::expr::drag(angle).range(-360.0..=360.0).suffix("°"));
+            crate::expr::add(ui, angle, |d| d.range(-360.0..=360.0).suffix("°"));
             if ui.button("Повернуть").clicked() {
                 cmds.push(("object.rotate", json!({ "ids": [id], "axis": axis.to_string(), "angle": *angle, "center": fr.origin })));
             }
@@ -1486,7 +1486,7 @@ impl App {
                     *edge = Some(v);
                 }
                 ui.checkbox(clip, "Подрезать").on_hover_text("Заготовка меньше на толщину кромки: размер детали — чистовой");
-                ui.add(crate::expr::drag(allowance).range(0.0..=10.0).speed(0.1).prefix("припуск ").suffix(" мм"));
+                crate::expr::add(ui, allowance, |d| d.range(0.0..=10.0).speed(0.1).prefix("припуск ").suffix(" мм"));
             });
             ui.separator();
             ui.heading("Контур");
@@ -1497,7 +1497,7 @@ impl App {
                 }
                 if *tool != ContourTool::Edge {
                     let label = match tool { ContourTool::Round => "R ", ContourTool::Chamfer => "катет ", _ => "радиус " };
-                    ui.add(crate::expr::drag(size).range(1.0..=2000.0).prefix(label).suffix(" мм"));
+                    crate::expr::add(ui, size, |d| d.range(1.0..=2000.0).prefix(label).suffix(" мм"));
                 }
             });
             ui.weak(match tool {
@@ -1509,9 +1509,9 @@ impl App {
                 ui.horizontal(|ui| {
                     ui.label("Размеры:");
                     let (mut a, mut b) = (p.size.0, p.size.1);
-                    let ra = ui.add(crate::expr::drag(&mut a).range(1.0..=6000.0).suffix(" мм"));
+                    let ra = crate::expr::add(ui, &mut a, |d| d.range(1.0..=6000.0).suffix(" мм"));
                     ui.label("×");
-                    let rb = ui.add(crate::expr::drag(&mut b).range(1.0..=6000.0).suffix(" мм"));
+                    let rb = crate::expr::add(ui, &mut b, |d| d.range(1.0..=6000.0).suffix(" мм"));
                     let done = |r: &egui::Response| r.drag_stopped() || (r.changed() && !r.dragged());
                     if (done(&ra) || done(&rb)) && (a, b) != p.size {
                         cmds.push(("panel.resize", json!({ "id": fp.id, "size": [a, b] })));
@@ -1873,13 +1873,13 @@ impl App {
         let before = self.params;
         ui.horizontal(|ui| {
             ui.label("Лист по умолчанию");
-            ui.add(crate::expr::drag(&mut self.params.sheet.0).range(500.0..=6000.0));
+            crate::expr::add(ui, &mut self.params.sheet.0, |d| d.range(500.0..=6000.0));
             ui.label("×");
-            ui.add(crate::expr::drag(&mut self.params.sheet.1).range(500.0..=6000.0));
+            crate::expr::add(ui, &mut self.params.sheet.1, |d| d.range(500.0..=6000.0));
             ui.label("Пропил");
-            ui.add(crate::expr::drag(&mut self.params.kerf).range(0.0..=10.0).speed(0.1));
+            crate::expr::add(ui, &mut self.params.kerf, |d| d.range(0.0..=10.0).speed(0.1));
             ui.label("Обрезка");
-            ui.add(crate::expr::drag(&mut self.params.trim).range(0.0..=50.0));
+            crate::expr::add(ui, &mut self.params.trim, |d| d.range(0.0..=50.0));
         });
         if self.params != before {
             self.refresh();

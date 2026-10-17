@@ -284,7 +284,7 @@ impl App {
             };
             for (g, l) in t.gaps.iter_mut().zip(labels) {
                 ui.label(l);
-                ui.add(crate::expr::drag(g).range(-100.0..=500.0).suffix(" мм"));
+                crate::expr::add(ui, g, |d| d.range(-100.0..=500.0).suffix(" мм"));
                 ui.end_row();
             }
         });
@@ -307,12 +307,12 @@ impl App {
                 Modify::Move | Modify::Copy => {
                     for (k, l) in ["dX", "dY", "dZ"].iter().enumerate() {
                         ui.label(*l);
-                        ui.add(crate::expr::drag(&mut d[k]).speed(1.0).suffix(" мм"));
+                        crate::expr::add(ui, &mut d[k], |d| d.speed(1.0).suffix(" мм"));
                         ui.end_row();
                     }
                     if m == Modify::Copy {
                         ui.label("Копий");
-                        ui.add(crate::expr::drag(count).range(1..=100));
+                        crate::expr::add(ui, count, |d| d.range(1..=100));
                         ui.end_row();
                     }
                 }
@@ -326,7 +326,7 @@ impl App {
                     ui.end_row();
                     if m == Modify::Rotate {
                         ui.label("Угол");
-                        ui.add(crate::expr::drag(angle).range(-360.0..=360.0).suffix("°"));
+                        crate::expr::add(ui, angle, |d| d.range(-360.0..=360.0).suffix("°"));
                         ui.end_row();
                     }
                 }
