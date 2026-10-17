@@ -193,6 +193,26 @@ mod tests {
         assert_eq!(app.doc_title(), "Новый проект");
     }
 
+    /// Две отдельные панели подряд не ложатся друг на друга (раньше вторая вставала поверх первой).
+    #[test]
+    fn added_panels_do_not_overlap() {
+        let mut app = App::default();
+        app.exec("material.add", json!({ "name": "ЛДСП 16", "thickness": 16, "sheet": [2800, 2070], "coef": 1.2 }));
+        app.add_object("panel");
+        app.add_object("panel");
+        app.add_object("cabinet");
+        let parts = app.parts.as_ref().unwrap();
+        for (i, a) in parts.iter().enumerate() {
+            for b in &parts[i + 1..] {
+                if a.owner == b.owner {
+                    continue;
+                }
+                let apart = (0..3).any(|k| a.origin[k] + a.size[k] <= b.origin[k] + 1e-6 || b.origin[k] + b.size[k] <= a.origin[k] + 1e-6);
+                assert!(apart, "{} и {} пересекаются", a.panel.name, b.panel.name);
+            }
+        }
+    }
+
     /// Несохранённые изменения — сначала вопрос, а не закрытие.
     #[test]
     fn closing_dirty_project_asks() {
@@ -201,5 +221,51 @@ mod tests {
         app.request_close(0);
         assert!(app.close_ask.as_ref().is_some_and(|a| a.title == "Шкаф"));
         assert_eq!(app.doc_title(), "Шкаф");
+    }
+}
+
+#[cfg(test)]
+mod window_tests {
+    use eframe::egui;
+
+    use crate::App;
+
+    /// Всё окно программы: навести мышь на иконку палитры — должна открыться подсказка.
+    #[test]
+    fn tool_icons_show_tooltips_in_the_app() {
+        let ctx = egui::Context::default();
+        crate::theme::apply(&ctx);
+        let mut app = App::default();
+        let mut frame = eframe::Frame::_new_kittest();
+        let mut time = 0.0;
+        let mut run = |app: &mut App, events: Vec<egui::Event>, time: f64| {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 900.0))), events, time: Some(time), ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| eframe::App::ui(app, ui, &mut frame));
+            out.textures_delta.clear();
+        };
+        for _ in 0..3 {
+            run(&mut app, vec![], time);
+        }
+        // Иконка «Напольный корпус» — первая в палитре слева: ищем точку, где мышь даёт её описание.
+        let mut found = None;
+        'scan: for y in (60..400).step_by(6) {
+            for x in (10..280).step_by(6) {
+                let p = egui::pos2(x as f32, y as f32);
+                run(&mut app, vec![egui::Event::PointerMoved(p)], time);
+                run(&mut app, vec![], time);
+                if crate::icons::take_hover(&ctx).is_some_and(|t| t.starts_with("Напольный корпус")) {
+                    found = Some(p);
+                    break 'scan;
+                }
+            }
+        }
+        let p = found.expect("иконка не найдена");
+        run(&mut app, vec![egui::Event::PointerMoved(p)], time);
+        for _ in 0..15 {
+            time += 0.1;
+            run(&mut app, vec![], time);
+        }
+        let tooltip = ctx.memory(|m| m.areas().visible_layer_ids().into_iter().any(|l| l.order == egui::Order::Tooltip));
+        assert!(tooltip, "подсказка не открылась");
     }
 }

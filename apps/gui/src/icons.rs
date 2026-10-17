@@ -453,3 +453,70 @@ fn remember_hover(resp: &egui::Response, tooltip: &str) {
 pub fn take_hover(ctx: &egui::Context) -> Option<String> {
     ctx.data_mut(|d| d.remove_temp::<String>(hover_id()))
 }
+
+#[cfg(test)]
+mod tests {
+    use eframe::egui;
+
+    /// Навели мышь на иконку и не двигаем — подсказка открывается.
+    #[test]
+    fn icon_shows_tooltip_on_hover() {
+        let ctx = egui::Context::default();
+        crate::theme::apply(&ctx);
+        let mut rect = egui::Rect::NOTHING;
+        let mut open = false;
+        let mut time = 0.0;
+        let frame = |events: Vec<egui::Event>, time: f64, rect: &mut egui::Rect, open: &mut bool| {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 300.0))), events, time: Some(time), ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    let r = super::button(ui, super::Icon::Cabinet, 36.0, "Напольный корпус", false);
+                    *rect = r.rect;
+                    *open = r.is_tooltip_open();
+                });
+            });
+            out.textures_delta.clear();
+        };
+        frame(vec![], time, &mut rect, &mut open);
+        frame(vec![egui::Event::PointerMoved(rect.center())], time, &mut rect, &mut open);
+        for _ in 0..20 {
+            time += 0.1;
+            frame(vec![], time, &mut rect, &mut open);
+        }
+        assert!(open, "подсказка не открылась");
+    }
+
+    /// То же внутри палитры craft-ui (стопка с заголовком), как в окне программы.
+    #[test]
+    fn icon_shows_tooltip_inside_dock() {
+        use craft_ui::docking::{DockArea, DockStyle, Layout, Node, Permissions, StackEntry};
+        let ctx = egui::Context::default();
+        crate::theme::apply(&ctx);
+        let layout = Layout { root: Some(Node::Stack { entries: vec![StackEntry { panel: 1u8, open: true, height: None }] }), floating: Vec::new() };
+        let mut rect = egui::Rect::NOTHING;
+        let mut open = false;
+        let mut time = 0.0;
+        let frame = |events: Vec<egui::Event>, time: f64, rect: &mut egui::Rect, open: &mut bool| {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 300.0))), events, time: Some(time), ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    let style = DockStyle::from_ui(ui);
+                    let _ = DockArea::new(egui::Id::new("dock")).show(ui, &layout, &style, |_| "Инструменты".to_string(), |_| Permissions::default(), |ui, _| {
+                        let r = super::button(ui, super::Icon::Cabinet, 36.0, "Напольный корпус", false);
+                        *rect = r.rect;
+                        *open = r.is_tooltip_open();
+                    });
+                });
+            });
+            out.textures_delta.clear();
+        };
+        frame(vec![], time, &mut rect, &mut open);
+        frame(vec![], time, &mut rect, &mut open);
+        frame(vec![egui::Event::PointerMoved(rect.center())], time, &mut rect, &mut open);
+        for _ in 0..20 {
+            time += 0.1;
+            frame(vec![], time, &mut rect, &mut open);
+        }
+        assert!(open, "подсказка в палитре не открылась, rect {rect:?}");
+    }
+}

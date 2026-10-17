@@ -1418,9 +1418,7 @@ impl App {
             ui.colored_label(Color32::from_rgb(200, 40, 40), e);
         }
         let editable = self.session.is_some();
-        let right = self.session.as_ref().map_or(0.0, |s| {
-            s.project.cabinets.iter().map(|c| c.position[0] + c.width).chain(s.project.corners.iter().map(|c| c.position[0] + c.width_x)).fold(0.0, f64::max)
-        });
+        let right = self.free_x();
         if loading {
             ui.horizontal(|ui| {
                 ui.spinner();

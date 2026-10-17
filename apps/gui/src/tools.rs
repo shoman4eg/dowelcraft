@@ -199,8 +199,8 @@ impl App {
         let Some(material) = project.materials.first().map(|m| m.name.clone()) else { return };
         let edge = project.edges.first().map(|e| e.name.clone());
         let floor: Vec<&design::Cabinet> = project.cabinets.iter().filter(|c| c.position[1] <= 0.0).collect();
-        // Правый край напольных модулей и отдельных панелей.
-        let right = floor.iter().map(|c| c.position[0] + c.width).chain(project.corners.iter().map(|c| c.position[0] + c.width_x)).fold(0.0, f64::max);
+        // Правее всего, что уже есть (корпуса, панели, фурнитура), с зазором 50 мм — иначе новое ложится поверх.
+        let right = self.free_x();
         let (cmd, args) = match kind {
             "cabinet" => ("cabinet.add", json!({ "width": 600, "height": 820, "depth": 560, "material": material, "plinth": 100, "edge": edge, "doors": 1, "position": [right, 0, 0] })),
             "wall" => {
@@ -228,6 +228,14 @@ impl App {
         if let Some(id) = self.exec_ret(cmd, args).and_then(|v| v.get("id").and_then(Value::as_u64)) {
             self.select_object(id as u32);
         }
+    }
+
+    /// X, с которого новое не пересечётся с уже поставленным: правый край всех деталей и фурнитуры + 50 мм.
+    pub(crate) fn free_x(&self) -> f64 {
+        let parts = self.parts.as_ref().map(|p| p.iter().map(|p| p.origin[0] + p.size[0]).fold(f64::MIN, f64::max)).unwrap_or(f64::MIN);
+        let furniture = self.session.as_ref().map_or(f64::MIN, |s| design::furniture(&s.project).iter().map(|(f, fr)| (0..8).map(|c| fr.apply([if c & 1 == 0 { f.lo[0] } else { f.hi[0] }, if c & 2 == 0 { f.lo[1] } else { f.hi[1] }, if c & 4 == 0 { f.lo[2] } else { f.hi[2] }])[0]).fold(f64::MIN, f64::max)).fold(f64::MIN, f64::max));
+        let right = parts.max(furniture);
+        if right == f64::MIN { 0.0 } else { (right + 50.0).round() }
     }
 
     /// Выделить объект по номеру: первую его деталь.
