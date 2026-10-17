@@ -287,6 +287,13 @@ impl Sel {
     }
 }
 
+/// Размер для показа: до десятых мм, без хвостов вычислений (2341.9999999999927 → 2342) и «-0».
+fn num(v: f64) -> String {
+    let r = (v * 10.0).round() / 10.0;
+    let r = if r == 0.0 { 0.0 } else { r };
+    if r.fract() == 0.0 { format!("{r:.0}") } else { format!("{r:.1}") }
+}
+
 /// Пункт меню правой кнопки (и клавиша Delete).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum MenuAct {
@@ -344,6 +351,8 @@ struct App {
     textures_dir: String,
     /// Выделенная фурнитура (у неё нет деталей — выделяется отдельно).
     furniture_sel: Option<u32>,
+    /// Загруженные сетки фурнитуры: файл → треугольники.
+    meshes: std::collections::HashMap<String, std::sync::Arc<Vec<basis::panel::Tri>>>,
     /// Крепёж для установки между панелями.
     fastener_kind: String,
     /// Действие щелчка по схеме контура и его размер (радиус, катет фаски, радиус выреза), мм.
@@ -389,6 +398,7 @@ impl Default for App {
             script: None,
             problems: None,
             furniture_sel: None,
+            meshes: Default::default(),
             textures_dir: "example/textures".into(),
             screenshot: None,
             frames: 0,
@@ -430,14 +440,22 @@ impl App {
         self.revision += 1;
     }
 
+    /// Команда над проектом; каждая пишется в терминал (stderr), ошибка — ещё и в строку состояния.
     fn exec(&mut self, cmd: &str, p: Value) {
-        let Some(s) = &mut self.session else { return };
+        let Some(s) = &mut self.session else {
+            eprintln!("[команда] {cmd}: нет своего проекта (открыт файл Базиса только для просмотра)");
+            return;
+        };
         match s.execute(cmd, &p) {
-            Ok(_) => {
+            Ok(r) => {
+                eprintln!("[команда] {cmd} {p} → {}", if r.is_null() { "ok".into() } else { r.to_string() });
                 self.error = None;
                 self.refresh();
             }
-            Err(e) => self.error = Some(e),
+            Err(e) => {
+                eprintln!("[ошибка] {cmd} {p}: {e}");
+                self.error = Some(e);
+            }
         }
     }
 
@@ -776,9 +794,15 @@ impl App {
                     self.selection.push(s);
                 }
             }
-            (Some(s), false) => self.selection = vec![s],
+            (Some(s), false) => {
+                self.selection = vec![s];
+                self.furniture_sel = None;
+            }
             (None, true) => {}
-            (None, false) => self.selection.clear(),
+            (None, false) => {
+                self.selection.clear();
+                self.furniture_sel = None;
+            }
         }
     }
 
@@ -813,6 +837,23 @@ impl App {
             let (lo, hi) = acc.unwrap_or(([f64::MAX; 3], [f64::MIN; 3]));
             Some((std::array::from_fn(|k| lo[k].min(p.origin[k])), std::array::from_fn(|k| hi[k].max(p.origin[k] + p.size[k]))))
         })
+    }
+
+    /// Сетка модели фурнитуры по файлу-источнику (читается один раз; не прочиталась — пустая, рисуется рамкой).
+    fn furniture_mesh(&mut self, source: &str) -> std::sync::Arc<Vec<basis::panel::Tri>> {
+        if let Some(m) = self.meshes.get(source) {
+            return m.clone();
+        }
+        let mesh = match basis::library::read(std::path::Path::new(source)) {
+            Ok(m) => m.mesh,
+            Err(e) => {
+                eprintln!("[фурнитура] {e}");
+                Vec::new()
+            }
+        };
+        let m = std::sync::Arc::new(mesh);
+        self.meshes.insert(source.to_string(), m.clone());
+        m
     }
 
     /// Команда «Разрушить» для объекта: блок, корпус, угловой модуль или столешница.
@@ -1320,20 +1361,20 @@ impl App {
             ui.label(panel::material_name(&p.material));
             ui.end_row();
             ui.label("Пильный размер");
-            ui.label(format!("{l} × {w} × {} мм", p.thickness));
+            ui.label(format!("{} × {} × {} мм", num(l), num(w), num(p.thickness)));
             ui.end_row();
             ui.label("Габарит в проекте");
-            ui.label(format!("{} × {} × {} мм", part.size[0], part.size[1], part.size[2]));
+            ui.label(format!("{} × {} × {} мм", num(part.size[0]), num(part.size[1]), num(part.size[2])));
             ui.end_row();
             ui.label("Начало габарита");
-            ui.label(format!("X {} Y {} Z {}", part.origin[0], part.origin[1], part.origin[2]));
+            ui.label(format!("X {} Y {} Z {}", num(part.origin[0]), num(part.origin[1]), num(part.origin[2])));
             ui.end_row();
             ui.label("Кромка");
             let edges: Vec<String> = [Side::L1, Side::L2, Side::W1, Side::W2]
                 .iter()
                 .filter_map(|&sd| {
                     let t = p.edges.iter().filter(|e| p.side(e) == sd).map(|e| e.thickness).fold(0.0, f64::max);
-                    (t > 0.0).then(|| format!("{sd:?} {t}"))
+                    (t > 0.0).then(|| format!("{sd:?} {}", num(t)))
                 })
                 .collect();
             ui.label(if edges.is_empty() { "нет".to_string() } else { edges.join(", ") });
@@ -1570,7 +1611,7 @@ impl App {
                     };
                     let r = Rect::from_two_pos(to(f.position[0], f.position[1]), to(f.position[0] + w, f.position[1] + h));
                     painter.rect(r, 0.0, Color32::from_rgba_unmultiplied(255, 170, 70, 90), Stroke::new(1.5, Color32::from_rgb(220, 110, 0)), StrokeKind::Inside);
-                    painter.text(r.center_top() - Vec2::new(0.0, 4.0), egui::Align2::CENTER_BOTTOM, format!("{} × {}", f.size[0], f.size[1]), egui::FontId::proportional(13.0), Color32::from_rgb(160, 70, 0));
+                    painter.text(r.center_top() - Vec2::new(0.0, 4.0), egui::Align2::CENTER_BOTTOM, format!("{} × {}", num(f.size[0]), num(f.size[1])), egui::FontId::proportional(13.0), Color32::from_rgb(160, 70, 0));
                     if resp.clicked() {
                         let cmd = json!({ "material": t.material, "plane": t.plane, "at": at, "gaps": t.gaps });
                         self.exec("panel.fill", cmd);
@@ -1685,7 +1726,7 @@ impl App {
         if let Some(i) = hovered {
             let p = &parts[i];
             let (l, w) = p.panel.cut_size();
-            resp.on_hover_text(format!("{} {}: {}×{}×{} мм\n{}", p.panel.pos, p.panel.name, l, w, p.panel.thickness, panel::material_name(&p.panel.material)));
+            resp.on_hover_text(format!("{} {}: {}×{}×{} мм\n{}", p.panel.pos, p.panel.name, num(l), num(w), num(p.panel.thickness), panel::material_name(&p.panel.material)));
         }
     }
 
@@ -1699,7 +1740,14 @@ impl App {
             self.viewport.toolbar(ui);
         });
         // Общие режим, рамки фурнитуры и «Показать всё» — для всех окон.
-        let boxes: Vec<(basis::geom::Frame, [f64; 3], [f64; 3], bool)> = self.session.as_ref().map(|s| design::furniture(&s.project).into_iter().map(|(f, fr)| (fr, f.lo, f.hi, self.furniture_sel == Some(f.id))).collect()).unwrap_or_default();
+        let list = self.session.as_ref().map(|s| design::furniture(&s.project)).unwrap_or_default();
+        let boxes: Vec<viewport::FurnView> = list
+            .into_iter()
+            .map(|(f, frame)| {
+                let mesh = self.furniture_mesh(&f.source);
+                viewport::FurnView { id: f.id, frame, lo: f.lo, hi: f.hi, selected: self.furniture_sel == Some(f.id), mesh }
+            })
+            .collect();
         let refit = self.viewport.needs_fit();
         // Текстуры материалов: полное имя «Название\rАртикул» → картинка и плитка.
         let textures: Vec<(String, String, [f64; 2])> = self.session.as_ref().map(|s| {
@@ -1749,6 +1797,13 @@ impl App {
                 viewport::Click::Part(i) => self.select(Some(i)),
                 viewport::Click::Empty => self.select(None),
                 viewport::Click::Menu(hit) => self.menu_pick(hit),
+                viewport::Click::Furniture(id, right) => {
+                    // Правой кнопкой по невыделенной — выделить её; левой — выделить (с Ctrl — тоже одну).
+                    if !right || self.furniture_sel != Some(id) {
+                        self.selection.clear();
+                        self.furniture_sel = Some(id);
+                    }
+                }
                 viewport::Click::None => {}
             }
             if let Some(r) = resp {
@@ -1772,12 +1827,12 @@ impl App {
                     ui.label(self.job.number(i));
                     ui.label(&p.name);
                     ui.label(panel::material_name(&p.material));
-                    ui.label(format!("{l:.1}"));
-                    ui.label(format!("{w:.1}"));
-                    ui.label(format!("{}", p.thickness));
+                    ui.label(num(l));
+                    ui.label(num(w));
+                    ui.label(num(p.thickness));
                     for sd in [Side::L1, Side::L2, Side::W1, Side::W2] {
                         let t = p.edges.iter().filter(|e| p.side(e) == sd).map(|e| e.thickness).fold(0.0, f64::max);
-                        ui.label(if t > 0.0 { format!("{t}") } else { String::new() });
+                        ui.label(if t > 0.0 { num(t) } else { String::new() });
                     }
                     ui.end_row();
                 }

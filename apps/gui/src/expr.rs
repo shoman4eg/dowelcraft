@@ -133,7 +133,8 @@ pub fn eval_math_expression(input: &str) -> Option<f64> {
 
 /// `DragValue`, понимающий выражения.
 pub fn drag<N: egui::emath::Numeric>(value: &mut N) -> egui::DragValue<'_> {
-    egui::DragValue::new(value).custom_parser(eval_math_expression)
+    // Не больше двух знаков после запятой: хвосты вычислений (118.00000000000786) не показываются, значение не меняется.
+    egui::DragValue::new(value).custom_parser(eval_math_expression).max_decimals(2)
 }
 
 #[cfg(test)]

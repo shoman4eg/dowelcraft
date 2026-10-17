@@ -36,6 +36,26 @@ pub enum Click {
     Empty,
     /// Правая кнопка (без перетаскивания) — меню; деталь под курсором, если есть.
     Menu(Option<usize>),
+    /// Щелчок по фурнитуре (номер объекта); `true` — правой кнопкой.
+    Furniture(u32, bool),
+}
+
+/// Фурнитура в окне: положение, габарит в своих осях, сетка модели (пустая — рисуется рамкой).
+#[derive(Clone, Debug)]
+pub struct FurnView {
+    pub id: u32,
+    pub frame: basis::geom::Frame,
+    pub lo: [f64; 3],
+    pub hi: [f64; 3],
+    pub selected: bool,
+    pub mesh: std::sync::Arc<Vec<basis::panel::Tri>>,
+}
+
+impl PartialEq for FurnView {
+    /// Сетки сравниваются по указателю: одна модель — одна загруженная сетка.
+    fn eq(&self, o: &Self) -> bool {
+        self.id == o.id && self.frame == o.frame && self.lo == o.lo && self.hi == o.hi && self.selected == o.selected && std::sync::Arc::ptr_eq(&self.mesh, &o.mesh)
+    }
 }
 
 /// Камера: точка взгляда, углы и масштаб (мм на пиксель), параллельная проекция.
@@ -183,6 +203,8 @@ struct Scene {
     /// Габарит сцены.
     lo: [f32; 3],
     hi: [f32; 3],
+    /// Треугольники фурнитуры в координатах проекта — для выбора щелчком: (треугольник, номер объекта).
+    furniture: Vec<(basis::panel::Tri, u32)>,
 }
 
 struct Target {
@@ -212,10 +234,10 @@ struct Gpu {
 pub struct Viewport {
     pub camera: Camera,
     pub mode: Mode,
-    /// Фурнитура: положение, габарит в своих осях, выделена ли — рисуется рамкой.
-    pub furniture: Vec<(basis::geom::Frame, [f64; 3], [f64; 3], bool)>,
-    /// Рамки фурнитуры, с которыми построена сцена.
-    furniture_built: Vec<(basis::geom::Frame, [f64; 3], [f64; 3], bool)>,
+    /// Фурнитура: сетка модели или рамка по габариту.
+    pub furniture: Vec<FurnView>,
+    /// Фурнитура, с которой построена сцена.
+    furniture_built: Vec<FurnView>,
     gpu: Option<Gpu>,
     scene: Option<Scene>,
     /// Сетка на процессоре: для выбора деталей щелчком и перекраски выделения.
@@ -447,7 +469,7 @@ fn upload(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLa
 
 impl Scene {
     /// `textures` — для режима «В текстурах»: картинка материала детали (номер, плитка мм).
-    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: &[usize], furniture: &[(basis::geom::Frame, [f64; 3], [f64; 3], bool)], textures: Option<&[(String, String, [f64; 2])]>) -> Scene {
+    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: &[usize], furniture: &[FurnView], textures: Option<&[(String, String, [f64; 2])]>) -> Scene {
         let mut tris = Vec::with_capacity(m.vertices.len() * STRIDE as usize);
         let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
         let tex_of = |part: usize| textures.and_then(|t| t.iter().position(|(mat, _, _)| *mat == parts[part].panel.material));
@@ -477,7 +499,17 @@ impl Scene {
                 hi[k] = hi[k].max(v.pos[k]);
             }
         }
-        if m.vertices.is_empty() {
+        // Габарит с фурнитурой — до осей проекта, их длина от габарита.
+        for f in furniture {
+            for p in f.mesh.iter().flatten() {
+                let w = f.frame.apply(p.map(f64::from));
+                for k in 0..3 {
+                    lo[k] = lo[k].min(w[k] as f32);
+                    hi[k] = hi[k].max(w[k] as f32);
+                }
+            }
+        }
+        if lo[0] > hi[0] {
             (lo, hi) = ([0.0; 3], [1000.0; 3]);
         }
         let mut lines = Vec::new();
@@ -517,8 +549,8 @@ impl Scene {
                 holes += 2;
             }
         }
-        // Фурнитура — рамкой по габариту (выделенная — оранжевой).
-        for (fr, lo, hi, sel) in furniture {
+        // Фурнитура без сетки — рамкой по габариту (выделенная — оранжевой).
+        for FurnView { frame: fr, lo, hi, selected: sel, .. } in furniture.iter().filter(|f| f.mesh.is_empty()) {
             let c = if *sel { [1.0, 0.55, 0.1, 1.0] } else { [0.15, 0.35, 0.85, 1.0] };
             let corner = |i: usize| fr.apply(std::array::from_fn(|k| if i >> k & 1 == 0 { lo[k] } else { hi[k] })).map(|v| v as f32);
             for (a, b) in [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)] {
@@ -541,6 +573,36 @@ impl Scene {
             }
             sorted.extend_from_slice(&m.indices[3 * t..3 * t + 3]);
         }
+        // Фурнитура с сеткой — своими треугольниками (металл серый, выделенная — оранжевая), без картинки.
+        let mut furn_tris = Vec::new();
+        let mut next = m.vertices.len() as u32;
+        let start = sorted.len() as u32;
+        for f in furniture.iter().filter(|f| !f.mesh.is_empty()) {
+            let c = if f.selected { [SELECTED[0], SELECTED[1], SELECTED[2], 1.0] } else { [0.62, 0.64, 0.68, 1.0] };
+            for t in f.mesh.iter() {
+                let w: basis::panel::Tri = t.map(|p| f.frame.apply(p.map(f64::from)).map(|v| v as f32));
+                let (a, b) = (std::array::from_fn::<f32, 3, _>(|k| w[1][k] - w[0][k]), std::array::from_fn::<f32, 3, _>(|k| w[2][k] - w[0][k]));
+                let n = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+                let l = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt().max(1e-12);
+                for p in w {
+                    push_vertex_uv(&mut tris, p, n.map(|v| v / l), c, [0.0; 2]);
+                    sorted.push(next);
+                    next += 1;
+                    for k in 0..3 {
+                        lo[k] = lo[k].min(p[k]);
+                        hi[k] = hi[k].max(p[k]);
+                    }
+                }
+                furn_tris.push((w, f.id));
+            }
+        }
+        let end = sorted.len() as u32;
+        if end > start {
+            match batches.last_mut() {
+                Some((None, r)) if r.end == start => r.end = end,
+                _ => batches.push((None, start..end)),
+            }
+        }
         let index_bytes: Vec<u8> = sorted.iter().flat_map(|i| i.to_le_bytes()).collect();
         let buf = |data: &[u8], usage| {
             // Пустой буфер wgpu не создаёт — кладём хотя бы 4 байта.
@@ -550,13 +612,14 @@ impl Scene {
         Scene {
             tris: buf(&tris, wgpu::BufferUsages::VERTEX),
             indices: buf(&index_bytes, wgpu::BufferUsages::INDEX),
-            index_count: m.indices.len() as u32,
+            index_count: sorted.len() as u32,
             batches,
             lines: buf(&lines, wgpu::BufferUsages::VERTEX),
             line_count,
             axes_count: 6,
             part_axes_count: part_axes,
             holes_count: holes,
+            furniture: furn_tris,
             lo,
             hi,
         }
@@ -609,21 +672,18 @@ impl Viewport {
     }
 
     /// Деталь под точкой экрана (смещение от центра окна в точках egui).
-    fn pick(&self, off: Vec2) -> Option<usize> {
+    /// Ближайшее под точкой экрана: деталь (`Ok`) или фурнитура (`Err` — номер объекта).
+    fn pick(&self, off: Vec2) -> Option<Result<usize, u32>> {
         let s = self.scene.as_ref()?;
         let depth = (0..3).map(|k| (s.hi[k] - s.lo[k]).abs()).sum::<f32>() * 4.0 + 1000.0;
         let (o, d) = self.camera.ray(off, depth);
         let m = &self.mesh;
-        m.indices
-            .as_chunks::<3>()
-            .0
-            .iter()
-            .filter_map(|t| {
-                let tri = [0, 1, 2].map(|i| m.vertices[t[i] as usize].pos);
-                Some((hit(o, d, &tri)?, m.vertices[t[0] as usize].part as usize))
-            })
-            .min_by(|a, b| a.0.total_cmp(&b.0))
-            .map(|(_, part)| part)
+        let parts = m.indices.as_chunks::<3>().0.iter().filter_map(|t| {
+            let tri = [0, 1, 2].map(|i| m.vertices[t[i] as usize].pos);
+            Some((hit(o, d, &tri)?, Ok(m.vertices[t[0] as usize].part as usize)))
+        });
+        let furniture = s.furniture.iter().filter_map(|(tri, id)| Some((hit(o, d, tri)?, Err(*id))));
+        parts.chain(furniture).min_by(|a, b| a.0.total_cmp(&b.0)).map(|(_, h)| h)
     }
 
     /// Окно модели. `revision` меняется, когда меняются детали — тогда сетка строится заново.
@@ -665,12 +725,19 @@ impl Viewport {
         if resp.clicked()
             && let Some(pos) = resp.interact_pointer_pos()
         {
-            click = self.pick(pos - rect.center()).map_or(Click::Empty, Click::Part);
+            click = match self.pick(pos - rect.center()) {
+                Some(Ok(i)) => Click::Part(i),
+                Some(Err(id)) => Click::Furniture(id, false),
+                None => Click::Empty,
+            };
         }
         if resp.secondary_clicked()
             && let Some(pos) = resp.interact_pointer_pos()
         {
-            click = Click::Menu(self.pick(pos - rect.center()));
+            click = match self.pick(pos - rect.center()) {
+                Some(Err(id)) => Click::Furniture(id, true),
+                hit => Click::Menu(hit.and_then(Result::ok)),
+            };
         }
         if resp.dragged_by(egui::PointerButton::Primary) {
             let d = resp.drag_delta();

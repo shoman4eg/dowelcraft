@@ -285,6 +285,64 @@ pub fn world_holes(file: &File) -> Vec<WorldHole> {
     world
 }
 
+/// Треугольник сетки фурнитуры в координатах модели, мм.
+pub type Tri = [[f32; 3]; 3];
+
+/// Сетка из `TriData` описания крепежа: u32 число групп; у группы — материал (u32 длина + UTF-16),
+/// матрица 4×4 f64 (строками, перенос в последней строке), байт-флаг, u32 число треугольников
+/// и по 112 байт на треугольник: 3 вершины, 4 нормали и 6 текстурных координат (f32), u32 флаги.
+pub fn tri_data(b: &[u8]) -> Result<Vec<Tri>, String> {
+    let mut o = 0usize;
+    let mut take = |n: usize| -> Result<&[u8], String> {
+        let s = b.get(o..o + n).ok_or_else(|| format!("TriData: обрыв на {o} (+{n} из {})", b.len()))?;
+        o += n;
+        Ok(s)
+    };
+    let u32_ = |s: &[u8]| u32::from_le_bytes([s[0], s[1], s[2], s[3]]);
+    let groups = u32_(take(4)?);
+    let mut out = Vec::new();
+    for _ in 0..groups {
+        let name_len = u32_(take(4)?) as usize;
+        take(2 * name_len)?;
+        let m: Vec<f64> = take(128)?.as_chunks::<8>().0.iter().map(|c| f64::from_le_bytes(*c)).collect();
+        take(1)?;
+        let count = u32_(take(4)?) as usize;
+        for _ in 0..count {
+            let t = take(112)?;
+            let f = |i: usize| f32::from_le_bytes([t[4 * i], t[4 * i + 1], t[4 * i + 2], t[4 * i + 3]]) as f64;
+            out.push(std::array::from_fn(|v| {
+                let p = [f(3 * v), f(3 * v + 1), f(3 * v + 2)];
+                std::array::from_fn(|j| (p[0] * m[j] + p[1] * m[4 + j] + p[2] * m[8 + j] + m[12 + j]) as f32)
+            }));
+        }
+    }
+    Ok(out)
+}
+
+/// Сетка всей модели: экземпляры крепежа (Type 3001) с сеткой описания (`FurnList`, `TriData`), в координатах модели.
+pub fn world_mesh(file: &File) -> Vec<Tri> {
+    let Some(doc) = file.section("Document") else { return Vec::new() };
+    let Some(model) = doc.get("Model") else { return Vec::new() };
+    let defs: Vec<(i64, Vec<Tri>)> = doc
+        .get("FurnList")
+        .map(|l| l.children.iter().filter_map(|f| Some((f.int("FastID")?, tri_data(f.blob("TriData")?).ok()?))).collect())
+        .unwrap_or_default();
+    fn collect(n: &Node, parent: &Xform, defs: &[(i64, Vec<Tri>)], out: &mut Vec<Tri>) {
+        let xf = if n.get("Type").is_some() { parent.then(n) } else { *parent };
+        if n.int("Type") == Some(3001)
+            && let Some((_, tris)) = n.int("FastID").and_then(|id| defs.iter().find(|(f, _)| *f == id))
+        {
+            out.extend(tris.iter().map(|t| t.map(|p| xf.apply(p.map(f64::from)).map(|v| v as f32))));
+        }
+        for c in &n.children {
+            collect(c, &xf, defs, out);
+        }
+    }
+    let mut out = Vec::new();
+    collect(model, &IDENTITY, &defs, &mut out);
+    out
+}
+
 /// Отверстия → плиты: отверстие достаётся плите, в которую луч сверления входит не дальше `GAP` от начала
 /// (шуруп проходит сквозь планку петли, навеса и т.п.); точка входа становится началом отверстия.
 /// Возвращает число отверстий, не попавших ни в одну плиту.

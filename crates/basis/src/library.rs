@@ -3,7 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::panel::{self, WorldHole};
+use crate::panel::{self, Tri, WorldHole};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelInfo {
@@ -16,9 +16,11 @@ pub struct ModelInfo {
     pub thumbnail: Option<Vec<u8>>,
     /// Отверстия в координатах модели.
     pub holes: Vec<WorldHole>,
-    /// Габарит модели (по плитам и отверстиям), мм.
+    /// Габарит модели (по плитам, сетке и отверстиям), мм.
     pub lo: [f64; 3],
     pub hi: [f64; 3],
+    /// Сетка модели (корзины, направляющие, петли) для 3D, мм.
+    pub mesh: Vec<Tri>,
 }
 
 pub fn read(path: &Path) -> Result<ModelInfo, String> {
@@ -39,6 +41,10 @@ pub fn read(path: &Path) -> Result<ModelInfo, String> {
             add(b);
         }
     }
+    let mesh = panel::world_mesh(&file);
+    for p in mesh.iter().flatten() {
+        add(p.map(f64::from));
+    }
     for h in &holes {
         add(h.pos);
         add(std::array::from_fn(|k| h.pos[k] + h.dir[k] * h.depth));
@@ -46,7 +52,7 @@ pub fn read(path: &Path) -> Result<ModelInfo, String> {
     if lo[0] > hi[0] {
         (lo, hi) = ([0.0; 3], [0.0; 3]);
     }
-    Ok(ModelInfo { path: path.to_path_buf(), name, kind, thumbnail, holes, lo, hi })
+    Ok(ModelInfo { path: path.to_path_buf(), name, kind, thumbnail, holes, lo, hi, mesh })
 }
 
 /// Текстура по артикулу материала в библиотеке (как у Базиса: `d(<артикул>)1.jpg`, напр. Балтламинат).
@@ -113,5 +119,29 @@ mod tests {
         assert_eq!(tandem.kind, "Ящик");
         assert!(tandem.thumbnail.as_ref().is_some_and(|t| t.starts_with(b"\x89PNG")));
         assert!(!tandem.holes.is_empty());
+    }
+
+    #[test]
+    fn baltlaminat_models_have_mesh_and_volume() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example");
+        if !dir.join("Антрацит").exists() {
+            return;
+        }
+        let (models, bad) = scan(&dir);
+        assert!(bad.is_empty(), "{bad:?}");
+        // Сетка разобрана у каждой модели с TriData и без обрывов.
+        for path in models.iter().map(|m| &m.path) {
+            let file = crate::b3d::parse(&std::fs::read(path).unwrap()).unwrap();
+            let defs = file.section("Document").and_then(|d| d.get("FurnList")).map(|l| l.children.clone()).unwrap_or_default();
+            for d in defs.iter().filter_map(|d| d.blob("TriData")) {
+                panel::tri_data(d).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            }
+        }
+        let basket = models.iter().find(|m| m.name == "GTV Ажурная корзина ELITE, Антрацит, 600").expect("корзина 600");
+        assert!(basket.mesh.len() > 1000, "{}", basket.mesh.len());
+        // Объёмная: раньше габарит считался по отверстиям и высота была 0.
+        assert!((0..3).all(|k| basket.hi[k] - basket.lo[k] > 100.0), "{:?} {:?}", basket.lo, basket.hi);
+        let flat = models.iter().filter(|m| (0..3).any(|k| m.hi[k] - m.lo[k] < 1.0)).map(|m| m.name.as_str()).collect::<Vec<_>>();
+        println!("плоских: {flat:?}");
     }
 }
