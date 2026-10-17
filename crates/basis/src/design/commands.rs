@@ -43,6 +43,10 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("object.remove", "{ids} — удалить объекты"),
     ("block.create", "{ids, name?} → {id} — собрать панели и блоки в блок"),
     ("block.explode", "{id} — разрушить блок: содержимое выходит в корень проекта"),
+    ("fastener.add", "{kind: название крепежа, a, b: номера панелей со стыком (торец одной на пласти другой), positions?: [мм вдоль стыка]} → {id}. Отверстия с координатами появятся на обеих панелях; справочник по умолчанию: «Конфирмат 7х50», «Эксцентрик Minifix 15», «Шкант 8х30», «Полкодержатель 5»"),
+    ("fastener.auto", "{kind, ids?: [панели]} → {ids} — крепёж на все стыки панелей (как «Крепёж на стыки» в Базисе). У корпусов и угловых модулей — параметр fastener"),
+    ("fastener.remove", "{id}"),
+    ("fastener.def", "{name, holes: [{panel: a|b, at, at_t?, at_tb?, dir, diameter, depth, depth_t?}], offset, step, min, max} — свой крепёж в справочник (координаты в системе стыка: X внутрь панели b, Y по нормали b, Z вдоль стыка)"),
     ("panel.set", "{id, name?, material?, frame?: {origin, x, y, z}, ...поля} — панель дерева объектов"),
     ("panel.remove", "{id}"),
     ("block.set", "{id, name?, frame?} — блок дерева объектов"),
@@ -262,6 +266,7 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
         "panel.add" => return panel_add(pr, p),
         "panel.fill" => return panel_fill(pr, p),
         "panel.edge" => return panel_edge(pr, p),
+        "fastener.add" | "fastener.remove" | "fastener.auto" | "fastener.def" => return fastener_cmd(pr, cmd, p),
         "panel.contour" | "panel.corner" | "panel.cutout" | "panel.resize" => return shape::command(pr, cmd, p),
         "object.move" | "object.rotate" | "object.mirror" | "object.copy" | "object.remove" | "block.create" | "block.explode" => return actions::command(pr, cmd, p),
         "cabinet.explode" | "corner.explode" | "countertop.explode" => return explode(pr, idx(p, "id")? as u32),
@@ -326,6 +331,70 @@ fn explode(pr: &mut Project, id: u32) -> Result<Value, String> {
     pr.countertops.retain(|c| c.id != id);
     pr.objects.push(Object::Block(Block { id, name, frame: Frame::IDENTITY, children }));
     Ok(json!({ "id": id }))
+}
+
+/// Крепёж: `fastener.add` (между двумя панелями), `fastener.auto` (на все стыки панелей),
+/// `fastener.remove`, `fastener.def` (добавить или заменить крепёж справочника).
+fn fastener_cmd(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
+    match cmd {
+        "fastener.def" => {
+            let d: crate::fasteners::Def = serde_json::from_value(p.clone()).map_err(|e| format!("крепёж: {e}"))?;
+            if d.holes.is_empty() || !(d.step > 0.0 && d.offset >= 0.0 && d.min >= 1 && d.max >= d.min) {
+                return Err("крепёж: нужны отверстия, шаг > 0, отступ ≥ 0, 1 ≤ min ≤ max".into());
+            }
+            let mut defs = pr.defs();
+            defs.retain(|x| x.name != d.name);
+            defs.push(d);
+            pr.fastener_defs = defs;
+            Ok(Value::Null)
+        }
+        "fastener.remove" => {
+            let id = idx(p, "id")? as u32;
+            let n = pr.fasteners.len();
+            pr.fasteners.retain(|f| f.id != id);
+            if n == pr.fasteners.len() { Err(format!("нет крепежа {id}")) } else { Ok(Value::Null) }
+        }
+        "fastener.add" => {
+            let kind = s(p, "kind")?.to_string();
+            pr.def(&kind)?;
+            let (a, b) = (idx(p, "a")? as u32, idx(p, "b")? as u32);
+            let parts = build(pr)?;
+            let find = |id: u32| parts.iter().position(|q| q.id == id).ok_or_else(|| format!("нет панели {id}"));
+            let (ia, ib) = (find(a)?, find(b)?);
+            if crate::fasteners::joint(&parts, ia, ib).or_else(|| crate::fasteners::joint(&parts, ib, ia)).is_none() {
+                return Err(format!("панели {a} и {b} не стыкуются: торец одной должен касаться пласти другой"));
+            }
+            let positions = match p.get("positions") {
+                Some(v) => Some(serde_json::from_value(v.clone()).map_err(|e| format!("positions: {e}"))?),
+                None => None,
+            };
+            let id = pr.next_id();
+            pr.fasteners.push(FastenerInst { id, kind, a, b, positions });
+            Ok(json!({ "id": id }))
+        }
+        _ => {
+            // fastener.auto: на все стыки среди панелей `ids` (или всех панелей дерева).
+            let kind = s(p, "kind")?.to_string();
+            pr.def(&kind)?;
+            let parts = build(pr)?;
+            let wanted: Option<Vec<u32>> = match p.get("ids") {
+                Some(v) => Some(serde_json::from_value(v.clone()).map_err(|e| format!("ids: {e}"))?),
+                None => None,
+            };
+            let ids: Vec<usize> = (0..parts.len()).filter(|&i| parts[i].id != 0 && wanted.as_ref().is_none_or(|w| w.contains(&parts[i].id))).collect();
+            let mut added = Vec::new();
+            for j in crate::fasteners::joints(&parts, &ids) {
+                let (a, b) = (parts[j.a].id, parts[j.b].id);
+                if pr.fasteners.iter().any(|f| (f.a, f.b) == (a, b) || (f.a, f.b) == (b, a)) {
+                    continue;
+                }
+                let id = pr.next_id();
+                pr.fasteners.push(FastenerInst { id, kind: kind.clone(), a, b, positions: None });
+                added.push(id);
+            }
+            Ok(json!({ "ids": added }))
+        }
+    }
 }
 
 /// `panel.edge`: кромка на торцах (сегментах контура) панели дерева; `edge: null` — снять.

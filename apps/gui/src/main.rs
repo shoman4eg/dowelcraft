@@ -181,6 +181,8 @@ struct App {
     fill: Option<FillTool>,
     /// Облицовка: кромка, «Подрезать», припуск.
     edging: (Option<String>, bool, f64),
+    /// Крепёж для установки между панелями.
+    fastener_kind: String,
     /// Действие щелчка по схеме контура и его размер (радиус, катет фаски, радиус выреза), мм.
     contour_tool: (ContourTool, f64),
     screenshot: Option<PathBuf>,
@@ -215,6 +217,7 @@ impl Default for App {
             fill: None,
             edging: (None, true, 0.0),
             contour_tool: (ContourTool::Edge, 50.0),
+            fastener_kind: "Конфирмат 7х50".into(),
             screenshot: None,
             frames: 0,
             parts: Ok(Vec::new()),
@@ -576,6 +579,37 @@ impl App {
         })
     }
 
+    /// «Крепёж»: между двумя выделенными панелями, на все стыки выделенных; крепёж этой панели.
+    fn fastener_panel(&mut self, ui: &mut egui::Ui, project: &Project, panel: u32, cmds: &mut Cmds) {
+        let panels: Vec<u32> = self.targets().into_iter().filter(|id| project.panels().iter().any(|p| p.id == *id)).collect();
+        egui::CollapsingHeader::new("Крепёж").default_open(panels.len() >= 2).show(ui, |ui| {
+            let names = editors::fastener_names(project);
+            if let Some(Some(v)) = editors::choose(ui, "fast_kind", Some(&self.fastener_kind), &names, false) {
+                self.fastener_kind = v;
+            }
+            ui.horizontal(|ui| {
+                let two = panels.len() == 2;
+                if ui.add_enabled(two, egui::Button::new("Между выделенными")).on_disabled_hover_text("Выделите две панели (Ctrl+щелчок): торец одной на пласти другой").clicked() {
+                    cmds.push(("fastener.add", json!({ "kind": self.fastener_kind, "a": panels[0], "b": panels[1] })));
+                }
+                if ui.button("На все стыки выделенных").clicked() {
+                    cmds.push(("fastener.auto", json!({ "kind": self.fastener_kind, "ids": panels })));
+                }
+            });
+            for f in project.fasteners.iter().filter(|f| f.a == panel || f.b == panel) {
+                ui.horizontal(|ui| {
+                    ui.label(format!("{} — панели {} и {}", f.kind, f.a, f.b));
+                    if ui.small_button("удалить").clicked() {
+                        cmds.push(("fastener.remove", json!({ "id": f.id })));
+                    }
+                });
+            }
+            for (_, e) in design::hanging_fasteners(project) {
+                ui.colored_label(Color32::from_rgb(200, 40, 40), e);
+            }
+        });
+    }
+
     /// «Действия с выделенным» (как гл. 14 руководства Базиса).
     fn actions_panel(&mut self, ui: &mut egui::Ui) {
         let ids = self.targets();
@@ -750,6 +784,7 @@ impl App {
             ui.heading(format!("Столешница «{}»", c.name));
             editors::countertop_editor(ui, &project, c, &mut cmds);
         } else if let Some(fp) = project.panels().into_iter().find(|f| f.id == part.id) {
+            self.fastener_panel(ui, &project, fp.id, &mut cmds);
             ui.heading("Панель");
             editors::panel_editor(ui, &project, fp, (p.size.0, p.size.1, p.thickness), &mut cmds);
             ui.separator();

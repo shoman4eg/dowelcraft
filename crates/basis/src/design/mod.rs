@@ -83,6 +83,9 @@ pub struct Cabinet {
     pub id: u32,
     #[serde(default)]
     pub name: String,
+    /// Крепёж стыков корпуса (название из справочника); полки — на полкодержатели. Нет — без присадки.
+    #[serde(default)]
+    pub fastener: Option<String>,
     /// Положение левого нижнего заднего угла, мм.
     #[serde(default)]
     pub position: [f64; 3],
@@ -148,6 +151,9 @@ pub struct Corner {
     pub id: u32,
     #[serde(default)]
     pub name: String,
+    /// Крепёж стыков модуля; полки — на полкодержатели.
+    #[serde(default)]
+    pub fastener: Option<String>,
     #[serde(default)]
     pub position: [f64; 3],
     pub width_x: f64,
@@ -294,6 +300,25 @@ pub struct Project {
     /// Дерево панелей и блоков (свободные детали, импорт из Базиса).
     #[serde(default)]
     pub objects: Vec<Object>,
+    /// Крепёж между панелями дерева.
+    #[serde(default)]
+    pub fasteners: Vec<FastenerInst>,
+    /// Свой справочник крепежа; пусто — справочник по умолчанию ([`crate::fasteners::library`]).
+    #[serde(default)]
+    pub fastener_defs: Vec<crate::fasteners::Def>,
+}
+
+/// Крепёж на стыке двух панелей дерева: торец `b` на пласти `a` (порядок не важен — стык ищется в обе стороны).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct FastenerInst {
+    pub id: u32,
+    /// Название крепежа из справочника.
+    pub kind: String,
+    pub a: u32,
+    pub b: u32,
+    /// Точки вдоль стыка, мм от его начала; нет — по правилу крепежа (отступ и шаг).
+    #[serde(default)]
+    pub positions: Option<Vec<f64>>,
 }
 
 impl Project {
@@ -307,7 +332,22 @@ impl Project {
             countertops: Vec::new(),
             corners: Vec::new(),
             objects: Vec::new(),
+            fasteners: Vec::new(),
+            fastener_defs: Vec::new(),
         }
+    }
+
+    /// Справочник крепежа проекта.
+    pub fn defs(&self) -> Vec<crate::fasteners::Def> {
+        if self.fastener_defs.is_empty() { crate::fasteners::library() } else { self.fastener_defs.clone() }
+    }
+
+    /// Крепёж по названию (без артикула или полностью).
+    pub fn def(&self, name: &str) -> Result<crate::fasteners::Def, String> {
+        self.defs()
+            .into_iter()
+            .find(|d| d.name == name || d.name.split('\r').next() == Some(name))
+            .ok_or_else(|| format!("нет крепежа «{name}» в справочнике"))
     }
 
     pub fn load(json: &str) -> Result<Self, String> {
@@ -592,6 +632,7 @@ pub fn build(p: &Project) -> Result<Vec<Part>, String> {
     for ct in &p.countertops {
         countertop(p, ct, &mut parts).map_err(|e| format!("столешница {} «{}»: {e}", ct.id, ct.name))?;
     }
+    drill(p, &mut parts)?;
     // Номера позиций — по порядку деталей в проекте; у импортированных деталей — свои.
     for (i, part) in parts.iter_mut().enumerate() {
         if part.panel.pos.is_empty() {
@@ -599,6 +640,82 @@ pub fn build(p: &Project) -> Result<Vec<Part>, String> {
         }
     }
     Ok(parts)
+}
+
+/// Точки и стыки крепежа: (название крепежа, стык, точки). Для шаблонов — по их параметру «Крепёж»,
+/// для панелей дерева — по экземплярам `fasteners`. Стык, которого больше нет, пропускается (его покажет анализ).
+pub fn fastener_joints(p: &Project, parts: &[Part]) -> Result<Vec<(crate::fasteners::Def, crate::fasteners::Joint, Vec<f64>)>, String> {
+    use crate::fasteners::{joints, positions};
+    let mut out = Vec::new();
+    let templates = p.cabinets.iter().map(|c| (c.id, &c.fastener)).chain(p.corners.iter().map(|c| (c.id, &c.fastener)));
+    for (owner, fastener) in templates {
+        let Some(name) = fastener else { continue };
+        let main = p.def(name)?;
+        let shelf = p.def("Полкодержатель 5").ok();
+        // Короба ящиков, задние стенки и фасады — без крепежа корпуса.
+        let ids: Vec<usize> = (0..parts.len())
+            .filter(|&i| parts[i].owner == owner && parts[i].kind == Kind::Body && !parts[i].panel.name.contains("ящика"))
+            .collect();
+        for j in joints(parts, &ids) {
+            let def = match (&shelf, parts[j.b].panel.name.starts_with("Полка")) {
+                (Some(s), true) => s.clone(),
+                _ => main.clone(),
+            };
+            let at = positions(&def, j.length);
+            out.push((def, j, at));
+        }
+    }
+    for f in &p.fasteners {
+        let def = p.def(&f.kind)?;
+        let find = |id: u32| parts.iter().position(|q| q.id == id);
+        let (Some(a), Some(b)) = (find(f.a), find(f.b)) else { continue };
+        let Some(j) = crate::fasteners::joint(parts, a, b).or_else(|| crate::fasteners::joint(parts, b, a)) else { continue };
+        let at = f.positions.clone().unwrap_or_else(|| positions(&def, j.length));
+        out.push((def, j, at));
+    }
+    Ok(out)
+}
+
+/// Присадка: отверстия крепежа — в детали. Отверстие за пределами детали — ошибка с объяснением.
+fn drill(p: &Project, parts: &mut [Part]) -> Result<(), String> {
+    for (def, j, at) in fastener_joints(p, parts)? {
+        for s in at {
+            for (i, h) in crate::fasteners::holes(&def, parts, &j, s)? {
+                parts[i].panel.holes.push(h);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Крепёж для сметы: (название, штук).
+pub fn hardware(p: &Project) -> Result<Vec<(String, usize)>, String> {
+    let parts = build(p)?;
+    let mut out: Vec<(String, usize)> = Vec::new();
+    for (def, _, at) in fastener_joints(p, &parts)? {
+        match out.iter_mut().find(|(n, _)| *n == def.name) {
+            Some(r) => r.1 += at.len(),
+            None => out.push((def.name.clone(), at.len())),
+        }
+    }
+    out.sort();
+    Ok(out)
+}
+
+/// Крепёж, чей стык пропал (панели раздвинули или удалили): номера экземпляров и причина.
+pub fn hanging_fasteners(p: &Project) -> Vec<(u32, String)> {
+    let Ok(parts) = build(p) else { return Vec::new() };
+    p.fasteners
+        .iter()
+        .filter_map(|f| {
+            let find = |id: u32| parts.iter().position(|q| q.id == id);
+            match (find(f.a), find(f.b)) {
+                (Some(a), Some(b)) if crate::fasteners::joint(&parts, a, b).or_else(|| crate::fasteners::joint(&parts, b, a)).is_some() => None,
+                (Some(_), Some(_)) => Some((f.id, format!("«{}» {}: панели {} и {} больше не стыкуются", f.kind, f.id, f.a, f.b))),
+                _ => Some((f.id, format!("«{}» {}: нет панели {} или {}", f.kind, f.id, f.a, f.b))),
+            }
+        })
+        .collect()
 }
 
 /// Панели поддерева в координатах проекта.

@@ -380,3 +380,59 @@ fn object_actions() {
     s.execute("object.remove", &json!({"ids": [p1, 1]})).unwrap();
     assert!(s.project.cabinets.iter().all(|c| c.id != 1));
 }
+
+/// Присадка корпуса конфирматами: отверстия с точными координатами на обеих деталях стыка.
+#[test]
+fn cabinet_fasteners_drill_exactly() {
+    let mut s = wardrobe();
+    s.execute("cabinet.set", &json!({"id": 1, "fastener": "Конфирмат 7х50"})).unwrap();
+    let parts = build(&s.project).unwrap();
+    let side = by_name(&parts, "Боковина левая")[0];
+    let bottom = by_name(&parts, "Дно")[0];
+    // Стык дна с левой боковиной: длина 600, точки на 50 и 550 мм.
+    // Боковина: сквозное ⌀8 с наружной пласти (z = 16 в осях боковины) на высоте середины дна (88).
+    assert!(side.panel.holes.contains(&crate::panel::Hole { pos: [50.0, 88.0, 16.0], dir: [0.0, 0.0, -1.0], diameter: 8.0, depth: 16.0 }), "{:?}", side.panel.holes);
+    // Дно: ⌀5 × 37 в торец, посередине толщины.
+    assert!(bottom.panel.holes.contains(&crate::panel::Hole { pos: [0.0, 50.0, 8.0], dir: [1.0, 0.0, 0.0], diameter: 5.0, depth: 37.0 }), "{:?}", bottom.panel.holes);
+    // Полки — на полкодержатели, по 2 с каждой стороны.
+    let shelf = by_name(&parts, "Полка")[0];
+    assert!(shelf.panel.holes.is_empty(), "полкодержатель сверлится только в стойке");
+    let hw = hardware(&s.project).unwrap();
+    let count = |n: &str| hw.iter().find(|(k, _)| k.starts_with(n)).map_or(0, |r| r.1);
+    assert_eq!(count("Полкодержатель"), 2 * 2 * 2);
+    assert!(count("Конфирмат") >= 12, "{hw:?}");
+    // В XML Раскроя появляется присадка.
+    let panels: Vec<Panel> = parts.iter().map(|p| p.panel.clone()).collect();
+    assert!(crate::raskroy::project_string("Шкаф", &panels, |_| (2800.0, 2070.0)).contains("<DRILLING>"));
+    // Неизвестный крепёж отклоняется.
+    assert!(s.execute("cabinet.set", &json!({"id": 1, "fastener": "Гвоздь"})).is_err());
+}
+
+/// Крепёж между отдельными панелями: стык ищется сам, без стыка — отказ; раздвинутые панели — «висячий» крепёж.
+#[test]
+fn fasteners_between_panels() {
+    let mut s = Session::new(Project::new("Тумба"));
+    s.execute("material.add", &json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
+    let id = |v: Value| v["id"].as_u64().unwrap() as u32;
+    let side = id(s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "vertical", "size": [500, 700], "position": [0, 0, 0]})).unwrap());
+    let top = id(s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "horizontal", "size": [600, 500], "position": [16, 684, 0]})).unwrap());
+    let far = id(s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "horizontal", "size": [600, 500], "position": [16, 1500, 0]})).unwrap());
+    let f = id(s.execute("fastener.add", &json!({"kind": "Эксцентрик Minifix 15", "a": side, "b": top})).unwrap());
+    assert!(s.execute("fastener.add", &json!({"kind": "Конфирмат 7х50", "a": side, "b": far})).unwrap_err().contains("не стыкуются"));
+    let parts = build(&s.project).unwrap();
+    let get = |i: u32| parts.iter().find(|p| p.id == i).unwrap();
+    // Крышка: в торце ⌀8×34 и чашка ⌀15 в пласти; стойка: ⌀5×13. По 2 точки (стык 500: 50 и 450).
+    assert_eq!(get(top).panel.holes.len(), 4);
+    assert_eq!(get(side).panel.holes.len(), 2);
+    assert!(get(top).panel.holes.iter().any(|h| h.diameter == 15.0 && h.depth == 13.0));
+    assert_eq!(hardware(&s.project).unwrap(), vec![("Эксцентрик Minifix 15".to_string(), 2)]);
+    // Раздвинули — крепёж «висит», отверстий нет, анализ это видит.
+    s.execute("object.move", &json!({"ids": [top], "d": [100, 0, 0]})).unwrap();
+    assert_eq!(hanging_fasteners(&s.project).len(), 1);
+    assert!(build(&s.project).unwrap().iter().all(|p| p.panel.holes.is_empty()));
+    s.execute("fastener.remove", &json!({"id": f})).unwrap();
+    // Крепёж на все стыки: возвращаем крышку — один стык.
+    s.execute("object.move", &json!({"ids": [top], "d": [-100, 0, 0]})).unwrap();
+    let added = s.execute("fastener.auto", &json!({"kind": "Шкант 8х30"})).unwrap()["ids"].as_array().unwrap().len();
+    assert_eq!(added, 1);
+}

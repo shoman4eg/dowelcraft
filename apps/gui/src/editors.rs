@@ -76,6 +76,11 @@ fn materials(p: &Project) -> Vec<String> {
     p.materials.iter().map(|m| m.name.clone()).collect()
 }
 
+/// Названия крепежа справочника проекта (без артикула).
+pub fn fastener_names(p: &Project) -> Vec<String> {
+    p.defs().iter().map(|d| d.name.split('\r').next().unwrap_or(&d.name).to_string()).collect()
+}
+
 fn edges(p: &Project) -> Vec<String> {
     p.edges.iter().map(|e| e.name.clone()).collect()
 }
@@ -106,6 +111,11 @@ pub fn corner_editor(ui: &mut egui::Ui, project: &Project, c: &design::Corner, c
         let mut doors = c.doors;
         if ui.checkbox(&mut doors, "").changed() {
             set("doors", json!(doors));
+        }
+        ui.end_row();
+        ui.label("Крепёж");
+        if let Some(v) = choose(ui, ("corner_fast", id), c.fastener.as_deref(), &fastener_names(project), true) {
+            set("fastener", json!(v));
         }
         ui.end_row();
         let (mats, eds) = (materials(project), edges(project));
@@ -314,6 +324,11 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
         ui.label("Глубина ящиков");
         if let Some(v) = optional_mm(ui, c.drawer_depth, "по глубине корпуса") {
             set("drawer_depth", json!(v));
+        }
+        ui.end_row();
+        ui.label("Крепёж").on_hover_text("Присадка всех стыков корпуса; полки — на полкодержатели");
+        if let Some(v) = choose(ui, ("cab_fast", id), c.fastener.as_deref(), &fastener_names(project), true) {
+            set("fastener", json!(v));
         }
         ui.end_row();
         ui.label("Двери");

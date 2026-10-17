@@ -4,6 +4,7 @@ pub mod b3d;
 pub mod contour;
 pub mod design;
 pub mod export;
+pub mod fasteners;
 pub mod geom;
 pub mod job;
 pub mod mesh;

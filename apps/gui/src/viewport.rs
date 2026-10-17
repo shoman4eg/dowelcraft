@@ -167,6 +167,8 @@ struct Scene {
     line_count: u32,
     axes_count: u32,
     part_axes_count: u32,
+    /// Отверстия присадки: линия сверления от входа на глубину.
+    holes_count: u32,
     /// Габарит сцены.
     lo: [f32; 3],
     hi: [f32; 3],
@@ -377,6 +379,18 @@ impl Scene {
                 part_axes += 2;
             }
         }
+        // Отверстия: красная линия от входа вдоль сверления на глубину.
+        let mut holes = 0;
+        for p in parts {
+            let Some(f) = p.panel.frame else { continue };
+            for h in &p.panel.holes {
+                let a = f.apply(h.pos);
+                let b = f.apply(std::array::from_fn(|k| h.pos[k] + h.dir[k] * h.depth));
+                push_vertex(&mut lines, a.map(|v| v as f32), [0.0; 3], [0.85, 0.05, 0.05, 1.0]);
+                push_vertex(&mut lines, b.map(|v| v as f32), [0.0; 3], [0.85, 0.05, 0.05, 1.0]);
+                holes += 2;
+            }
+        }
         let index_bytes: Vec<u8> = m.indices.iter().flat_map(|i| i.to_le_bytes()).collect();
         let buf = |data: &[u8], usage| {
             // Пустой буфер wgpu не создаёт — кладём хотя бы 4 байта.
@@ -391,6 +405,7 @@ impl Scene {
             line_count,
             axes_count: 6,
             part_axes_count: part_axes,
+            holes_count: holes,
             lo,
             hi,
         }
@@ -539,6 +554,7 @@ impl Viewport {
             let edges = 0..scene.line_count;
             let axes = scene.line_count..scene.line_count + scene.axes_count;
             let part_axes = axes.end..axes.end + scene.part_axes_count;
+            let holes = part_axes.end..part_axes.end + scene.holes_count;
             match self.mode {
                 Mode::Solid | Mode::Hidden => {
                     pass.set_pipeline(&gpu.solid);
@@ -553,6 +569,7 @@ impl Viewport {
                     }
                     pass.set_pipeline(&gpu.lines_visible);
                     pass.draw(edges, 0..1);
+                    pass.draw(holes.clone(), 0..1);
                 }
                 Mode::Wire => {
                     pass.set_vertex_buffer(0, scene.lines.slice(..));
@@ -568,6 +585,7 @@ impl Viewport {
                     pass.set_pipeline(&gpu.lines_all);
                     pass.draw(edges, 0..1);
                     pass.draw(part_axes, 0..1);
+                    pass.draw(holes.clone(), 0..1);
                 }
             }
             pass.set_pipeline(&gpu.lines_all);

@@ -52,7 +52,8 @@ impl Job {
 
     pub fn from_project(p: Project) -> Job {
         let panels = design::build(&p).map(|parts| parts.into_iter().map(|x| x.panel).collect()).unwrap_or_default();
-        Job { name: p.name.clone(), panels, skipped: Vec::new(), hardware: Vec::new(), holes_lost: 0, project: Some(p), blocks: Vec::new(), panel_block: Vec::new() }
+        let hardware = design::hardware(&p).unwrap_or_default();
+        Job { name: p.name.clone(), panels, skipped: Vec::new(), hardware, holes_lost: 0, project: Some(p), blocks: Vec::new(), panel_block: Vec::new() }
     }
 
     /// Модель Базиса как свой проект: панели с точным положением, блоки Базиса — блоками.
