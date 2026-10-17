@@ -160,8 +160,8 @@ impl Server {
             "project_import" => {
                 let path = PathBuf::from(str_arg("path")?);
                 let job = Job::open(&path)?;
-                let p = design::import(&job.name, &job.panels);
-                let msg = format!("Импортировано деталей: {}, материалов: {}. Сохраните project_save с путём .bcraft.", p.panels.len(), p.materials.len());
+                let p = job.import();
+                let msg = format!("Импортировано деталей: {}, материалов: {}. Сохраните project_save с путём .bcraft.", p.panels().len(), p.materials.len());
                 self.session = Some(Session::new(p));
                 self.path = None;
                 self.refresh();

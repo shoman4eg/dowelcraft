@@ -65,17 +65,22 @@ fn hardware_matches_bazis_estimate() {
 fn import_basis_model_into_project() {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/pairs/kuhnya-24-04/_Кухня 24.04.b3d");
     let Ok(data) = std::fs::read(&p) else { return };
-    let src = basis::panel::panels(&basis::b3d::parse(&data).unwrap()).panels;
-    let project = basis::design::import("Кухня", &src);
+    let ex = basis::panel::panels(&basis::b3d::parse(&data).unwrap());
+    let src = &ex.panels;
+    let project = basis::design::import("Кухня", src, &ex.blocks, &ex.panel_block);
     assert_eq!(project.materials.len(), 3);
     let project = basis::design::Project::load(&project.save()).expect("сохраняется и читается");
     let parts = basis::design::build(&project).unwrap();
     assert_eq!(parts.len(), src.len());
     for (a, b) in src.iter().zip(&parts) {
         assert_eq!((a.cut_size(), &a.name, a.thickness), (b.panel.cut_size(), &b.panel.name, b.panel.thickness));
-        let (lo, _) = a.bounds.unwrap();
-        assert_eq!(lo, b.origin);
+        // Положение точное: та же система координат плиты, тот же габарит.
+        assert_eq!(a.frame, b.panel.frame);
+        assert_eq!(a.bounds().unwrap().0, b.origin);
     }
+    // Блоки Базиса сохранились: есть блоки, и в них лежат плиты.
+    let blocks = project.objects.iter().filter(|o| matches!(o, basis::design::Object::Block(_))).count();
+    assert!(blocks > 0 && !ex.blocks.is_empty(), "блоков {blocks} из {}", ex.blocks.len());
     // Деталь можно перевести в другой материал командой.
     let mut s = basis::design::Session::new(project);
     let other = s.project.materials[1].name.clone();
@@ -137,7 +142,7 @@ fn panel_positions_in_space() {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/шкаф.b3d");
     let Ok(data) = std::fs::read(&p) else { return };
     let ex = basis::panel::panels(&basis::b3d::parse(&data).unwrap());
-    let b = |name: &str| ex.panels.iter().filter(|p| p.name == name).map(|p| p.bounds.unwrap()).collect::<Vec<_>>();
+    let b = |name: &str| ex.panels.iter().filter(|p| p.name == name).map(|p| p.bounds().unwrap()).collect::<Vec<_>>();
     let left = b("Вертикальная1")[0];
     let shelves = b("Горизонтальная1");
     assert_eq!(shelves.len(), 8);

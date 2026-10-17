@@ -2,6 +2,7 @@
 
 use crate::b3d::{File, Node, Value};
 use crate::contour::{self, Seg};
+use crate::geom::Frame;
 
 /// Плита в дереве `Document/Model`.
 pub const TYPE_PANEL: i64 = 4002;
@@ -66,9 +67,9 @@ pub struct Panel {
     pub size: (f64, f64),
     pub texture: Texture,
     pub edges: Vec<Edge>,
-    /// Габарит в пространстве модели ([мин], [макс]), мм: X вправо, Y вверх, Z к зрителю.
-    /// Есть у плит из моделей Базиса; у своих проектов положение хранит `design::Part`.
-    pub bounds: Option<([f64; 3], [f64; 3])>,
+    /// Положение в пространстве модели: начало — угол габарита контура (0, 0), толщина вдоль +Z плиты.
+    /// Оси модели: X вправо, Y вверх, Z к зрителю. Нет — деталь без положения.
+    pub frame: Option<Frame>,
     /// Присадка: отверстия крепежа, попавшие в эту плиту.
     pub holes: Vec<Hole>,
 }
@@ -86,6 +87,11 @@ pub struct Hole {
 const EPS: f64 = 0.01;
 
 impl Panel {
+    /// Габарит в пространстве модели ([мин], [макс]), мм.
+    pub fn bounds(&self) -> Option<([f64; 3], [f64; 3])> {
+        Some(self.frame?.bounds([0.0; 3], [self.size.0, self.size.1, self.thickness]))
+    }
+
     /// Сторона габарита, на которой лежит отрезок контура.
     pub fn rect_side(&self, seg: usize) -> Option<RectSide> {
         let Seg::Line { a, b } = *self.segs.get(seg)? else { return None };
@@ -165,7 +171,21 @@ pub struct Extract {
     pub skipped: Vec<String>,
     /// Отверстия крепежа, не попавшие ни в одну плиту.
     pub holes_lost: usize,
+    /// Блоки модели (Type 1005) в порядке обхода.
+    pub blocks: Vec<BlockInfo>,
+    /// Блок, в котором лежит плита, по порядку `panels`.
+    pub panel_block: Vec<Option<usize>>,
 }
+
+/// Блок модели Базиса: имя и родительский блок (индекс в `Extract::blocks`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct BlockInfo {
+    pub name: String,
+    pub parent: Option<usize>,
+}
+
+/// Блок (сборочная единица) в дереве `Document/Model`.
+pub const TYPE_BLOCK: i64 = 1005;
 
 /// Наибольший зазор между началом отверстия и плитой, мм (толщина планки петли, навеса).
 const GAP: f64 = 5.0;
@@ -174,7 +194,7 @@ pub fn panels(file: &File) -> Extract {
     let mut out = Extract::default();
     let mut frames = Vec::new();
     if let Some(model) = file.section("Document").and_then(|d| d.get("Model")) {
-        walk(model, &mut out, &mut frames, &IDENTITY);
+        walk(model, &mut out, &mut frames, &IDENTITY, None);
         out.holes_lost = drill(file, model, &mut out.panels, &frames);
     }
     out
@@ -228,7 +248,7 @@ fn drill(file: &File, model: &Node, panels: &mut [Panel], frames: &[Xform]) -> u
     'hole: for (p, d, diameter, depth) in world {
         let inv = |f: &Xform, v: [f64; 3]| -> [f64; 3] { std::array::from_fn(|j| (0..3).map(|i| f.r[i][j] * v[i]).sum()) };
         for (panel, f) in panels.iter_mut().zip(frames) {
-            let Some((lo, hi)) = panel.bounds else { continue };
+            let Some((lo, hi)) = panel.bounds() else { continue };
             if (0..3).any(|k| p[k] < lo[k] - 1.0 || p[k] > hi[k] + 1.0) {
                 continue;
             }
@@ -290,20 +310,31 @@ impl Xform {
     }
 }
 
-fn walk(n: &Node, out: &mut Extract, frames: &mut Vec<Xform>, parent: &Xform) {
+fn col(f: &Xform, j: usize) -> [f64; 3] {
+    std::array::from_fn(|i| f.r[i][j])
+}
+
+fn walk(n: &Node, out: &mut Extract, frames: &mut Vec<Xform>, parent: &Xform, block: Option<usize>) {
     let xf = if n.get("Type").is_some() { parent.then(n) } else { *parent };
+    let block = if n.int("Type") == Some(TYPE_BLOCK) {
+        out.blocks.push(BlockInfo { name: n.str("Name").unwrap_or_default().to_string(), parent: block });
+        Some(out.blocks.len() - 1)
+    } else {
+        block
+    };
     // Плиты нулевой толщины — изображения внутри фурнитуры (заглушки, крепления), в раскрой не идут.
     if n.int("Type") == Some(TYPE_PANEL) && n.f64("Thick").is_some_and(|t| t > 0.0) {
         match panel(n, &xf) {
             Some((p, frame)) => {
                 out.panels.push(p);
                 frames.push(frame);
+                out.panel_block.push(block);
             }
             None => out.skipped.push(n.str("Name").unwrap_or_default().to_string()),
         }
     }
     for c in &n.children {
-        walk(c, out, frames, &xf);
+        walk(c, out, frames, &xf, block);
     }
 }
 
@@ -312,9 +343,6 @@ fn panel(n: &Node, xf: &Xform) -> Option<(Panel, Xform)> {
     let segs = contour::parse(n.blob("Contour")?)?;
     let (lo, hi) = contour::bounds(&segs)?;
     // Контур лежит в плоскости XY плиты, толщина откладывается в +Z (сверено по шкафу: полки встают между боковинами).
-    let thick = n.f64("Thick").unwrap_or(0.0);
-    let corners = (0..8).map(|i| xf.apply([if i & 1 == 0 { lo[0] } else { hi[0] }, if i & 2 == 0 { lo[1] } else { hi[1] }, if i & 4 == 0 { 0.0 } else { thick }]));
-    let bounds = corners.fold(([f64::MAX; 3], [f64::MIN; 3]), |(a, b), p| (std::array::from_fn(|k| a[k].min(p[k])), std::array::from_fn(|k| b[k].max(p[k]))));
     let sh = |p: [f64; 2]| [p[0] - lo[0], p[1] - lo[1]];
     let segs = segs
         .into_iter()
@@ -355,7 +383,7 @@ fn panel(n: &Node, xf: &Xform) -> Option<(Panel, Xform)> {
             _ => Texture::Default,
         },
         edges,
-        bounds: Some(bounds),
+        frame: Some(Frame { origin: frame.t, x: col(&frame, 0), y: col(&frame, 1), z: col(&frame, 2) }),
         holes: Vec::new(),
     };
     Some((panel, frame))

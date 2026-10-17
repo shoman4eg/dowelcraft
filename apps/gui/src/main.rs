@@ -256,8 +256,8 @@ impl App {
                 if self.session.is_none() {
                     ui.weak("(модель Базиса, только просмотр)");
                     if ui.button("Сделать редактируемой").on_hover_text("Импорт в свой проект: детали можно менять и дополнять корпусами").clicked() {
-                        let p = design::import(&self.job.name, &self.job.panels);
-                        self.status = format!("Импортировано деталей: {}", p.panels.len());
+                        let p = self.job.import();
+                        self.status = format!("Импортировано деталей: {}", p.panels().len());
                         self.session = Some(Session::new(p));
                         self.path = None;
                         self.refresh();
@@ -338,12 +338,12 @@ impl App {
                 cabinet_editor(ui, &project, c, &mut cmds);
             });
         }
-        if !project.panels.is_empty() {
+        if !project.objects.is_empty() {
             ui.separator();
-            egui::CollapsingHeader::new(format!("Детали из модели ({})", project.panels.len())).show(ui, |ui| {
+            egui::CollapsingHeader::new(format!("Детали из модели ({})", project.panels().len())).show(ui, |ui| {
                 let names: Vec<String> = project.materials.iter().map(|m| m.name.clone()).collect();
                 egui::Grid::new("free").striped(true).num_columns(3).show(ui, |ui| {
-                    for fp in &project.panels {
+                    for fp in project.panels() {
                         ui.label(format!("{} {}", fp.pos, fp.name));
                         let mut chosen = fp.material.clone();
                         egui::ComboBox::from_id_salt(("fp", fp.id)).selected_text(&chosen).show_ui(ui, |ui| {

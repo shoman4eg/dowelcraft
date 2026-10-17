@@ -73,10 +73,10 @@ fn run(args: &[String]) -> Result<(), String> {
         "design" => return design_cmd(path, &args[2..]),
         "import" => {
             let job = Job::open(Path::new(path))?;
-            let p = design::import(&job.name, &job.panels);
+            let p = job.import();
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("bcraft"));
             std::fs::write(&out, p.save()).map_err(|e| format!("{}: {e}", out.display()))?;
-            println!("деталей {}, материалов {} → {}", p.panels.len(), p.materials.len(), out.display());
+            println!("деталей {}, материалов {} → {}", p.panels().len(), p.materials.len(), out.display());
             return Ok(());
         }
         "dump" => {

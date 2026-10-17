@@ -22,6 +22,9 @@ pub struct Job {
     pub holes_lost: usize,
     /// Свой проект, если открыт `.bcraft`: из него берутся форматы листов и коэффициенты.
     pub project: Option<Project>,
+    /// Блоки модели Базиса и блок каждой плиты (по порядку `panels`) — для импорта в свой проект.
+    pub blocks: Vec<panel::BlockInfo>,
+    pub panel_block: Vec<Option<usize>>,
 }
 
 impl Job {
@@ -34,13 +37,27 @@ impl Job {
         } else {
             let file = crate::b3d::parse(&data).map_err(|e| format!("{}: {e}", path.display()))?;
             let ex = panel::panels(&file);
-            Ok(Job { name, panels: ex.panels, skipped: ex.skipped, hardware: panel::hardware(&file), holes_lost: ex.holes_lost, project: None })
+            Ok(Job {
+                name,
+                panels: ex.panels,
+                skipped: ex.skipped,
+                hardware: panel::hardware(&file),
+                holes_lost: ex.holes_lost,
+                project: None,
+                blocks: ex.blocks,
+                panel_block: ex.panel_block,
+            })
         }
     }
 
     pub fn from_project(p: Project) -> Job {
         let panels = design::build(&p).map(|parts| parts.into_iter().map(|x| x.panel).collect()).unwrap_or_default();
-        Job { name: p.name.clone(), panels, skipped: Vec::new(), hardware: Vec::new(), holes_lost: 0, project: Some(p) }
+        Job { name: p.name.clone(), panels, skipped: Vec::new(), hardware: Vec::new(), holes_lost: 0, project: Some(p), blocks: Vec::new(), panel_block: Vec::new() }
+    }
+
+    /// Модель Базиса как свой проект: панели с точным положением, блоки Базиса — блоками.
+    pub fn import(&self) -> Project {
+        design::import(&self.name, &self.panels, &self.blocks, &self.panel_block)
     }
 
     fn material(&self, full: &str) -> Option<&design::Material> {
@@ -90,8 +107,8 @@ pub fn parts(job: &Job) -> Result<Vec<Part>, String> {
         .panels
         .iter()
         .filter_map(|p| {
-            let (lo, hi) = p.bounds?;
-            Some(Part { cabinet: 0, kind: design::guess_kind(p), panel: p.clone(), origin: lo, size: std::array::from_fn(|i| hi[i] - lo[i]) })
+            let (lo, hi) = p.bounds()?;
+            Some(Part { owner: 0, kind: design::guess_kind(p), panel: p.clone(), origin: lo, size: std::array::from_fn(|i| hi[i] - lo[i]) })
         })
         .collect())
 }
