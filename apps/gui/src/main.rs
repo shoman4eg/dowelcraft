@@ -658,7 +658,7 @@ fn save_png(path: &std::path::Path, img: &egui::ColorImage) -> Result<(), String
 
 /// Текстовое поле с черновиком: набранное хранится, пока поле в фокусе,
 /// и возвращается по выходу из поля или Enter, если отличается от `value`.
-fn text_field(ui: &mut egui::Ui, key: impl std::hash::Hash, value: &str) -> Option<String> {
+fn text_field(ui: &mut egui::Ui, key: impl egui::AsId, value: &str) -> Option<String> {
     let id = egui::Id::new(key);
     let mut draft = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_else(|| value.to_owned());
     let r = ui.add(egui::TextEdit::singleline(&mut draft).id(id.with("edit")));
