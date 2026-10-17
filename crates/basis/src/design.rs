@@ -432,6 +432,90 @@ pub fn bounds(rects: &[FrontRect]) -> Option<([f64; 2], [f64; 2])> {
     })
 }
 
+/// Грань детали на 3D-виде: четырёхугольник в экранных мм (Y вверх).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Face {
+    pub pts: [[f64; 2]; 4],
+    pub kind: Kind,
+    /// Освещённость: 1 — фронт, ближе к 1 — светлее (верх), меньше — боковины.
+    pub light: f64,
+    pub part: usize,
+}
+
+/// Аксонометрия «спереди-справа-сверху»: поворот на 30° вокруг вертикали и наклон 25°.
+/// Грани упорядочены от дальних к ближним — рисовать по порядку.
+pub fn iso_view(parts: &[Part], doors: bool) -> Vec<Face> {
+    let (yaw, tilt) = (-30f64.to_radians(), 25f64.to_radians());
+    let rot = |p: [f64; 3]| {
+        let (x1, z1) = (p[0] * yaw.cos() + p[2] * yaw.sin(), -p[0] * yaw.sin() + p[2] * yaw.cos());
+        [x1, p[1] * tilt.cos() - z1 * tilt.sin(), p[1] * tilt.sin() + z1 * tilt.cos()]
+    };
+    // Грани параллелепипеда: нормаль и 4 угла (индексы битов: X, Y, Z → 0 = мин, 1 = макс).
+    const FACES: [([f64; 3], [usize; 4]); 6] = [
+        ([0.0, 0.0, 1.0], [4, 5, 7, 6]),
+        ([0.0, 0.0, -1.0], [0, 2, 3, 1]),
+        ([1.0, 0.0, 0.0], [1, 3, 7, 5]),
+        ([-1.0, 0.0, 0.0], [0, 4, 6, 2]),
+        ([0.0, 1.0, 0.0], [2, 6, 7, 3]),
+        ([0.0, -1.0, 0.0], [0, 1, 5, 4]),
+    ];
+    let mut boxes: Vec<(f64, Vec<Face>, [f64; 3], [f64; 3])> = Vec::new();
+    for (i, p) in parts.iter().enumerate() {
+        if !doors && matches!(p.kind, Kind::Door | Kind::Drawer) {
+            continue;
+        }
+        let corner = |k: usize| rot(std::array::from_fn(|a| p.origin[a] + if k >> a & 1 == 1 { p.size[a] } else { 0.0 }));
+        let center = rot(std::array::from_fn(|a| p.origin[a] + p.size[a] / 2.0));
+        let faces = FACES
+            .iter()
+            .filter(|(n, _)| rot(*n)[2] > 1e-9)
+            .map(|(n, idx)| Face {
+                pts: idx.map(|k| {
+                    let c = corner(k);
+                    [c[0], c[1]]
+                }),
+                kind: p.kind,
+                light: if n[1] > 0.0 { 1.15 } else if n[0] != 0.0 { 0.8 } else { 1.0 },
+                part: i,
+            })
+            .collect();
+        boxes.push((center[2], faces, p.origin, std::array::from_fn(|a| p.origin[a] + p.size[a])));
+    }
+    paint_order(&boxes).into_iter().flat_map(|i| boxes[i].1.clone()).collect()
+}
+
+/// Порядок рисования параллелепипедов при взгляде справа-сверху-спереди: A раньше B,
+/// если A целиком левее, ниже или дальше B. Циклы (их проекции не пересекаются) разрываем по глубине центра.
+fn paint_order(boxes: &[(f64, Vec<Face>, [f64; 3], [f64; 3])]) -> Vec<usize> {
+    let n = boxes.len();
+    let behind = |a: usize, b: usize| (0..3).any(|k| boxes[a].3[k] <= boxes[b].2[k] + 1e-6);
+    let mut before: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut pending = vec![0usize; n];
+    for a in 0..n {
+        for b in 0..n {
+            if a != b && behind(a, b) && !behind(b, a) {
+                before[a].push(b);
+                pending[b] += 1;
+            }
+        }
+    }
+    let mut done = vec![false; n];
+    let mut order = Vec::with_capacity(n);
+    while order.len() < n {
+        // Из готовых (все «задние» уже нарисованы) берём самый дальний; если готовых нет — самый дальний вообще.
+        let pick = (0..n)
+            .filter(|&i| !done[i])
+            .min_by(|&a, &b| (pending[a] > 0).cmp(&(pending[b] > 0)).then(boxes[a].0.total_cmp(&boxes[b].0)))
+            .expect("есть ненарисованные");
+        done[pick] = true;
+        order.push(pick);
+        for &b in &before[pick] {
+            pending[b] = pending[b].saturating_sub(1);
+        }
+    }
+    order
+}
+
 /// Состояние редактирования: проект и история для отмены.
 pub struct Session {
     pub project: Project,
@@ -762,6 +846,15 @@ mod tests {
         let wall = parts.iter().filter(|p| p.cabinet == 3).map(|p| p.origin[1]).fold(f64::MAX, f64::min);
         assert_eq!(wall, 1400.0);
         assert!(s.execute("countertop.set", &json!({"id": 1, "length": -5})).is_err());
+    }
+
+    #[test]
+    fn iso_view_shows_three_faces_per_box() {
+        let parts = build(&wardrobe().project).unwrap();
+        let faces = iso_view(&parts, true);
+        // Спереди-справа-сверху видны фронт, правая грань и верх каждой детали.
+        assert_eq!(faces.len(), parts.len() * 3);
+        assert_eq!(iso_view(&parts, false).len(), (parts.len() - 2) * 3);
     }
 
     #[test]

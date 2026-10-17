@@ -23,6 +23,7 @@ fn main() -> eframe::Result {
     app.tab = match tab.as_deref() {
         Some("parts") => Tab::Parts,
         Some("cut") => Tab::Cut,
+        Some("3d") => Tab::Iso,
         _ => Tab::Front,
     };
     let options = eframe::NativeOptions {
@@ -35,6 +36,7 @@ fn main() -> eframe::Result {
 #[derive(PartialEq, Clone, Copy)]
 enum Tab {
     Front,
+    Iso,
     Parts,
     Cut,
 }
@@ -194,12 +196,14 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.tab, Tab::Front, "Вид спереди");
+                ui.selectable_value(&mut self.tab, Tab::Iso, "3D");
                 ui.selectable_value(&mut self.tab, Tab::Parts, "Детали");
                 ui.selectable_value(&mut self.tab, Tab::Cut, "Раскрой");
             });
             ui.separator();
             match self.tab {
                 Tab::Front => self.front_view(ui),
+                Tab::Iso => self.iso_view(ui),
                 Tab::Parts => self.parts_table(ui),
                 Tab::Cut => self.cut_view(ui),
             }
@@ -429,6 +433,39 @@ impl App {
         if let Some(p) = hovered {
             let (l, w) = p.panel.cut_size();
             resp.on_hover_text(format!("{} {}: {}×{}×{} мм\n{}", p.panel.pos, p.panel.name, l, w, p.panel.thickness, panel::material_name(&p.panel.material)));
+        }
+    }
+
+    fn iso_view(&mut self, ui: &mut egui::Ui) {
+        ui.checkbox(&mut self.show_doors, "Показывать двери и фасады");
+        let parts = match job::parts(&self.job) {
+            Ok(p) => p,
+            Err(e) => {
+                ui.colored_label(Color32::RED, e);
+                return;
+            }
+        };
+        let faces = design::iso_view(&parts, self.show_doors);
+        let pts = faces.iter().flat_map(|f| f.pts);
+        let (lo, hi) = pts.fold(([f64::MAX; 2], [f64::MIN; 2]), |(lo, hi), p| ([lo[0].min(p[0]), lo[1].min(p[1])], [hi[0].max(p[0]), hi[1].max(p[1])]));
+        if faces.is_empty() {
+            ui.label("Нет деталей.");
+            return;
+        }
+        let (resp, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::hover());
+        let area = resp.rect.shrink(30.0);
+        let k = ((area.width() as f64) / (hi[0] - lo[0])).min((area.height() as f64) / (hi[1] - lo[1]));
+        let to = |p: [f64; 2]| Pos2::new(area.left() + ((p[0] - lo[0]) * k) as f32, area.bottom() - ((p[1] - lo[1]) * k) as f32);
+        painter.rect_filled(resp.rect, 0.0, Color32::from_gray(245));
+        for f in &faces {
+            let (r, g, b, a) = match f.kind {
+                design::Kind::Door | design::Kind::Drawer => (170.0, 200.0, 230.0, 230),
+                design::Kind::Back => (215.0, 215.0, 215.0, 255),
+                design::Kind::Body => (236.0, 220.0, 190.0, 255),
+            };
+            let c = |v: f64| (v * f.light).min(255.0) as u8;
+            let fill = Color32::from_rgba_unmultiplied(c(r), c(g), c(b), a);
+            painter.add(egui::Shape::convex_polygon(f.pts.iter().map(|&p| to(p)).collect(), fill, Stroke::new(0.7, Color32::from_gray(70))));
         }
     }
 

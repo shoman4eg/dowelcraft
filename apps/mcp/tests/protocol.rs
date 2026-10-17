@@ -55,6 +55,9 @@ fn design_a_cabinet_over_mcp() {
     assert_eq!(img["content"][0]["type"], "image");
     assert!(img["content"][0]["data"].as_str().unwrap().starts_with("iVBOR"), "PNG в base64");
 
+    let iso = call(&mut rpc, "render_iso", json!({"width": 300}));
+    assert!(iso["content"][0]["data"].as_str().unwrap().starts_with("iVBOR"), "3D — тоже PNG");
+
     let cut = call(&mut rpc, "cut", json!({}));
     assert!(cut["content"][0]["text"].as_str().unwrap().contains("ЛДСП 16"));
 

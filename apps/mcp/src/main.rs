@@ -81,6 +81,10 @@ fn tools() -> Value {
          "inputSchema": {"type": "object", "properties": {
              "kind": {"type": "string", "enum": ["cards_html", "raskroy_xml", "spec_csv", "smeta_csv"]},
              "path": {"type": "string"}}, "required": ["kind", "path"]}},
+        {"name": "render_iso", "description": "3D-картинка (PNG, аксонометрия спереди-справа-сверху) проекта или модели Базиса.",
+         "inputSchema": {"type": "object", "properties": {
+             "width": {"type": "integer", "description": "ширина картинки, пикселей (по умолчанию 900)"},
+             "doors": {"type": "boolean", "description": "рисовать двери и фасады (по умолчанию да)"}}}},
         {"name": "render_front", "description": "Картинка вида спереди (PNG) проекта или модели Базиса: корпус — бежевый, двери — голубые полупрозрачные, задняя стенка — серая.",
          "inputSchema": {"type": "object", "properties": {
              "width": {"type": "integer", "description": "ширина картинки, пикселей (по умолчанию 800)"},
@@ -217,6 +221,13 @@ impl Server {
                 let png = render_front(&parts, width, doors)?;
                 Ok(vec![json!({"type": "image", "data": base64(&png), "mimeType": "image/png"})])
             }
+            "render_iso" => {
+                let parts = job::parts(&self.job)?;
+                let width = a.get("width").and_then(Value::as_u64).unwrap_or(900).clamp(100, 4000) as u32;
+                let doors = a.get("doors").and_then(Value::as_bool).unwrap_or(true);
+                let png = render_iso(&parts, width, doors)?;
+                Ok(vec![json!({"type": "image", "data": base64(&png), "mimeType": "image/png"})])
+            }
             _ => Err(format!("неизвестный инструмент «{name}»")),
         }
     }
@@ -255,6 +266,45 @@ fn render_front(parts: &[design::Part], width: u32, doors: bool) -> Result<Vec<u
             Kind::Back => fill.set_color_rgba8(225, 225, 225, 255),
             Kind::Body => fill.set_color_rgba8(236, 220, 190, 255),
         }
+        pm.fill_path(&path, &fill, FillRule::Winding, Transform::identity(), None);
+        pm.stroke_path(&path, &edge, &stroke, Transform::identity(), None);
+    }
+    pm.encode_png().map_err(|e| e.to_string())
+}
+
+fn render_iso(parts: &[design::Part], width: u32, doors: bool) -> Result<Vec<u8>, String> {
+    use tiny_skia::{Color, FillRule, Paint, PathBuilder, Pixmap, Stroke, Transform};
+    let faces = design::iso_view(parts, doors);
+    if faces.is_empty() {
+        return Err("нет деталей".into());
+    }
+    let (lo, hi) = faces.iter().flat_map(|f| f.pts).fold(([f64::MAX; 2], [f64::MIN; 2]), |(lo, hi), p| {
+        ([lo[0].min(p[0]), lo[1].min(p[1])], [hi[0].max(p[0]), hi[1].max(p[1])])
+    });
+    let pad = 20.0;
+    let k = (width as f64 - 2.0 * pad) / (hi[0] - lo[0]);
+    let height = ((hi[1] - lo[1]) * k + 2.0 * pad).ceil().clamp(50.0, 8000.0) as u32;
+    let mut pm = Pixmap::new(width, height).ok_or("нельзя создать картинку")?;
+    pm.fill(Color::from_rgba8(250, 250, 250, 255));
+    let mut edge = Paint::default();
+    edge.set_color_rgba8(70, 70, 70, 255);
+    let stroke = Stroke { width: 0.8, ..Default::default() };
+    for f in &faces {
+        let mut pb = PathBuilder::new();
+        for (i, p) in f.pts.iter().enumerate() {
+            let (x, y) = ((pad + (p[0] - lo[0]) * k) as f32, (height as f64 - pad - (p[1] - lo[1]) * k) as f32);
+            if i == 0 { pb.move_to(x, y) } else { pb.line_to(x, y) }
+        }
+        pb.close();
+        let Some(path) = pb.finish() else { continue };
+        let (r, g, b, a) = match f.kind {
+            Kind::Door | Kind::Drawer => (170.0, 200.0, 230.0, 230),
+            Kind::Back => (215.0, 215.0, 215.0, 255),
+            Kind::Body => (236.0, 220.0, 190.0, 255),
+        };
+        let c = |v: f64| (v * f.light).min(255.0) as u8;
+        let mut fill = Paint::default();
+        fill.set_color_rgba8(c(r), c(g), c(b), a);
         pm.fill_path(&path, &fill, FillRule::Winding, Transform::identity(), None);
         pm.stroke_path(&path, &edge, &stroke, Transform::identity(), None);
     }
