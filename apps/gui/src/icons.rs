@@ -48,6 +48,8 @@ pub enum Icon {
     ModeWire,
     ModeXRay,
     ModeTextured,
+    Grid,
+    Gear,
 }
 
 /// Цвета иконок: обычные линии, создаваемое (синий), точки (оранжевый).
@@ -345,6 +347,21 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, dim: bool) {
         Doors => {
             pen.carcass(4.0, 3.0, 20.0, 21.0, 0.0);
             pen.poly(&[(4.0, 3.0), (10.0, 6.0), (10.0, 24.0 - 6.0), (4.0, 21.0)], true, a);
+        }
+        Grid => {
+            for k in 0..4 {
+                let v = 4.0 + 5.33 * k as f32;
+                pen.l(v, 3.0, v, 21.0);
+                pen.l(3.0, v, 21.0, v);
+            }
+        }
+        Gear => {
+            pen.c(12.0, 12.0, 3.0, b);
+            for k in 0..8 {
+                let a = (k as f32 * 45.0).to_radians();
+                pen.l(12.0 + 5.5 * a.cos(), 12.0 + 5.5 * a.sin(), 12.0 + 8.5 * a.cos(), 12.0 + 8.5 * a.sin());
+            }
+            pen.c(12.0, 12.0, 6.0, b);
         }
         ModeSolid | ModeHidden | ModeWire | ModeXRay | ModeTextured => {
             let f = [(4.0, 9.0), (15.0, 9.0), (15.0, 20.0), (4.0, 20.0)];

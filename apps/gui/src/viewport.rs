@@ -186,6 +186,87 @@ struct VOut { @builtin(position) clip: vec4<f32>, @location(0) color: vec4<f32>,
 @fragment fn fs(i: VOut) -> @location(0) vec4<f32> { return i.color * textureSample(tex, samp, i.uv); }
 "#;
 
+/// Бесконечная сетка (как холст cadcraft): треугольник на весь экран; для каждого пикселя — точка
+/// на плоскости сетки (перпендикулярной оси, ближе всего к направлению взгляда), линии через
+/// `minor` и `major` мм со сглаживанием, оси через начало координат; глубина — настоящая, детали закрывают сетку.
+const GRID_SHADER: &str = r#"
+struct G { eye: vec4<f32>, r: vec4<f32>, u: vec4<f32>, f: vec4<f32>, half: vec4<f32>, grid: vec4<f32>, minor_c: vec4<f32>, major_c: vec4<f32> };
+@group(0) @binding(0) var<uniform> g: G;
+struct VOut { @builtin(position) clip: vec4<f32>, @location(0) ndc: vec2<f32> };
+struct FOut { @location(0) color: vec4<f32>, @builtin(frag_depth) depth: f32 };
+
+@vertex fn vs(@builtin(vertex_index) i: u32) -> VOut {
+    let p = vec2<f32>(f32((i << 1u) & 2u) * 2.0 - 1.0, f32(i & 2u) * 2.0 - 1.0);
+    var o: VOut;
+    o.clip = vec4<f32>(p, 0.5, 1.0);
+    o.ndc = p;
+    return o;
+}
+
+fn line(c: f32, step: f32) -> f32 {
+    let x = c / step;
+    let w = fwidth(x);
+    let d = abs(fract(x - 0.5) - 0.5) / max(w, 1e-6);
+    return 1.0 - min(d, 1.0);
+}
+
+@fragment fn fs(v: VOut) -> FOut {
+    let n = u32(g.grid.z);
+    let f = g.f.xyz;
+    // Точка на ближней плоскости под пикселем и луч вдоль взгляда.
+    let o = g.eye.xyz + v.ndc.x * g.half.x * g.r.xyz + v.ndc.y * g.half.y * g.u.xyz - f * g.half.z;
+    let fn_ = f[n];
+    if (abs(fn_) < 1e-4) { discard; }
+    let t = -o[n] / fn_;
+    if (t < 0.0) { discard; }
+    let p = o + f * t;
+    let a = (n + 1u) % 3u;
+    let b = (n + 2u) % 3u;
+    let minor = max(line(p[a], g.grid.x), line(p[b], g.grid.x));
+    let major = max(line(p[a], g.grid.y), line(p[b], g.grid.y));
+    // Оси через начало: X — красная, Y — зелёная, Z — синяя (тёмные, как в cadcraft).
+    let axis_colors = array<vec3<f32>, 3>(vec3<f32>(0.34, 0.16, 0.16), vec3<f32>(0.16, 0.29, 0.18), vec3<f32>(0.16, 0.22, 0.38));
+    let ax_a = 1.0 - min(abs(p[b]) / max(fwidth(p[b]), 1e-6), 1.0);
+    let ax_b = 1.0 - min(abs(p[a]) / max(fwidth(p[a]), 1e-6), 1.0);
+    var col = mix(g.minor_c.rgb, g.major_c.rgb, major);
+    var alpha = max(minor, major);
+    col = mix(col, axis_colors[a], ax_a);
+    col = mix(col, axis_colors[b], ax_b);
+    alpha = max(alpha, max(ax_a, ax_b));
+    if (alpha < 0.01) { discard; }
+    var out: FOut;
+    out.color = vec4<f32>(col, alpha);
+    out.depth = clamp(dot(f, p - g.eye.xyz) * g.half.w + 0.5, 0.0, 1.0);
+    return out;
+}
+"#;
+
+/// Сетка окна: включена, шаг (мм), основная линия — каждая N-я.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Grid {
+    pub on: bool,
+    pub step: f32,
+    pub major: u32,
+}
+
+impl Default for Grid {
+    fn default() -> Self {
+        Grid { on: true, step: 10.0, major: 10 }
+    }
+}
+
+/// Шаг сетки под масштаб, как в cadcraft: умножать на 5, пока линии не окажутся не ближе `min_px`.
+pub fn adaptive(step: f64, px_per_mm: f64, min_px: f64) -> f64 {
+    let mut s = step.max(1e-6);
+    for _ in 0..40 {
+        if s * px_per_mm >= min_px {
+            break;
+        }
+        s *= 5.0;
+    }
+    s
+}
+
 /// Буферы сцены на видеокарте.
 struct Scene {
     tris: wgpu::Buffer,
@@ -200,8 +281,6 @@ struct Scene {
     part_axes_count: u32,
     /// Отверстия присадки: линия сверления от входа на глубину.
     holes_count: u32,
-    /// Сетка на полу (Y = 0), как фон в cadcraft: линии через 100 мм, каждая десятая темнее.
-    grid_count: u32,
     /// Габарит сцены.
     lo: [f32; 3],
     hi: [f32; 3],
@@ -218,6 +297,9 @@ struct Target {
 }
 
 struct Gpu {
+    grid_pipe: wgpu::RenderPipeline,
+    grid_uniforms: wgpu::Buffer,
+    grid_bind: wgpu::BindGroup,
     uniforms: wgpu::Buffer,
     bind: wgpu::BindGroup,
     solid: wgpu::RenderPipeline,
@@ -235,6 +317,8 @@ struct Gpu {
 
 pub struct Viewport {
     pub camera: Camera,
+    /// Сетка (настройки черчения).
+    pub grid: Grid,
     pub mode: Mode,
     /// Фурнитура: сетка модели или рамка по габариту.
     pub furniture: Vec<FurnView>,
@@ -263,6 +347,7 @@ impl Default for Viewport {
         let (yaw, pitch) = Camera::AXON;
         Viewport {
             camera: Camera { target: [0.0; 3], yaw: yaw.to_radians(), pitch: pitch.to_radians(), mm_per_px: 2.0 },
+            grid: Grid::default(),
             mode: Mode::Solid,
             furniture: Vec::new(),
             furniture_built: Vec::new(),
@@ -329,6 +414,40 @@ fn pipeline(device: &wgpu::Device, layout: &wgpu::PipelineLayout, module: &wgpu:
     })
 }
 
+/// Конвейер бесконечной сетки: свой шейдер и свои 128 байт параметров.
+fn grid_pipeline(device: &wgpu::Device) -> (wgpu::RenderPipeline, wgpu::Buffer, wgpu::BindGroup) {
+    let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("grid"), source: wgpu::ShaderSource::Wgsl(GRID_SHADER.into()) });
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor { label: Some("grid"), size: 128, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+    let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("grid"),
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None },
+            count: None,
+        }],
+    });
+    let bind = device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("grid"), layout: &layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: buffer.as_entire_binding() }] });
+    let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("grid"), bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
+    let pipe = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("grid"),
+        layout: Some(&pl),
+        vertex: wgpu::VertexState { module: &module, entry_point: Some("vs"), compilation_options: Default::default(), buffers: &[] },
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias: Default::default() }),
+        multisample: wgpu::MultisampleState { count: SAMPLES, ..Default::default() },
+        fragment: Some(wgpu::FragmentState {
+            module: &module,
+            entry_point: Some("fs"),
+            compilation_options: Default::default(),
+            targets: &[Some(wgpu::ColorTargetState { format: COLOR, blend: Some(wgpu::BlendState::ALPHA_BLENDING), write_mask: wgpu::ColorWrites::ALL })],
+        }),
+        multiview_mask: None,
+        cache: None,
+    });
+    (pipe, buffer, bind)
+}
+
 impl Gpu {
     fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Gpu {
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("basis-craft 3d"), source: wgpu::ShaderSource::Wgsl(SHADER.into()) });
@@ -375,7 +494,11 @@ impl Gpu {
         let white = upload(device, queue, &tex_layout, &sampler, 1, 1, &[255, 255, 255, 255]);
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("3d"), bind_group_layouts: &[Some(&bind_layout), Some(&tex_layout)], immediate_size: 0 });
         use wgpu::CompareFunction::{Always, Greater, LessEqual};
+        let (grid_pipe, grid_uniforms, grid_bind) = grid_pipeline(device);
         Gpu {
+            grid_pipe,
+            grid_uniforms,
+            grid_bind,
             solid: pipeline(device, &layout, &module, false, (true, LessEqual), false),
             glass: pipeline(device, &layout, &module, false, (false, Always), true),
             lines_visible: pipeline(device, &layout, &module, true, (false, LessEqual), true),
@@ -561,30 +684,6 @@ impl Scene {
                 holes += 2;
             }
         }
-        // Сетка пола под изделием с запасом в метр; на больших проектах шаг крупнее.
-        let mut grid = 0;
-        {
-            // Запас 3 м во все стороны — сетка уходит за край окна, как в cadcraft.
-            let (x0, x1) = (((lo[0] / 1000.0).floor() - 3.0) * 1000.0, ((hi[0] / 1000.0).ceil() + 3.0) * 1000.0);
-            let (z0, z1) = (((lo[2] / 1000.0).floor() - 3.0) * 1000.0, ((hi[2] / 1000.0).ceil() + 3.0) * 1000.0);
-            let step = if (x1 - x0).max(z1 - z0) > 16000.0 { 500.0 } else { 100.0 };
-            // Цвета cadcraft (тёмный холст), как в его теме: фон #22282f, сетка светлее.
-            let color = |v: f32| if (v / 1000.0).fract().abs() < 1e-3 { [0.2706, 0.3137, 0.3765, 1.0] } else { [0.1922, 0.2235, 0.2745, 1.0] };
-            let mut v = x0;
-            while v <= x1 + 0.5 {
-                push_vertex(&mut lines, [v, 0.0, z0], [0.0; 3], color(v));
-                push_vertex(&mut lines, [v, 0.0, z1], [0.0; 3], color(v));
-                grid += 2;
-                v += step;
-            }
-            let mut v = z0;
-            while v <= z1 + 0.5 {
-                push_vertex(&mut lines, [x0, 0.0, v], [0.0; 3], color(v));
-                push_vertex(&mut lines, [x1, 0.0, v], [0.0; 3], color(v));
-                grid += 2;
-                v += step;
-            }
-        }
         // Треугольники — пачками по картинке.
         let mut order: Vec<usize> = (0..m.indices.len() / 3).collect();
         order.sort_by_key(|&t| tex_of(m.vertices[m.indices[3 * t] as usize].part as usize).map_or(0, |i| i + 1));
@@ -645,7 +744,6 @@ impl Scene {
             axes_count: 6,
             part_axes_count: part_axes,
             holes_count: holes,
-            grid_count: grid,
             furniture: furn_tris,
             lo,
             hi,
@@ -827,6 +925,23 @@ impl Viewport {
             }
         }
         rs.queue.write_buffer(&gpu.uniforms, 0, &u);
+        {
+            let (f, r, up) = cam.basis();
+            let n = (0..3).max_by(|&i, &j| f[i].abs().total_cmp(&f[j].abs())).unwrap_or(1);
+            let minor = adaptive(f64::from(self.grid.step), f64::from(1.0 / self.camera.mm_per_px), 8.0) as f32;
+            let major = minor * self.grid.major.max(1) as f32;
+            let c = |rgb: [u8; 3]| rgb.map(|v| f32::from(v) / 255.0);
+            let (cmin, cmaj) = (c([0x31, 0x39, 0x46]), c([0x45, 0x50, 0x60]));
+            let t = cam.target;
+            let vals: [f32; 32] = [
+                t[0], t[1], t[2], 0.0, r[0], r[1], r[2], 0.0, up[0], up[1], up[2], 0.0, f[0], f[1], f[2], 0.0,
+                size[0] as f32 / 2.0 * cam.mm_per_px, size[1] as f32 / 2.0 * cam.mm_per_px, depth, 0.5 / depth,
+                minor, major, n as f32, 1.0,
+                cmin[0], cmin[1], cmin[2], 1.0, cmaj[0], cmaj[1], cmaj[2], 1.0,
+            ];
+            let bytes: Vec<u8> = vals.iter().flat_map(|v| v.to_le_bytes()).collect();
+            rs.queue.write_buffer(&gpu.grid_uniforms, 0, &bytes);
+        }
         let Some(target) = &gpu.target else { return (click, Some(resp)) };
         let mut enc = rs.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("3d") });
         {
@@ -853,11 +968,13 @@ impl Viewport {
             let axes = scene.line_count..scene.line_count + scene.axes_count;
             let part_axes = axes.end..axes.end + scene.part_axes_count;
             let holes = part_axes.end..part_axes.end + scene.holes_count;
-            let grid = holes.end..holes.end + scene.grid_count;
-            // Сетка пола — первой и с глубиной: детали её закрывают.
-            pass.set_pipeline(&gpu.lines_visible);
-            pass.set_vertex_buffer(0, scene.lines.slice(..));
-            pass.draw(grid, 0..1);
+            // Сетка — первой и с глубиной: детали её закрывают.
+            if self.grid.on {
+                pass.set_pipeline(&gpu.grid_pipe);
+                pass.set_bind_group(0, &gpu.grid_bind, &[]);
+                pass.draw(0..3, 0..1);
+                pass.set_bind_group(0, &gpu.bind, &[]);
+            }
             match self.mode {
                 Mode::Solid | Mode::Hidden => {
                     pass.set_pipeline(&gpu.solid);

@@ -12,6 +12,22 @@ pub struct Settings {
     pub library_dirs: Vec<String>,
     /// Язык окна: "ru" или "en".
     pub language: String,
+    /// Сетка (как «Настройки черчения» cadcraft): показывать, шаг в мм, основная линия — каждая N-я.
+    pub grid: GridSettings,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+#[serde(default)]
+pub struct GridSettings {
+    pub on: bool,
+    pub step: f32,
+    pub major: u32,
+}
+
+impl Default for GridSettings {
+    fn default() -> Self {
+        GridSettings { on: true, step: 10.0, major: 10 }
+    }
 }
 
 /// Папка настроек программы.

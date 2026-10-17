@@ -364,6 +364,24 @@ impl App {
 
     /// Окна «Как пользоваться» и «О программе».
     pub(crate) fn help_windows(&mut self, ctx: &egui::Context) {
+        let before = self.settings.grid;
+        let mut open = self.drafting;
+        egui::Window::new(crate::i18n::t("Настройки черчения")).open(&mut open).resizable(false).show(ctx, |ui| {
+            let g = &mut self.settings.grid;
+            ui.heading(crate::i18n::t("Сетка"));
+            ui.checkbox(&mut g.on, crate::i18n::t("Сетка включена (F7)"));
+            ui.horizontal(|ui| {
+                ui.label(crate::i18n::t("Шаг сетки"));
+                ui.add(egui::DragValue::new(&mut g.step).speed(1.0).range(1.0..=1000.0).suffix(crate::i18n::t(" мм")));
+                ui.label(crate::i18n::t("Основная линия каждые"));
+                ui.add(egui::DragValue::new(&mut g.major).range(1..=100));
+            });
+            ui.weak(crate::i18n::t("При отдалении шаг сам укрупняется в 5 раз, чтобы линии не сливались."));
+        });
+        self.drafting = open;
+        if self.settings.grid != before {
+            self.settings.save();
+        }
         egui::Window::new(crate::i18n::t("Как пользоваться basis-craft")).open(&mut self.help).default_size([620.0, 640.0]).vscroll(true).show(ctx, |ui| {
             markdown(ui, if crate::i18n::english() { HELP_EN } else { HELP });
         });

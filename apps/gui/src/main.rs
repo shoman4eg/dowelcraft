@@ -441,6 +441,8 @@ struct App {
     new_panel: (&'static str, f64, f64),
     /// Режим «Панель в проём» на виде спереди: плоскость, материал, отступы.
     fill: Option<FillTool>,
+    /// Открыто окно «Настройки черчения».
+    drafting: bool,
     /// Показана стартовая страница (вместо рабочих панелей), как вкладка «Start» в cadcraft.
     start: bool,
     /// Открыты окна «Как пользоваться» и «О программе».
@@ -506,6 +508,7 @@ impl Default for App {
             fill: None,
             modify: None,
             start: false,
+            drafting: false,
             help: false,
             about: false,
             edging: (None, true, 0.0),
@@ -734,9 +737,19 @@ impl eframe::App for App {
                         }
                     },
                 }
-                if !self.status.is_empty() {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.weak(i18n::t(&self.status)));
-                }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // Как переключатели строки состояния cadcraft: сетка (F7) и настройки черчения.
+                    if icons::button(ui, icons::Icon::Gear, 20.0, "Настройки черчения: сетка", self.drafting).clicked() {
+                        self.drafting = !self.drafting;
+                    }
+                    if icons::button(ui, icons::Icon::Grid, 20.0, "Сетка (F7)", self.settings.grid.on).clicked() {
+                        self.settings.grid.on = !self.settings.grid.on;
+                        self.settings.save();
+                    }
+                    if !self.status.is_empty() {
+                        ui.weak(i18n::t(&self.status));
+                    }
+                });
             });
         });
         if self.start {
@@ -768,6 +781,15 @@ impl eframe::App for App {
                 }
             }
         });
+        }
+        if ui.input(|i| i.key_pressed(egui::Key::F7)) {
+            self.settings.grid.on = !self.settings.grid.on;
+            self.settings.save();
+        }
+        // Настройки сетки — во все окна модели.
+        let g = self.settings.grid;
+        for v in std::iter::once(&mut self.viewport).chain(self.views.iter_mut()) {
+            v.grid = viewport::Grid { on: g.on, step: g.step, major: g.major };
         }
         // Delete — удалить выделенное, если курсор не в поле ввода.
         if !ctx.text_edit_focused() && ui.input(|i| i.key_pressed(egui::Key::Delete)) {
@@ -1684,18 +1706,20 @@ impl App {
         painter.rect_filled(resp.rect, 0.0, theme::T.canvas);
         {
             let (minor, major) = (Color32::from_rgb(0x29, 0x30, 0x3a), Color32::from_rgb(0x31, 0x39, 0x45));
-            let step = [10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0].into_iter().find(|s| s * k >= 8.0).unwrap_or(5000.0);
+            let g = self.settings.grid;
+            let step = viewport::adaptive(f64::from(g.step), k, 8.0);
+            let every = f64::from(g.major.max(1));
             let mm = |p: Pos2| [(p.x - area.left()) as f64 / k + lo[0], (area.bottom() - p.y) as f64 / k + lo[1]];
             let (a, b) = (mm(resp.rect.left_bottom()), mm(resp.rect.right_top()));
-            let is_major = |v: f64| ((v / (step * 10.0)) - (v / (step * 10.0)).round()).abs() < 1e-6;
+            let is_major = |v: f64| ((v / (step * every)) - (v / (step * every)).round()).abs() < 1e-6;
             let mut x = (a[0] / step).ceil() * step;
-            while x <= b[0] {
+            while g.on && x <= b[0] {
                 let px = to(x, 0.0).x;
                 painter.line_segment([Pos2::new(px, resp.rect.top()), Pos2::new(px, resp.rect.bottom())], Stroke::new(1.0, if is_major(x) { major } else { minor }));
                 x += step;
             }
             let mut y = (a[1] / step).ceil() * step;
-            while y <= b[1] {
+            while g.on && y <= b[1] {
                 let py = to(0.0, y).y;
                 painter.line_segment([Pos2::new(resp.rect.left(), py), Pos2::new(resp.rect.right(), py)], Stroke::new(1.0, if is_major(y) { major } else { minor }));
                 y += step;

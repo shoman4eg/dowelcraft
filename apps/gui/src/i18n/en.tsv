@@ -345,3 +345,11 @@
 Лист, пропил и обрезка задаются у каждого материала: панель «Проект» → «Материалы».	Sheet, kerf and trim are set per material: “Project” panel → “Materials”.
 Лист для материалов модели Базиса	Sheet for the Bazis model materials
 Читаю папки фурнитуры…	Reading hardware folders…
+Настройки черчения: сетка	Drafting settings: grid
+Сетка (F7)	Grid (F7)
+Настройки черчения	Drafting settings
+Сетка	Grid
+Сетка включена (F7)	Grid on (F7)
+Шаг сетки	Grid spacing
+Основная линия каждые	Major line every
+При отдалении шаг сам укрупняется в 5 раз, чтобы линии не сливались.	When zoomed out the spacing grows 5× so lines do not merge.
