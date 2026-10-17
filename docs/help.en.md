@@ -26,6 +26,12 @@ basis-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 - **Del** deletes the selection. **Esc** exits a tool or clears the selection. **Ctrl+Z / Ctrl+Y** undo / redo. **Ctrl+S** saves. **Enter** applies move, rotate, etc.
 - Number fields accept expressions: `600-4`, `(800-36)/2`. Drag a field left or right to change it.
 
+## Projects, textures, grid
+
+- **Several projects.** Each project is a tab under the menu. “+” or “New” opens a new tab, so does opening a file. “*” after the name means unsaved changes; closing asks whether to save.
+- **Material texture.** “Project” → “Choose…” at a material (or in the new material form): an image library by folders with previews and search. Add your folders with “+ Add folder…”. “by article” finds the Baltlaminat image by the material article. See it in the 3D “Textured” mode.
+- **The grid** in the front view and in 3D is infinite and its spacing grows when you zoom out. Toggle it with F7 or the grid icon at the bottom right; spacing and major lines — the gear “Drafting settings”.
+
 ## Cabinets and free panels
 
 Cabinets, corner units and countertops are **templates**: change the width and all parts are recalculated. To edit one part of a template (cut-out, fillet, own size), select it and press “Explode” — the template becomes a set of free panels.
@@ -36,7 +42,7 @@ A free panel (the “Free panel” icon) can be placed in any of three planes, m
 
 - **Fasteners** (confirmats, cam locks, dowels, shelf supports): select panels and press the fastener icon — holes with coordinates appear on both panels. For cabinets the fastener type is chosen in “Properties”.
 - **Hardware models** (.fr3d — baskets, hinges, locks, sockets): the “Hardware” palette, folders as on disk. “Place” puts the model to the right of the modules; then move it in “Properties”. Its holes land in the panels it touches.
-- Baltlaminat libraries and your own models are just folders with .fr3d files. Add folders with “+ Add folder…” in the “Hardware” palette.
+- Baltlaminat libraries and your own models are just folders with .fr3d files. Add folders with “+ Add folder…” in the “Hardware” palette; they are remembered.
 
 ## Checks
 
