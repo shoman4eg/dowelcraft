@@ -24,6 +24,7 @@ const USAGE: &str = "basis-craft — проектирование мебели �
   basis-craft import <файл.b3d> [-o проект.bcraft]   модель Базиса → свой проект (детали можно править)
   basis-craft b3d <проект.bcraft> [-o модель.b3d]     свой проект → модель Базис-Мебельщика
   basis-craft script <проект.bcraft> <скрипт.js>      выполнить скрипт Базиса над проектом и сохранить
+  basis-craft check <модель>                          анализ модели: пересечения, крепёж, размеры
   basis-craft design <проект.bcraft> <команда> ['{json-параметры}']
                                                      выполнить команду; файл создаётся, если его нет
   basis-craft design --help                          список команд
@@ -104,6 +105,16 @@ fn run(args: &[String]) -> Result<(), String> {
                 std::fs::write(path, s.project.save()).map_err(|e| format!("{path}: {e}"))?;
             }
             println!("изменений: {}, окон: {}", r.changes, r.forms.len());
+            return Ok(());
+        }
+        "check" => {
+            let job = Job::open(Path::new(path))?;
+            let project = job.project.clone().unwrap_or_else(|| job.import());
+            let problems = basis::design::analysis::analyze(&project)?;
+            for p in &problems {
+                println!("{}: {}", p.kind, p.message);
+            }
+            println!("проблем: {}", problems.len());
             return Ok(());
         }
         "dump" => {

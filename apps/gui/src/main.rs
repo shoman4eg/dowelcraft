@@ -322,6 +322,8 @@ struct App {
     edging: (Option<String>, bool, f64),
     /// Библиотека моделей фурнитуры: папка, найденные модели, превью (текстуры по пути), строка поиска.
     library: Library,
+    /// «Анализ модели»: найденные проблемы (окно открыто, пока Some).
+    problems: Option<Vec<design::analysis::Problem>>,
     /// Выполняемый скрипт Базиса и его окна.
     script: Option<ScriptWin>,
     /// Выделенная фурнитура (у неё нет деталей — выделяется отдельно).
@@ -365,6 +367,7 @@ impl Default for App {
             fastener_kind: "Конфирмат 7х50".into(),
             library: Library::default(),
             script: None,
+            problems: None,
             furniture_sel: None,
             screenshot: None,
             frames: 0,
@@ -504,6 +507,7 @@ impl eframe::App for App {
             }
         });
         self.script_window(&ctx);
+        self.problems_window(&ctx);
         self.take_screenshot(&ctx);
     }
 }
@@ -528,6 +532,13 @@ impl App {
                         self.save(true);
                     }
                 });
+                if ui.button("Анализ модели").clicked() {
+                    let project = self.session.as_ref().map(|s| s.project.clone()).unwrap_or_else(|| self.job.import());
+                    match design::analysis::analyze(&project) {
+                        Ok(p) => self.problems = Some(p),
+                        Err(e) => self.error = Some(e),
+                    }
+                }
                 ui.menu_button("Скрипты", |ui| {
                     if ui.add_enabled(self.session.is_some(), egui::Button::new("Выполнить скрипт Базиса…")).on_disabled_hover_text("Сначала «Сделать редактируемой»").clicked()
                         && let Some(p) = rfd::FileDialog::new().add_filter("BAZIS-Script", &["js"]).pick_file()
@@ -734,6 +745,33 @@ impl App {
             let (lo, hi) = acc.unwrap_or(([f64::MAX; 3], [f64::MIN; 3]));
             Some((std::array::from_fn(|k| lo[k].min(p.origin[k])), std::array::from_fn(|k| hi[k].max(p.origin[k] + p.size[k]))))
         })
+    }
+
+    /// Окно «Анализ модели»: щелчок по проблеме выделяет её детали.
+    fn problems_window(&mut self, ctx: &egui::Context) {
+        let Some(list) = &self.problems else { return };
+        let mut open = true;
+        let mut pick: Option<Vec<usize>> = None;
+        egui::Window::new(format!("Анализ модели — проблем: {}", list.len())).open(&mut open).default_width(460.0).show(ctx, |ui| {
+            if list.is_empty() {
+                ui.label("Проблем не найдено: пересечений нет, крепёж и фурнитура на месте, детали помещаются на лист.");
+            }
+            egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                for p in list {
+                    let r = ui.add(egui::Label::new(format!("{}: {}", p.kind, p.message)).sense(egui::Sense::click()));
+                    if r.clicked() && !p.parts.is_empty() {
+                        pick = Some(p.parts.clone());
+                    }
+                }
+            });
+        });
+        if let (Some(ids), Ok(parts)) = (pick, &self.parts) {
+            // Анализ мог строиться по импортированной копии — выделяем по номерам деталей текущей модели.
+            self.selection = ids.into_iter().filter(|&i| i < parts.len()).map(|i| Sel::of(parts, i)).collect();
+        }
+        if !open {
+            self.problems = None;
+        }
     }
 
     /// Запуск скрипта: без окон — сразу завершается; с окнами — живёт, пока открыто его окно.

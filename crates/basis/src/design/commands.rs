@@ -56,6 +56,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("block.remove", "{id} — блок со всем содержимым"),
     ("cabinet.explode", "{id} — разрушить корпус: детали станут панелями блока с тем же номером (так же corner.explode, countertop.explode)"),
     ("parts", "список деталей: имя, материал, длина, ширина, толщина, корпус"),
+    ("check", "анализ модели: пересечения панелей, крепёж и фурнитура без панели, деталь больше листа → [{kind, message, parts}]"),
     ("undo", "отменить последнее изменение"),
     ("redo", "вернуть отменённое"),
 ];
@@ -111,6 +112,7 @@ impl Session {
     pub fn execute(&mut self, cmd: &str, p: &Value) -> Result<Value, String> {
         match cmd {
             "project.get" => return serde_json::to_value(&self.project).map_err(|e| e.to_string()),
+            "check" => return serde_json::to_value(super::analysis::analyze(&self.project)?).map_err(|e| e.to_string()),
             "parts" => {
                 let parts = build(&self.project)?;
                 return Ok(Value::Array(
@@ -349,6 +351,7 @@ fn explode(pr: &mut Project, id: u32) -> Result<Value, String> {
             texture: part.panel.texture,
             edges: part.panel.edges,
             holes: part.panel.holes,
+            grooves: part.panel.grooves,
             kind: part.kind,
             frame: part.panel.frame.ok_or("деталь без положения")?,
         }));
@@ -534,6 +537,7 @@ fn panel_add(pr: &mut Project, p: &Value) -> Result<Value, String> {
         texture,
         edges: Vec::new(),
         holes: Vec::new(),
+        grooves: Vec::new(),
         kind: a.kind,
         frame,
     };

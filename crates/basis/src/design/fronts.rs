@@ -122,7 +122,7 @@ pub fn door(pr: &mut Project, p: &Value) -> Result<Value, String> {
         next += 1;
         children.push(Object::Panel(FreePanel {
             id, name: "Дверь".into(), pos: String::new(), designation: String::new(), material: m.name.clone(),
-            segs: panel.segs, texture: Texture::Vertical, edges: panel.edges, holes: Vec::new(), kind: Kind::Door, frame,
+            segs: panel.segs, texture: Texture::Vertical, edges: panel.edges, holes: Vec::new(), grooves: Vec::new(), kind: Kind::Door, frame,
         }));
         // Петли: у двойной двери — у каждой створки со своей стороны, иначе — по выбору.
         let side_left = match (leaves, i, a.hinges.as_str()) {
@@ -204,7 +204,7 @@ pub fn drawers(pr: &mut Project, p: &Value) -> Result<Value, String> {
         let frame = place(&panel, origin, size)?;
         children.push(Object::Panel(FreePanel {
             id: next, name: name.into(), pos: String::new(), designation: String::new(), material: mat.name.clone(),
-            segs: panel.segs, texture: tex, edges: panel.edges, holes: Vec::new(), kind, frame,
+            segs: panel.segs, texture: tex, edges: panel.edges, holes: Vec::new(), grooves: Vec::new(), kind, frame,
         }));
         next += 1;
         Ok(())

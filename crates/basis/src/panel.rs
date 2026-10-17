@@ -72,6 +72,36 @@ pub struct Panel {
     pub frame: Option<Frame>,
     /// Присадка: отверстия крепежа, попавшие в эту плиту.
     pub holes: Vec<Hole>,
+    /// Пазы.
+    pub grooves: Vec<Groove>,
+}
+
+/// Паз вдоль прямой траектории (`Cuts/Cut` плиты Базиса): в осях контура плиты. Сечение — прямоугольник:
+/// поперёк траектории от `across[0]` до `across[1]` (влево от направления траектории) и по толщине плиты
+/// от `z[0]` до `z[1]` (Z — от тыльной пласти). Пазы по кривой траектории не разбираются.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Groove {
+    pub name: String,
+    pub path: [[f64; 2]; 2],
+    pub across: [f64; 2],
+    pub z: [f64; 2],
+}
+
+impl Groove {
+    /// Точка в осях плиты лежит в пазу (с допуском `eps`).
+    pub fn contains(&self, p: [f64; 3], eps: f64) -> bool {
+        let [a, b] = self.path;
+        let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+        let len = dx.hypot(dy);
+        if len < 1e-9 {
+            return false;
+        }
+        let (ux, uy) = (dx / len, dy / len);
+        let (rx, ry) = (p[0] - a[0], p[1] - a[1]);
+        let t = rx * ux + ry * uy;
+        let s = -rx * uy + ry * ux;
+        t >= -eps && t <= len + eps && s >= self.across[0] - eps && s <= self.across[1] + eps && p[2] >= self.z[0] - eps && p[2] <= self.z[1] + eps
+    }
 }
 
 /// Отверстие в координатах плиты: X, Y — как у контура (от 0), Z — от тыльной пласти (0) к лицевой (толщина).
@@ -385,6 +415,20 @@ fn panel(n: &Node, xf: &Xform) -> Option<(Panel, Xform)> {
         })
         .collect();
     let frame = Xform { r: xf.r, t: xf.apply([lo[0], lo[1], 0.0]) };
+    let grooves = n
+        .get("Cuts")
+        .map(|c| &c.children[..])
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|c| {
+            let path = contour::parse(c.blob("Trajectory")?)?;
+            let profile = contour::parse(c.blob("Contour")?)?;
+            let [Seg::Line { a, b }] = path[..] else { return None };
+            let (plo, phi) = contour::bounds(&profile)?;
+            let sh = |p: [f64; 2]| [p[0] - lo[0], p[1] - lo[1]];
+            Some(Groove { name: c.str("Name").unwrap_or_default().to_string(), path: [sh(a), sh(b)], across: [plo[0], phi[0]], z: [plo[1], phi[1]] })
+        })
+        .collect();
     let panel = Panel {
         name: n.str("Name").unwrap_or_default().to_string(),
         pos: n.str("ArtPos").unwrap_or_default().to_string(),
@@ -401,6 +445,7 @@ fn panel(n: &Node, xf: &Xform) -> Option<(Panel, Xform)> {
         edges,
         frame: Some(Frame { origin: frame.t, x: col(&frame, 0), y: col(&frame, 1), z: col(&frame, 2) }),
         holes: Vec::new(),
+        grooves,
     };
     Some((panel, frame))
 }

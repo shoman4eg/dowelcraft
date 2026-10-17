@@ -510,3 +510,24 @@ fn doors_and_drawers_in_opening() {
     assert!(furniture_lost_holes(&s.project).is_empty(), "{:?}", furniture_lost_holes(&s.project));
     assert!(s.execute("drawers.add", &json!({"at": [300, 360], "material": "ЛДСП 16", "heights": [500, 500]})).is_err());
 }
+
+/// Анализ модели: свои шаблоны чисты; пересечение, деталь больше листа и висячий крепёж находятся.
+#[test]
+fn analysis_finds_real_problems_only() {
+    let mut s = wardrobe();
+    s.execute("cabinet.add", &json!({"width": 600, "height": 820, "depth": 560, "material": "ЛДСП Белый 16", "plinth": 100, "back": "ХДФ 3",
+        "drawers": [140, 280, 280], "fastener": "Конфирмат 7х50", "position": [1000, 0, 0]})).unwrap();
+    s.execute("corner.add", &json!({"width_x": 1000, "width_z": 900, "height": 820, "depth": 560, "material": "ЛДСП Белый 16",
+        "plinth": 100, "back": "ХДФ 3", "shelves": [300], "doors": true, "position": [3000, 0, 0]})).unwrap();
+    s.execute("countertop.add", &json!({"material": "ЛДСП Белый 16", "length": 600, "depth": 600, "position": [1000, 820, 0]})).unwrap();
+    let clean = analysis::analyze(&s.project).unwrap();
+    assert!(clean.is_empty(), "{clean:#?}");
+    // Панель внутрь боковины шкафа — пересечение.
+    s.execute("panel.add", &json!({"material": "ЛДСП Белый 16", "plane": "horizontal", "size": [300, 300], "position": [-100, 1000, 100]})).unwrap();
+    // Панель больше листа 2800×2070 (обрезка 10).
+    s.execute("panel.add", &json!({"material": "ЛДСП Белый 16", "plane": "front", "size": [3000, 500], "position": [6000, 0, 0]})).unwrap();
+    let found = analysis::analyze(&s.project).unwrap();
+    let kinds: Vec<&str> = found.iter().map(|p| p.kind).collect();
+    assert_eq!(kinds, vec!["Пересечение", "Размер"], "{found:#?}");
+    assert_eq!(found[0].parts.len(), 2);
+}

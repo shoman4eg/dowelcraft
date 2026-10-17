@@ -259,6 +259,7 @@ mod tests {
             edges: Vec::new(),
             frame: Some(Frame::new([100.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0])),
             holes: Vec::new(),
+            grooves: Vec::new(),
         };
         Part { owner: 1, id: 0, kind: Kind::Body, panel, origin: [0.0; 3], size: [0.0; 3] }
     }

@@ -20,6 +20,7 @@ pub mod fill;
 pub mod shape;
 pub mod actions;
 pub mod fronts;
+pub mod analysis;
 pub use commands::{COMMANDS, Session};
 
 /// Метка формата в файле проекта `.bcraft`.
@@ -201,6 +202,9 @@ pub struct FreePanel {
     /// Отверстия в координатах панели.
     #[serde(default)]
     pub holes: Vec<Hole>,
+    /// Пазы (из модели Базиса).
+    #[serde(default)]
+    pub grooves: Vec<crate::panel::Groove>,
     /// Назначение — для цвета на видах.
     #[serde(default)]
     pub kind: Kind,
@@ -500,6 +504,7 @@ pub fn import(name: &str, panels: &[Panel], blocks: &[BlockInfo], panel_block: &
             texture: src.texture,
             edges: src.edges.clone(),
             holes: src.holes.clone(),
+            grooves: src.grooves.clone(),
             kind: guess_kind(src),
             frame,
         }));
@@ -639,6 +644,7 @@ fn poly(name: &str, mat: &Material, pts: &[[f64; 2]], texture: Texture, edged: &
         edges,
         frame: None,
         holes: Vec::new(),
+        grooves: Vec::new(),
     }
 }
 
@@ -820,6 +826,7 @@ fn objects(p: &Project, owner: u32, list: &[Object], parent: &Frame, out: &mut V
                     edges: fp.edges.clone(),
                     frame: Some(parent.then(&fp.frame)),
                     holes: fp.holes.clone(),
+                    grooves: fp.grooves.clone(),
                 };
                 out.push(Part { id: fp.id, ..Part::new(owner, fp.kind, panel)? });
             }

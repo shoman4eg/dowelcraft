@@ -123,6 +123,11 @@ fn mirror_panel(p: &mut FreePanel, axis: usize, at: f64) -> Result<(), String> {
         h.pos[0] = clean(w - h.pos[0]);
         h.dir[0] = -h.dir[0];
     }
+    // Паз: отражённая траектория в обратную сторону — чтобы сечение осталось с той же стороны.
+    for g in &mut p.grooves {
+        let [a, b] = g.path;
+        g.path = [[clean(w - b[0]), b[1]], [clean(w - a[0]), a[1]]];
+    }
     Ok(())
 }
 

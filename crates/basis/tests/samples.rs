@@ -168,3 +168,13 @@ fn panel_positions_in_space() {
         assert!((hi[1] - lo[1] - 18.0).abs() < 0.01, "полка горизонтальна, толщина 18 по вертикали");
     }
 }
+
+/// Анализ модели Базиса: задняя стенка в пазу боковины — не пересечение (пазы читаются из модели).
+#[test]
+fn analysis_respects_grooves() {
+    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/шкаф.b3d");
+    let Ok(job) = basis::job::Job::open(&p) else { return };
+    assert!(job.panels.iter().any(|p| !p.grooves.is_empty()), "в шкафу есть пазы");
+    let problems = basis::design::analysis::analyze(&job.import()).unwrap();
+    assert!(problems.is_empty(), "{problems:#?}");
+}
