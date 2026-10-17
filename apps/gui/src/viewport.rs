@@ -27,7 +27,7 @@ impl Mode {
 }
 
 /// Результат щелчка в окне модели.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Click {
     None,
     /// Щелчок по детали (индекс в списке деталей).
@@ -38,6 +38,8 @@ pub enum Click {
     Menu(Option<usize>),
     /// Щелчок по фурнитуре (номер объекта); `true` — правой кнопкой.
     Furniture(u32, bool),
+    /// Выделенное перетащили мышью: сдвиг в мм (по одной оси, целые мм).
+    Move([f64; 3]),
 }
 
 /// Фурнитура в окне: положение, габарит в своих осях, сетка модели (пустая — рисуется рамкой).
@@ -340,6 +342,9 @@ pub struct Viewport {
     pub textures: Vec<(String, String, [f64; 2])>,
     textures_built: Vec<(String, String, [f64; 2])>,
     mode_built: Option<Mode>,
+    /// Перетаскивание выделенного: накопленный сдвиг мыши (пиксели экрана) и сдвиг, с которым построена сцена.
+    dragging: Option<Vec2>,
+    offset_built: [f32; 3],
 }
 
 impl Default for Viewport {
@@ -362,6 +367,8 @@ impl Default for Viewport {
             textures: Vec::new(),
             textures_built: Vec::new(),
             mode_built: None,
+            dragging: None,
+            offset_built: [0.0; 3],
         }
     }
 }
@@ -594,7 +601,9 @@ fn upload(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLa
 
 impl Scene {
     /// `textures` — для режима «В текстурах»: картинка материала детали (номер, плитка мм).
-    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: &[usize], furniture: &[FurnView], textures: Option<&[(String, String, [f64; 2])]>) -> Scene {
+    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: &[usize], furniture: &[FurnView], textures: Option<&[(String, String, [f64; 2])]>, offset: [f32; 3]) -> Scene {
+        // Пока выделенное тащат мышью — оно рисуется со сдвигом `offset`.
+        let moved = |part: usize, p: [f32; 3]| if selected.contains(&part) { std::array::from_fn(|k| p[k] + offset[k]) } else { p };
         let mut tris = Vec::with_capacity(m.vertices.len() * STRIDE as usize);
         let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
         let tex_of = |part: usize| textures.and_then(|t| t.iter().position(|(mat, _, _)| *mat == parts[part].panel.material));
@@ -618,7 +627,7 @@ impl Scene {
                 }
                 _ => [0.0; 2],
             };
-            push_vertex_uv(&mut tris, v.pos, v.normal, [c[0], c[1], c[2], 1.0], uv);
+            push_vertex_uv(&mut tris, moved(part, v.pos), v.normal, [c[0], c[1], c[2], 1.0], uv);
             for k in 0..3 {
                 lo[k] = lo[k].min(v.pos[k]);
                 hi[k] = hi[k].max(v.pos[k]);
@@ -639,9 +648,9 @@ impl Scene {
         }
         let mut lines = Vec::new();
         let edge = [0.15, 0.15, 0.15, 1.0];
-        for (a, b, _) in &m.lines {
-            push_vertex(&mut lines, *a, [0.0; 3], edge);
-            push_vertex(&mut lines, *b, [0.0; 3], edge);
+        for (a, b, part) in &m.lines {
+            push_vertex(&mut lines, moved(*part as usize, *a), [0.0; 3], edge);
+            push_vertex(&mut lines, moved(*part as usize, *b), [0.0; 3], edge);
         }
         let line_count = m.lines.len() as u32 * 2;
         // Оси проекта в начале координат: X — красная, Y — зелёная, Z — синяя.
@@ -815,6 +824,24 @@ impl Viewport {
         }
     }
 
+    /// Сдвиг выделенного при перетаскивании: по оси проекта, вдоль которой на экране идёт мышь, целые мм.
+    fn drag_offset(&self) -> [f64; 3] {
+        let Some(d) = self.dragging else { return [0.0; 3] };
+        let (_, r, u) = self.camera.basis();
+        // Экранное направление оси k на 1 мм (пиксели, y вниз).
+        let screen = |k: usize| Vec2::new(r[k], -u[k]) / self.camera.mm_per_px;
+        let best = (0..3).filter(|&k| screen(k).length() > 0.25 / self.camera.mm_per_px).max_by(|&a, &b| {
+            let c = |k: usize| (d.dot(screen(k)) / screen(k).length()).abs();
+            c(a).total_cmp(&c(b))
+        });
+        let mut out = [0.0; 3];
+        if let Some(k) = best {
+            let s = screen(k);
+            out[k] = f64::from(d.dot(s) / s.length_sq()).round();
+        }
+        out
+    }
+
     /// Деталь под точкой экрана (смещение от центра окна в точках egui).
     /// Ближайшее под точкой экрана: деталь (`Ok`) или фурнитура (`Err` — номер объекта).
     fn pick(&self, off: Vec2) -> Option<Result<usize, u32>> {
@@ -850,9 +877,11 @@ impl Viewport {
             self.selected = None;
         }
         let textured = self.mode == Mode::Textured;
-        if self.selected.as_deref() != Some(selected) || self.furniture_built != self.furniture || self.textures_built != self.textures || self.mode_built.map(|m| m == Mode::Textured) != Some(textured) {
+        let offset = self.drag_offset().map(|v| v as f32);
+        if self.offset_built != offset || self.selected.as_deref() != Some(selected) || self.furniture_built != self.furniture || self.textures_built != self.textures || self.mode_built.map(|m| m == Mode::Textured) != Some(textured) {
             let tex = textured.then_some(&self.textures[..]);
-            self.scene = Some(Scene::new(&rs.device, parts, &self.mesh, selected, &self.furniture, tex));
+            self.scene = Some(Scene::new(&rs.device, parts, &self.mesh, selected, &self.furniture, tex, offset));
+            self.offset_built = offset;
             self.selected = Some(selected.to_vec());
             self.furniture_built = self.furniture.clone();
             self.textures_built = self.textures.clone();
@@ -883,7 +912,25 @@ impl Viewport {
                 hit => Click::Menu(hit.and_then(Result::ok)),
             };
         }
-        if resp.dragged_by(egui::PointerButton::Primary) {
+        // Начали тянуть по выделенной детали — двигаем её, по пустому месту или другой детали — вращаем вид.
+        if resp.drag_started_by(egui::PointerButton::Primary)
+            && let Some(o) = ui.input(|i| i.pointer.press_origin())
+            && matches!(self.pick(o - rect.center()), Some(Ok(i)) if selected.contains(&i))
+        {
+            self.dragging = Some(Vec2::ZERO);
+        }
+        if let Some(d) = &mut self.dragging {
+            if resp.dragged_by(egui::PointerButton::Primary) {
+                *d += resp.drag_delta();
+            }
+            if !resp.dragged() {
+                let mv = self.drag_offset();
+                self.dragging = None;
+                if mv != [0.0; 3] {
+                    click = Click::Move(mv);
+                }
+            }
+        } else if resp.dragged_by(egui::PointerButton::Primary) {
             let d = resp.drag_delta();
             self.camera.yaw += d.x * 0.01;
             self.camera.pitch = (self.camera.pitch + d.y * 0.01).clamp(-1.57, 1.57);
@@ -1028,6 +1075,11 @@ impl Viewport {
         }
         rs.queue.submit([enc.finish()]);
         ui.painter().image(target.id, rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
+        if self.dragging.is_some() {
+            let mv = self.drag_offset();
+            let text = ["X", "Y", "Z"].iter().zip(mv).find(|(_, v)| *v != 0.0).map_or_else(|| crate::i18n::t("сдвиг: 0"), |(a, v)| crate::i18n::t(format!("сдвиг по {a}: {v} мм")));
+            ui.painter().text(rect.left_top() + Vec2::new(10.0, 28.0), egui::Align2::LEFT_TOP, text, egui::FontId::proportional(15.0), Color32::from_rgb(0xf5, 0x9e, 0x3b));
+        }
         if let Some(l) = self.label {
             ui.painter().text(rect.left_top() + Vec2::new(6.0, 4.0), egui::Align2::LEFT_TOP, l, egui::FontId::proportional(13.0), Color32::from_gray(90));
             ui.painter().rect_stroke(rect, 0.0, egui::Stroke::new(1.0, Color32::from_gray(150)), egui::StrokeKind::Inside);
@@ -1037,5 +1089,33 @@ impl Viewport {
             ui.painter().text(rect.left_bottom() + Vec2::new(8.0, -8.0), egui::Align2::LEFT_BOTTOM, text, egui::FontId::proportional(13.0), Color32::from_rgb(200, 40, 40));
         }
         (click, Some(resp))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn drag(yaw: f32, pitch: f32, d: Vec2) -> [f64; 3] {
+        let mut v = Viewport::default();
+        v.set_view(yaw, pitch);
+        v.camera.mm_per_px = 2.0;
+        v.dragging = Some(d);
+        v.drag_offset()
+    }
+
+    /// Тянем выделенное: сдвиг идёт по одной оси проекта — той, вдоль которой на экране движется мышь.
+    #[test]
+    fn drag_moves_along_the_screen_axis() {
+        // Спереди: вправо — +X, вверх — +Y; 100 пикселей при 2 мм/пиксель — 200 мм.
+        assert_eq!(drag(0.0, 0.0, Vec2::new(100.0, 0.0)), [200.0, 0.0, 0.0]);
+        assert_eq!(drag(0.0, 0.0, Vec2::new(5.0, -100.0)), [0.0, 200.0, 0.0]);
+        // Сверху: вниз по экрану — к зрителю, +Z.
+        let top = drag(0.0, 89.9, Vec2::new(0.0, 50.0));
+        assert_eq!((top[0], top[1]), (0.0, 0.0));
+        assert!(top[2] > 0.0, "{top:?}");
+        // Аксонометрия: горизонтально вправо — по X.
+        let iso = drag(Camera::AXON.0, Camera::AXON.1, Vec2::new(80.0, 0.0));
+        assert!(iso[0] > 0.0 && iso[1] == 0.0 && iso[2] == 0.0, "{iso:?}");
     }
 }

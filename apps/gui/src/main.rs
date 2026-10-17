@@ -2061,6 +2061,12 @@ impl App {
                 viewport::Click::Part(i) => self.select(Some(i)),
                 viewport::Click::Empty => self.select(None),
                 viewport::Click::Menu(hit) => self.menu_pick(hit),
+                viewport::Click::Move(d) => {
+                    let ids = self.targets();
+                    if !ids.is_empty() {
+                        self.exec("object.move", json!({ "ids": ids, "d": d }));
+                    }
+                }
                 viewport::Click::Furniture(id, right) => {
                     // Правой кнопкой по невыделенной — выделить её; левой — выделить (с Ctrl — тоже одну).
                     if !right || self.furniture_sel != Some(id) {

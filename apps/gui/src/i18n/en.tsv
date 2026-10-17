@@ -233,7 +233,7 @@
 Модель Базиса открыта для просмотра. Замок вверху — сделать её редактируемой.	The Bazis model is read-only. The lock at the top makes it editable.
 Начните с материала: вкладка «Проект» → «Материалы».	Start with a material: “Project” panel → “Materials”.
 Выберите инструмент слева или щёлкните деталь. ЛКМ в 3D — вращать, ПКМ — двигать вид, колесо — масштаб.	Pick a tool on the left or click a part. In 3D: left drag rotates, right drag pans, wheel zooms.
-Свойства выделенного — справа. Del — удалить, ПКМ — меню, Esc — снять выделение.	Selection properties are on the right. Del deletes, right click opens the menu, Esc clears the selection.
+Тяните выделенную деталь мышью — она двигается по оси. Свойства — справа. Del — удалить, ПКМ — меню, Esc — снять выделение.	Drag the selected part with the mouse to move it along an axis. Properties are on the right. Del deletes, right click opens the menu, Esc clears the selection.
 Открыть…	Open…
 Последние	Recent
 пока пусто	empty so far
@@ -387,3 +387,5 @@
 В блок	Block
 Анализ	Analyze
 Скрипт	Script
+сдвиг: 0	offset: 0
+сдвиг по {}: {} мм	offset along {}: {} mm

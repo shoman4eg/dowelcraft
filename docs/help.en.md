@@ -20,7 +20,7 @@ basis-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 
 ## Mouse and keys
 
-- **3D:** left drag rotates, right drag pans, the wheel zooms. Click a part to select it, Ctrl+click adds to the selection.
+- **3D:** left drag rotates, right drag pans, the wheel zooms. Click a part to select it, Ctrl+click adds to the selection. **Drag a selected part** to move it along X, Y or Z (whichever the mouse follows) in whole mm; the offset is shown in the corner.
 - **Front view:** drag the selected part — its edges snap to neighbours. A free panel has orange handles: drag them to resize.
 - **Right click** on a part — menu: delete, group into block, explode, clear selection.
 - **Del** deletes the selection. **Esc** exits a tool or clears the selection. **Ctrl+Z / Ctrl+Y** undo / redo. **Ctrl+S** saves. **Enter** applies move, rotate, etc.
@@ -40,7 +40,7 @@ A free panel (the “Free panel” icon) can be placed in any of three planes, m
 
 ## Hardware and fasteners
 
-- **Fasteners** (confirmats, cam locks, dowels, shelf supports): select panels and press the fastener icon — holes with coordinates appear on both panels. For cabinets the fastener type is chosen in “Properties”.
+- **Fasteners** (confirmats, cam locks, dowels, shelf supports): the “Fasteners” icon → choose the type below the palette → select a cabinet (or several free panels with Ctrl) → “Apply to selection”. Holes with coordinates appear on both parts of every joint.
 - **Hardware models** (.fr3d — baskets, hinges, locks, sockets): the “Hardware” palette, folders as on disk. “Place” puts the model to the right of the modules; then move it in “Properties”. Its holes land in the panels it touches.
 - Baltlaminat libraries and your own models are just folders with .fr3d files. Add folders with “+ Add folder…” in the “Hardware” palette; they are remembered.
 
