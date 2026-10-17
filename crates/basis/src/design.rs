@@ -27,6 +27,12 @@ pub struct Material {
     /// Коэффициент расхода для сметы.
     #[serde(default = "default_coef")]
     pub coef: f64,
+    /// Обрезка края листа, мм; нет — общая из параметров раскроя (у столешниц обычно 0).
+    #[serde(default)]
+    pub trim: Option<f64>,
+    /// Пропил, мм; нет — общий.
+    #[serde(default)]
+    pub kerf: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -431,7 +437,7 @@ pub struct Session {
 pub const COMMANDS: &[(&str, &str)] = &[
     ("project.get", "весь проект в JSON"),
     ("project.rename", "{name}"),
-    ("material.add", "{name, thickness, article?, sheet?: [длина, ширина], coef?}"),
+    ("material.add", "{name, thickness, article?, sheet?: [длина, ширина], coef?, trim?: обрезка края, kerf?: пропил}"),
     ("material.set", "{name, ...поля} — изменить материал"),
     ("edge.add", "{name, thickness, article?, width?}"),
     ("cabinet.add", "{width, height, depth, material, name?, edge?, plinth?, back?, doors?, door_material?, door_gap?, drawers?: [высоты фасадов снизу вверх], drawer_depth?, position?: [x,y,z]} → {id}. Навесной модуль — plinth 0 и position с высотой, например [0, 1400, 250]"),

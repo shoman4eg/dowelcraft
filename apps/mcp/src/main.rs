@@ -182,7 +182,7 @@ impl Server {
             }
             "cut" => {
                 let p = self.params(a);
-                let cuts = job::cut(&self.job, |m| Params { sheet: self.job.sheet(m, p.sheet), ..p });
+                let cuts = job::cut(&self.job, |m| self.job.params(m, p));
                 let mut t = String::new();
                 for c in &cuts {
                     let usage: Vec<String> = c.layout.sheets.iter().map(|s| format!("{:.0}%", s.usage(&c.params) * 100.0)).collect();
@@ -199,7 +199,7 @@ impl Server {
                 let p = self.params(a);
                 let bytes = match str_arg("kind")? {
                     "cards_html" => {
-                        let cuts = job::cut(job, |m| Params { sheet: job.sheet(m, p.sheet), ..p });
+                        let cuts = job::cut(job, |m| job.params(m, p));
                         job::document(job, &cuts).into_bytes()
                     }
                     "raskroy_xml" => basis::raskroy::project_xml(&job.name, &job.panels, |m| job.sheet(m, p.sheet)),

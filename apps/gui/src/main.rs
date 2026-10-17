@@ -110,7 +110,7 @@ impl App {
             self.job = Job::from_project(s.project.clone());
         }
         let (job, params) = (&self.job, self.params);
-        self.cuts = job::cut(job, |m| Params { sheet: job.sheet(m, params.sheet), ..params });
+        self.cuts = job::cut(job, |m| job.params(m, params));
     }
 
     fn exec(&mut self, cmd: &str, p: Value) {
@@ -270,6 +270,17 @@ impl App {
         egui::CollapsingHeader::new(format!("Материалы ({})", project.materials.len())).default_open(project.materials.is_empty()).show(ui, |ui| {
             for m in &project.materials {
                 ui.label(format!("{} — {} мм, лист {}×{}, коэф. {}", m.name, m.thickness, m.sheet.0, m.sheet.1, m.coef));
+                ui.horizontal(|ui| {
+                    // Пусто — общие параметры раскроя со вкладки «Раскрой».
+                    for (key, label, value, general) in [("trim", "обрезка", m.trim, self.params.trim), ("kerf", "пропил", m.kerf, self.params.kerf)] {
+                        let mut v = value.unwrap_or(general);
+                        ui.label(label);
+                        let r = ui.add(egui::DragValue::new(&mut v).range(0.0..=50.0).speed(0.1).suffix(" мм"));
+                        if (r.drag_stopped() || (r.changed() && !r.dragged())) && Some(v) != value {
+                            cmds.push(("material.set", json!({ "name": m.name, key: v })));
+                        }
+                    }
+                });
             }
             let nm = &mut self.new_material;
             egui::Grid::new("new_mat").num_columns(2).show(ui, |ui| {

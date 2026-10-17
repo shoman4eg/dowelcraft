@@ -49,6 +49,14 @@ impl Job {
         self.material(full).map_or(default, |m| m.sheet)
     }
 
+    /// Параметры раскроя материала: формат, обрезка и пропил из проекта, недостающее — из `default`.
+    pub fn params(&self, full: &str, default: Params) -> Params {
+        match self.material(full) {
+            Some(m) => Params { sheet: m.sheet, kerf: m.kerf.unwrap_or(default.kerf), trim: m.trim.unwrap_or(default.trim) },
+            None => default,
+        }
+    }
+
     /// Коэффициент расхода: из материала проекта, иначе `default`.
     pub fn coef(&self, full: &str, default: f64) -> f64 {
         self.material(full).map_or(default, |m| m.coef)
@@ -143,4 +151,25 @@ pub fn document(job: &Job, cuts: &[MaterialCut]) -> String {
         job.panels.iter().position(|p| p == &r.panel).map(|i| job.number(i)).unwrap_or_default()
     });
     report::document_html(&job.name, &cards(job, cuts), &prod)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn material_cut_params_override_defaults() {
+        let mut s = design::Session::new(Project::new("т"));
+        s.execute("material.add", &json!({"name": "Столешница", "thickness": 38, "sheet": [3050, 600], "trim": 0})).unwrap();
+        s.execute("material.add", &json!({"name": "ЛДСП", "thickness": 16})).unwrap();
+        s.execute("countertop.add", &json!({"material": "Столешница", "length": 1400, "depth": 600})).unwrap();
+        let job = Job::from_project(s.project);
+        let d = Params { sheet: (2800.0, 2070.0), kerf: 4.0, trim: 10.0 };
+        assert_eq!(job.params("Столешница", d), Params { sheet: (3050.0, 600.0), kerf: 4.0, trim: 0.0 });
+        assert_eq!(job.params("ЛДСП", d), d);
+        // Столешница во всю ширину листа помещается, раз обрезки нет.
+        let cuts = cut(&job, |m| job.params(m, d));
+        assert!(cuts[0].layout.too_big.is_empty());
+    }
 }

@@ -102,7 +102,7 @@ fn run(args: &[String]) -> Result<(), String> {
         }
         "cut" => {
             let (kerf, trim) = (num(args, "--kerf")?.unwrap_or(4.0), num(args, "--trim")?.unwrap_or(10.0));
-            let cuts = job::cut(&job, |m| Params { sheet: sheet_for(m), kerf, trim });
+            let cuts = job::cut(&job, |m| Params { sheet: sheet_for(m), ..job.params(m, Params { sheet: DEFAULT_SHEET, kerf, trim }) });
             for c in &cuts {
                 let n: usize = c.layout.sheets.iter().map(|s| s.parts.len()).sum();
                 println!("{}: деталей {n}, листов {}", panel::material_name(&c.material), c.layout.sheets.len());
