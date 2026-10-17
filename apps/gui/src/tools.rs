@@ -193,7 +193,7 @@ impl App {
     }
 
     /// Новый модуль или панель с размерами по умолчанию; встаёт справа от модулей и сразу выделяется.
-    fn add_object(&mut self, kind: &str) {
+    pub(crate) fn add_object(&mut self, kind: &str) {
         let Some(s) = &self.session else { return };
         let project = &s.project;
         let Some(material) = project.materials.first().map(|m| m.name.clone()) else { return };
@@ -253,14 +253,14 @@ impl App {
             _ => "Ящики в проём",
         };
         ui.strong(title);
-        egui::Grid::new("fill_params").num_columns(2).show(ui, |ui| {
-            ui.label("Материал");
+        crate::editors::props(ui, "fill_params", |ui| {
+            crate::editors::caption(ui, "Материал");
             if let Some(Some(m)) = crate::editors::choose(ui, "fill_mat", Some(&t.material), &names, false) {
                 t.material = m;
             }
             ui.end_row();
             if matches!(t.plane, "door" | "drawers") {
-                ui.label("Установка");
+                crate::editors::caption(ui, "Установка");
                 ui.horizontal_wrapped(|ui| {
                     for (m, label) in [("overlay", "накладная"), ("half", "полунакладная"), ("inset", "вкладная")] {
                         ui.selectable_value(&mut t.mount, m, label);
@@ -268,10 +268,10 @@ impl App {
                 });
                 ui.end_row();
                 if t.plane == "door" {
-                    ui.label("Створки");
+                    crate::editors::caption(ui, "Створки");
                     ui.checkbox(&mut t.double, "двойная");
                 } else {
-                    ui.label("Фасады, мм");
+                    crate::editors::caption(ui, "Фасады, мм");
                     ui.add(egui::TextEdit::singleline(&mut t.heights).desired_width(120.0)).on_hover_text("Высоты фасадов снизу вверх через пробел");
                 }
                 ui.end_row();
@@ -283,7 +283,7 @@ impl App {
                 _ => ["Отступ слева", "Отступ справа", "Отступ снизу", "Отступ сверху"],
             };
             for (g, l) in t.gaps.iter_mut().zip(labels) {
-                ui.label(l);
+                crate::editors::caption(ui, l);
                 crate::expr::add(ui, g, |d| d.range(-100.0..=500.0).suffix(" мм"));
                 ui.end_row();
             }
@@ -302,22 +302,22 @@ impl App {
         let Some((lo, hi)) = self.selection_bounds() else { return };
         let center: [f64; 3] = std::array::from_fn(|k| ((lo[k] + hi[k]) / 2.0).round());
         let (d, axis, angle, count) = &mut self.actions;
-        egui::Grid::new("modify_params").num_columns(2).show(ui, |ui| {
+        crate::editors::props(ui, "modify_params", |ui| {
             match m {
                 Modify::Move | Modify::Copy => {
                     for (k, l) in ["dX", "dY", "dZ"].iter().enumerate() {
-                        ui.label(*l);
+                        crate::editors::caption(ui, l);
                         crate::expr::add(ui, &mut d[k], |d| d.speed(1.0).suffix(" мм"));
                         ui.end_row();
                     }
                     if m == Modify::Copy {
-                        ui.label("Копий");
+                        crate::editors::caption(ui, "Копий");
                         crate::expr::add(ui, count, |d| d.range(1..=100));
                         ui.end_row();
                     }
                 }
                 Modify::Rotate | Modify::Mirror | Modify::MirrorCopy => {
-                    ui.label(if m == Modify::Rotate { "Ось" } else { "Поперёк оси" });
+                    crate::editors::caption(ui, if m == Modify::Rotate { "Ось" } else { "Поперёк оси" });
                     ui.horizontal(|ui| {
                         for a in ['x', 'y', 'z'] {
                             ui.selectable_value(axis, a, a.to_ascii_uppercase().to_string());
@@ -325,7 +325,7 @@ impl App {
                     });
                     ui.end_row();
                     if m == Modify::Rotate {
-                        ui.label("Угол");
+                        crate::editors::caption(ui, "Угол");
                         crate::expr::add(ui, angle, |d| d.range(-360.0..=360.0).suffix("°"));
                         ui.end_row();
                     }

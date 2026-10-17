@@ -7,6 +7,42 @@ use serde_json::{Value, json};
 
 pub type Cmds = Vec<(&'static str, Value)>;
 
+/// Ширина колонки подписей в таблицах свойств (как в cadcraft: подпись справа, значение — поле).
+pub const KEY_W: f32 = 128.0;
+/// Ширина поля значения (числа, списки, текст).
+pub const VALUE_W: f32 = 150.0;
+
+/// Таблица свойств: две колонки, подписи прижаты вправо, ровные отступы.
+pub fn props<R>(ui: &mut egui::Ui, id: impl std::hash::Hash + std::fmt::Debug, body: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    egui::Grid::new(id).num_columns(2).spacing([8.0, 5.0]).show(ui, |ui| {
+        ui.spacing_mut().interact_size.x = 72.0;
+        body(ui)
+    })
+    .inner
+}
+
+/// Подпись свойства: приглушённая, прижата вправо в колонке фиксированной ширины; длинная — с «…».
+pub fn caption(ui: &mut egui::Ui, text: &str) -> egui::Response {
+    let color = ui.visuals().weak_text_color();
+    let galley = egui::WidgetText::from(text).into_galley(ui, Some(egui::TextWrapMode::Truncate), KEY_W, egui::TextStyle::Body);
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(KEY_W, ui.spacing().interact_size.y), egui::Sense::hover());
+    let at = egui::pos2(rect.right() - galley.size().x, rect.center().y - galley.size().y / 2.0);
+    ui.painter().galley(at, galley.clone(), color);
+    if galley.elided {
+        return resp.on_hover_text(text);
+    }
+    resp
+}
+
+/// Значение только для чтения — в рамке поля (как неактивное поле cadcraft).
+pub fn value_box(ui: &mut egui::Ui, text: impl Into<String>) {
+    let v = ui.visuals();
+    egui::Frame::new().fill(v.extreme_bg_color).stroke(egui::Stroke::new(1.0, v.widgets.noninteractive.bg_stroke.color)).corner_radius(3).inner_margin(egui::Margin::symmetric(6, 2)).show(ui, |ui| {
+        ui.set_min_width(VALUE_W);
+        ui.add(egui::Label::new(text.into()).truncate());
+    });
+}
+
 /// Изменение числового поля завершено: отпустили перетаскивание или ввели с клавиатуры.
 fn done(r: &egui::Response) -> bool {
     r.drag_stopped() || (r.changed() && !r.dragged())
@@ -61,7 +97,7 @@ pub fn position_editor(ui: &mut egui::Ui, pos: [f64; 3]) -> Option<[f64; 3]> {
 /// Выбор из списка имён; `none` — разрешить «—». Возвращает выбор, если он изменился.
 pub fn choose(ui: &mut egui::Ui, key: impl std::hash::Hash + std::fmt::Debug, value: Option<&str>, names: &[String], none: bool) -> Option<Option<String>> {
     let mut chosen = value.map(str::to_owned);
-    egui::ComboBox::from_id_salt(key).selected_text(value.unwrap_or("—")).show_ui(ui, |ui| {
+    egui::ComboBox::from_id_salt(key).width(VALUE_W).selected_text(value.unwrap_or("—")).show_ui(ui, |ui| {
         if none {
             ui.selectable_value(&mut chosen, None, "—");
         }
@@ -89,31 +125,31 @@ fn edges(p: &Project) -> Vec<String> {
 pub fn corner_editor(ui: &mut egui::Ui, project: &Project, c: &design::Corner, cmds: &mut Cmds) {
     let id = c.id;
     let mut set = |key: &str, v: Value| cmds.push(("corner.set", json!({ "id": id, key: v })));
-    egui::Grid::new(("cg", id)).num_columns(2).show(ui, |ui| {
-        ui.label("Название");
+    props(ui, ("cg", id), |ui| {
+        caption(ui, "Название");
         if let Some(n) = text_field(ui, ("corner_name", id), &c.name) {
             set("name", json!(n));
         }
         ui.end_row();
         for (key, label, value) in [("width_x", "Крыло X", c.width_x), ("width_z", "Крыло Z", c.width_z), ("height", "Высота", c.height), ("depth", "Глубина", c.depth), ("plinth", "Цоколь", c.plinth), ("door_gap", "Зазор дверей", c.door_gap)] {
-            ui.label(label);
+            caption(ui, label);
             if let Some(v) = mm(ui, value, 0.0..=6000.0) {
                 set(key, json!(v));
             }
             ui.end_row();
         }
-        ui.label("Положение X, Y, Z");
+        caption(ui, "Положение X, Y, Z");
         if let Some(pos) = position_editor(ui, c.position) {
             set("position", json!(pos));
         }
         ui.end_row();
-        ui.label("Двери");
+        caption(ui, "Двери");
         let mut doors = c.doors;
         if ui.checkbox(&mut doors, "").changed() {
             set("doors", json!(doors));
         }
         ui.end_row();
-        ui.label("Крепёж");
+        caption(ui, "Крепёж");
         if let Some(v) = choose(ui, ("corner_fast", id), c.fastener.as_deref(), &fastener_names(project), true) {
             set("fastener", json!(v));
         }
@@ -125,7 +161,7 @@ pub fn corner_editor(ui: &mut egui::Ui, project: &Project, c: &design::Corner, c
             ("back", "Задняя стенка", c.back.as_deref(), &mats, true),
             ("edge", "Кромка", c.edge.as_deref(), &eds, true),
         ] {
-            ui.label(label);
+            caption(ui, label);
             if let Some(v) = choose(ui, (key, "corner", id), value, list, none) {
                 set(key, json!(v));
             }
@@ -166,31 +202,31 @@ pub fn corner_editor(ui: &mut egui::Ui, project: &Project, c: &design::Corner, c
 pub fn countertop_editor(ui: &mut egui::Ui, project: &Project, ct: &design::Countertop, cmds: &mut Cmds) {
     let id = ct.id;
     let mut set = |key: &str, v: Value| cmds.push(("countertop.set", json!({ "id": id, key: v })));
-    egui::Grid::new(("ctg", id)).num_columns(2).show(ui, |ui| {
-        ui.label("Название");
+    props(ui, ("ctg", id), |ui| {
+        caption(ui, "Название");
         if let Some(n) = text_field(ui, ("ct_name", id), &ct.name) {
             set("name", json!(n));
         }
         ui.end_row();
         for (key, label, value) in [("length", "Длина", ct.length), ("depth", "Глубина", ct.depth)] {
-            ui.label(label);
+            caption(ui, label);
             if let Some(v) = mm(ui, value, 10.0..=6000.0) {
                 set(key, json!(v));
             }
             ui.end_row();
         }
-        ui.label("Положение X, Y, Z");
+        caption(ui, "Положение X, Y, Z");
         if let Some(pos) = position_editor(ui, ct.position) {
             set("position", json!(pos));
         }
         ui.end_row();
         let (mats, eds) = (materials(project), edges(project));
-        ui.label("Материал");
+        caption(ui, "Материал");
         if let Some(Some(v)) = choose(ui, ("ct_mat", id), Some(&ct.material), &mats, false) {
             set("material", json!(v));
         }
         ui.end_row();
-        ui.label("Кромка");
+        caption(ui, "Кромка");
         if let Some(v) = choose(ui, ("ct_edge", id), ct.edge.as_deref(), &eds, true) {
             set("edge", json!(v));
         }
@@ -210,18 +246,18 @@ pub fn countertop_editor(ui: &mut egui::Ui, project: &Project, ct: &design::Coun
 pub fn panel_editor(ui: &mut egui::Ui, project: &Project, fp: &design::FreePanel, size: (f64, f64, f64), cmds: &mut Cmds) {
     let id = fp.id;
     let mut set = |key: &str, v: Value| cmds.push(("panel.set", json!({ "id": id, key: v })));
-    egui::Grid::new(("pg", id)).num_columns(2).show(ui, |ui| {
-        ui.label("Наименование");
+    props(ui, ("pg", id), |ui| {
+        caption(ui, "Наименование");
         if let Some(n) = text_field(ui, ("panel_name", id), &fp.name) {
             set("name", json!(n));
         }
         ui.end_row();
-        ui.label("Материал");
+        caption(ui, "Материал");
         if let Some(Some(v)) = choose(ui, ("pm", id), Some(&fp.material), &materials(project), false) {
             set("material", json!(v));
         }
         ui.end_row();
-        ui.label("Назначение");
+        caption(ui, "Назначение");
         let mut kind = fp.kind;
         egui::ComboBox::from_id_salt(("pk", id)).selected_text(kind_name(kind)).show_ui(ui, |ui| {
             for k in [design::Kind::Body, design::Kind::Back, design::Kind::Door, design::Kind::Drawer] {
@@ -232,7 +268,7 @@ pub fn panel_editor(ui: &mut egui::Ui, project: &Project, fp: &design::FreePanel
             set("kind", json!(kind));
         }
         ui.end_row();
-        ui.label("Текстура");
+        caption(ui, "Текстура");
         let mut tex = fp.texture;
         egui::ComboBox::from_id_salt(("pt", id)).selected_text(texture_name(tex)).show_ui(ui, |ui| {
             for t in [Texture::Horizontal, Texture::Vertical, Texture::Default] {
@@ -243,10 +279,10 @@ pub fn panel_editor(ui: &mut egui::Ui, project: &Project, fp: &design::FreePanel
             set("texture", json!(tex));
         }
         ui.end_row();
-        ui.label("Размеры");
+        caption(ui, "Размеры");
         ui.label(format!("{} × {} × {} мм", size.0, size.1, size.2));
         ui.end_row();
-        ui.label("Начало осей панели").on_hover_text("Угол контура (0, 0) на тыльной пласти; толщина идёт вдоль оси Z панели");
+        caption(ui, "Начало осей панели").on_hover_text("Угол контура (0, 0) на тыльной пласти; толщина идёт вдоль оси Z панели");
         if let Some(origin) = position_editor(ui, fp.frame.origin) {
             set("frame", json!(basis::geom::Frame { origin, ..fp.frame }));
         }
@@ -294,8 +330,8 @@ pub fn text_field(ui: &mut egui::Ui, key: impl egui::AsId, value: &str) -> Optio
 pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet, cmds: &mut Cmds) {
     let id = c.id;
     let mut set = |key: &str, v: Value| cmds.push(("cabinet.set", json!({ "id": id, key: v })));
-    egui::Grid::new(("cab", id)).num_columns(2).show(ui, |ui| {
-        ui.label("Название");
+    props(ui, ("cab", id), |ui| {
+        caption(ui, "Название");
         if let Some(name) = text_field(ui, ("cab_name", id), &c.name) {
             set("name", json!(name));
         }
@@ -307,7 +343,7 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
             ("plinth", "Цоколь", c.plinth, 0.0),
             ("door_gap", "Зазор дверей", c.door_gap, 0.0),
         ] {
-            ui.label(label);
+            caption(ui, label);
             let mut v = value;
             // Применяем по отпусканию, чтобы перетаскивание давало один шаг отмены.
             let r = crate::expr::add(ui, &mut v, |d| d.range(min..=6000.0).suffix(" мм"));
@@ -316,22 +352,22 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
             }
             ui.end_row();
         }
-        ui.label("Положение X, Y, Z");
+        caption(ui, "Положение X, Y, Z");
         if let Some(pos) = position_editor(ui, c.position) {
             set("position", json!(pos));
         }
         ui.end_row();
-        ui.label("Глубина ящиков");
+        caption(ui, "Глубина ящиков");
         if let Some(v) = optional_mm(ui, c.drawer_depth, "по глубине корпуса") {
             set("drawer_depth", json!(v));
         }
         ui.end_row();
-        ui.label("Крепёж").on_hover_text("Присадка всех стыков корпуса; полки — на полкодержатели");
+        caption(ui, "Крепёж").on_hover_text("Присадка всех стыков корпуса; полки — на полкодержатели");
         if let Some(v) = choose(ui, ("cab_fast", id), c.fastener.as_deref(), &fastener_names(project), true) {
             set("fastener", json!(v));
         }
         ui.end_row();
-        ui.label("Двери");
+        caption(ui, "Двери");
         let mut doors = c.doors;
         let r = crate::expr::add(ui, &mut doors, |d| d.range(0..=8));
         if (r.drag_stopped() || (r.changed() && !r.dragged())) && doors != c.doors {
@@ -344,7 +380,7 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
             ("back", "Задняя стенка", c.back.clone(), false),
             ("edge", "Кромка", c.edge.clone(), true),
         ] {
-            ui.label(label);
+            caption(ui, label);
             let names: Vec<String> = if edges { project.edges.iter().map(|e| e.name.clone()).collect() } else { project.materials.iter().map(|m| m.name.clone()).collect() };
             let mut chosen = value.clone();
             egui::ComboBox::from_id_salt((key, id)).selected_text(chosen.clone().unwrap_or_else(|| "—".into())).show_ui(ui, |ui| {

@@ -653,6 +653,11 @@ impl Viewport {
         !self.fitted
     }
 
+    /// Камера под углами (градусы): поворот вокруг вертикали и наклон.
+    pub fn set_view(&mut self, yaw: f32, pitch: f32) {
+        (self.camera.yaw, self.camera.pitch) = (yaw.to_radians(), pitch.to_radians());
+    }
+
     /// Панель видов и режимов над окном модели — иконки, как в cadcraft.
     pub fn toolbar(&mut self, ui: &mut egui::Ui) {
         use crate::icons::{Icon, button};

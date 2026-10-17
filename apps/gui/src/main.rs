@@ -3,9 +3,11 @@
 
 use std::path::PathBuf;
 
+mod chrome;
 mod editors;
 mod expr;
 mod icons;
+mod library;
 mod tools;
 mod viewport;
 
@@ -45,6 +47,9 @@ fn main() -> eframe::Result {
         Some("front") => Pane::Front,
         Some("library") => Pane::Library,
         Some("project") => Pane::Project,
+        Some("start") => Pane::Start,
+        // Без файла — стартовая страница, как в cadcraft.
+        _ if file.is_none() => Pane::Start,
         _ => Pane::Model,
     };
     let _ = app.layout.apply(Action::Activate { panel: pane });
@@ -80,6 +85,7 @@ fn main() -> eframe::Result {
 /// Панели окна (раскладка — craft-ui docking).
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 enum Pane {
+    Start,
     Tools,
     Model,
     Front,
@@ -94,6 +100,7 @@ enum Pane {
 impl Pane {
     fn label(self) -> &'static str {
         match self {
+            Pane::Start => "Начало",
             Pane::Tools => "Инструменты",
             Pane::Model => "3D",
             Pane::Front => "Вид спереди",
@@ -119,7 +126,7 @@ fn default_layout() -> Layout<Pane> {
             second: Box::new(Node::Split {
                 axis: SplitAxis::Horizontal,
                 size: SplitSize::FixedSecond(380.0),
-                first: tabs(vec![Pane::Model, Pane::Front, Pane::Parts, Pane::Cut]),
+                first: tabs(vec![Pane::Start, Pane::Model, Pane::Front, Pane::Parts, Pane::Cut]),
                 second: Box::new(Node::Split { axis: SplitAxis::Vertical, size: SplitSize::Ratio(0.4), first: tabs(vec![Pane::Structure]), second: tabs(vec![Pane::Properties]) }),
             }),
         }),
@@ -233,7 +240,7 @@ struct Library {
     models: Vec<basis::library::ModelInfo>,
     errors: Vec<String>,
     search: String,
-    thumbs: std::collections::HashMap<PathBuf, egui::TextureHandle>,
+    thumbs: library::Thumbs,
 }
 
 impl Default for Library {
@@ -317,6 +324,18 @@ fn num(v: f64) -> String {
     if r.fract() == 0.0 { format!("{r:.0}") } else { format!("{r:.1}") }
 }
 
+/// Виды экспорта: (что, пункт меню).
+const EXPORTS: [(&str, &str); 8] = [
+    ("html", "Карты раскроя и «Панели в производство» (HTML)…"),
+    ("xml", "Проект для БАЗИС-Раскроя (XML)…"),
+    ("spec", "Спецификация (CSV)…"),
+    ("smeta", "Смета материалов (CSV)…"),
+    ("b3d", "Модель Базис-Мебельщика (.b3d)…"),
+    ("drawings", "Чертежи: сборочный и детали (HTML для печати)…"),
+    ("drawings_pdf", "Чертежи (PDF)…"),
+    ("cards_pdf", "Карты раскроя (PDF)…"),
+];
+
 /// Боковая панель: отступ от краёв и прокрутка.
 fn side(ui: &mut egui::Ui, id: &str, body: impl FnOnce(&mut egui::Ui)) {
     egui::ScrollArea::vertical().id_salt(id).show(ui, |ui| {
@@ -376,6 +395,9 @@ struct App {
     new_panel: (&'static str, f64, f64),
     /// Режим «Панель в проём» на виде спереди: плоскость, материал, отступы.
     fill: Option<FillTool>,
+    /// Открыты окна «Как пользоваться» и «О программе».
+    help: bool,
+    about: bool,
     /// Включённый инструмент изменения выделенного (палитра «Инструменты»).
     modify: Option<tools::Modify>,
     /// Облицовка: кромка, «Подрезать», припуск.
@@ -431,6 +453,8 @@ impl Default for App {
             new_panel: ("vertical", 560.0, 720.0),
             fill: None,
             modify: None,
+            help: false,
+            about: false,
             edging: (None, true, 0.0),
             contour_tool: (ContourTool::Edge, 50.0),
             fastener_kind: "Конфирмат 7х50".into(),
@@ -460,6 +484,7 @@ impl App {
                 self.session = job.project.clone().map(Session::new);
                 self.job = job;
                 self.status = format!("Открыт {}", path.display());
+                chrome::remember(&path);
                 self.path = Some(path);
                 self.error = None;
                 self.card = 0;
@@ -563,6 +588,7 @@ impl App {
             match std::fs::write(&p, s.project.save()) {
                 Ok(()) => {
                     self.status = format!("Сохранено: {}", p.display());
+                    chrome::remember(&p);
                     self.path = Some(p);
                 }
                 Err(e) => self.error = Some(format!("{}: {e}", p.display())),
@@ -661,6 +687,7 @@ impl eframe::App for App {
             let layout = self.layout.clone();
             let style = DockStyle::from_ui(ui);
             let out = DockArea::new(egui::Id::new("dock")).show(ui, &layout, &style, |p| p.label().to_string(), permissions, |ui, pane| match pane {
+                Pane::Start => self.start_page(ui),
                 Pane::Tools => side(ui, "tools", |ui| self.tools_panel(ui)),
                 Pane::Model => self.iso_view(ui, frame),
                 Pane::Front => self.front_view(ui),
@@ -681,6 +708,7 @@ impl eframe::App for App {
         if !ctx.text_edit_focused() && ui.input(|i| i.key_pressed(egui::Key::Delete)) {
             self.menu_apply(MenuAct::Delete);
         }
+        self.help_windows(&ctx);
         self.script_window(&ctx);
         self.problems_window(&ctx);
         self.take_screenshot(&ctx);
@@ -718,16 +746,7 @@ impl App {
                 ui.separator();
                 let export = button(ui, Icon::Export, S, "Экспорт: раскрой, Базис-Раскрой, спецификация, смета, .b3d, чертежи", false);
                 egui::Popup::menu(&export).show(|ui| {
-                    for (what, label) in [
-                        ("html", "Карты раскроя и «Панели в производство» (HTML)…"),
-                        ("xml", "Проект для БАЗИС-Раскроя (XML)…"),
-                        ("spec", "Спецификация (CSV)…"),
-                        ("smeta", "Смета материалов (CSV)…"),
-                        ("b3d", "Модель Базис-Мебельщика (.b3d)…"),
-                        ("drawings", "Чертежи: сборочный и детали (HTML для печати)…"),
-                        ("drawings_pdf", "Чертежи (PDF)…"),
-                        ("cards_pdf", "Карты раскроя (PDF)…"),
-                    ] {
+                    for (what, label) in EXPORTS {
                         if ui.button(label).clicked() {
                             self.export(what);
                         }
@@ -750,6 +769,7 @@ impl App {
                 }
             });
         });
+        egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
         // Сочетания клавиш, как в cadcraft и Базисе.
         let (save, undo, redo) = ui.input_mut(|i| {
             (
@@ -834,26 +854,26 @@ impl App {
             egui::Frame::group(ui.style()).fill(Color32::from_rgb(0x1f, 0x2d, 0x40)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.strong("➕ Новый материал");
-                egui::Grid::new("new_mat").num_columns(2).show(ui, |ui| {
-                    ui.label("Название");
+                editors::props(ui, "new_mat", |ui| {
+                    editors::caption(ui, "Название");
                     ui.add(egui::TextEdit::singleline(&mut nm.name).id(name_id).desired_width(ui.available_width()));
                     ui.end_row();
                     if taken {
-                        ui.label("");
+                        editors::caption(ui, "");
                         ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), "такой уже есть — введите другое название");
                         ui.end_row();
                     }
-                    ui.label("Толщина, мм");
+                    editors::caption(ui, "Толщина, мм");
                     crate::expr::add(ui, &mut nm.thickness, |d| d.range(0.1..=100.0));
                     ui.end_row();
-                    ui.label("Лист, мм");
+                    editors::caption(ui, "Лист, мм");
                     ui.horizontal(|ui| {
                         crate::expr::add(ui, &mut nm.sheet.0, |d| d.range(100.0..=6000.0));
                         ui.label("×");
                         crate::expr::add(ui, &mut nm.sheet.1, |d| d.range(100.0..=6000.0));
                     });
                     ui.end_row();
-                    ui.label("Коэффициент");
+                    editors::caption(ui, "Коэффициент");
                     crate::expr::add(ui, &mut nm.coef, |d| d.range(1.0..=3.0).speed(0.01));
                     ui.end_row();
                 });
@@ -883,19 +903,19 @@ impl App {
             egui::Frame::group(ui.style()).fill(Color32::from_rgb(0x1f, 0x2d, 0x40)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.strong("➕ Новая кромка");
-                egui::Grid::new("new_edge").num_columns(2).show(ui, |ui| {
-                    ui.label("Название");
+                editors::props(ui, "new_edge", |ui| {
+                    editors::caption(ui, "Название");
                     ui.add(egui::TextEdit::singleline(n).id(name_id).desired_width(ui.available_width()));
                     ui.end_row();
                     if taken {
-                        ui.label("");
+                        editors::caption(ui, "");
                         ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), "такая уже есть — введите другое название");
                         ui.end_row();
                     }
-                    ui.label("Толщина");
+                    editors::caption(ui, "Толщина");
                     crate::expr::add(ui, t, |d| d.range(0.1..=5.0).speed(0.1).suffix(" мм"));
                     ui.end_row();
-                    ui.label("Ширина");
+                    editors::caption(ui, "Ширина");
                     crate::expr::add(ui, w, |d| d.range(1.0..=100.0).suffix(" мм"));
                     ui.end_row();
                 });
@@ -1223,28 +1243,8 @@ impl App {
         let right = self.session.as_ref().map_or(0.0, |s| {
             s.project.cabinets.iter().map(|c| c.position[0] + c.width).chain(s.project.corners.iter().map(|c| c.position[0] + c.width_x)).fold(0.0, f64::max)
         });
-        let q = self.library.search.to_lowercase();
-        let mut place = None;
-        egui::ScrollArea::vertical().id_salt("lib").show(ui, |ui| {
-            for m in self.library.models.iter().filter(|m| q.is_empty() || m.name.to_lowercase().contains(&q) || m.kind.to_lowercase().contains(&q)) {
-                ui.horizontal(|ui| {
-                    let tex = self.library.thumbs.entry(m.path.clone()).or_insert_with(|| {
-                        let img = m.thumbnail.as_deref().and_then(decode_png).unwrap_or_else(|| egui::ColorImage::new([1, 1], vec![Color32::from_gray(230)]));
-                        ui.ctx().load_texture(m.path.display().to_string(), img, Default::default())
-                    });
-                    ui.add(egui::Image::new((tex.id(), Vec2::splat(64.0))));
-                    ui.vertical(|ui| {
-                        ui.label(&m.name);
-                        let size: Vec<String> = (0..3).map(|k| format!("{:.0}", m.hi[k] - m.lo[k])).collect();
-                        ui.weak(format!("{} · {} мм · отверстий {}", if m.kind.is_empty() { "модель" } else { &m.kind }, size.join("×"), m.holes.len()));
-                        if ui.add_enabled(editable, egui::Button::new("Поставить")).on_hover_text("Встанет справа от модулей; дальше — сдвиг в «Свойствах»").clicked() {
-                            place = Some(m.path.clone());
-                        }
-                    });
-                });
-                ui.separator();
-            }
-        });
+        let root = PathBuf::from(&self.library.dir);
+        let place = library::show(ui, &root, &self.library.models, &mut self.library.thumbs, editable, &self.library.search);
         if let Some(p) = place {
             self.exec("furniture.add", json!({ "path": p, "position": [right, 0, 0] }));
         }
@@ -1260,20 +1260,20 @@ impl App {
         let lost = design::furniture_lost_holes(&s.project).into_iter().find(|(n, _)| *n == f.name).map_or(0, |x| x.1);
         let mut cmds: Cmds = Vec::new();
         ui.heading(format!("Фурнитура «{}»", f.name));
-        egui::Grid::new("furn").num_columns(2).show(ui, |ui| {
-            ui.label("Вид");
-            ui.label(if f.kind.is_empty() { "—" } else { &f.kind });
+        editors::props(ui, "furn", |ui| {
+            editors::caption(ui, "Вид");
+            editors::value_box(ui, if f.kind.is_empty() { "—".to_string() } else { f.kind.clone() });
             ui.end_row();
-            ui.label("Файл");
-            ui.label(&f.source);
+            editors::caption(ui, "Файл");
+            editors::value_box(ui, f.source.clone());
             ui.end_row();
-            ui.label("Габарит");
-            ui.label(format!("{:.0} × {:.0} × {:.0} мм", f.hi[0] - f.lo[0], f.hi[1] - f.lo[1], f.hi[2] - f.lo[2]));
+            editors::caption(ui, "Габарит");
+            editors::value_box(ui, format!("{:.0} × {:.0} × {:.0} мм", f.hi[0] - f.lo[0], f.hi[1] - f.lo[1], f.hi[2] - f.lo[2]));
             ui.end_row();
-            ui.label("Отверстий");
-            ui.label(format!("{} (не попали в панели: {lost})", f.holes.len()));
+            editors::caption(ui, "Отверстий");
+            editors::value_box(ui, format!("{} (не попали в панели: {lost})", f.holes.len()));
             ui.end_row();
-            ui.label("Начало осей X, Y, Z");
+            editors::caption(ui, "Начало осей X, Y, Z");
             if let Some(o) = editors::position_editor(ui, fr.origin) {
                 let d: [f64; 3] = std::array::from_fn(|k| o[k] - fr.origin[k]);
                 cmds.push(("object.move", json!({ "ids": [id], "d": d })));
@@ -1415,6 +1415,17 @@ impl App {
 
     /// «Свойства» выделенной детали: её размеры и редактор объекта, которому она принадлежит.
     fn properties_panel(&mut self, ui: &mut egui::Ui) {
+        // Шапка как в cadcraft: заголовок и что выделено.
+        ui.label(egui::RichText::new("Свойства").size(17.0));
+        let n = self.selected_all().len();
+        let what = match (self.furniture_sel, self.selected(), &self.parts) {
+            (Some(_), _, _) => "Фурнитура".to_string(),
+            (None, Some(i), Ok(parts)) if n == 1 => format!("{} {}", parts[i].panel.pos, parts[i].panel.name).trim().to_string(),
+            (None, Some(_), _) => format!("Выделено деталей: {n}"),
+            _ => "Ничего не выделено".to_string(),
+        };
+        editors::value_box(ui, what);
+        ui.add_space(6.0);
         if let Some(id) = self.furniture_sel {
             self.furniture_properties(ui, id);
             return;
@@ -1426,23 +1437,23 @@ impl App {
         let part = parts[i].clone();
         let p = &part.panel;
         let (l, w) = p.cut_size();
-        egui::Grid::new("part_info").num_columns(2).show(ui, |ui| {
-            ui.label("Деталь");
-            ui.strong(format!("{} {}", p.pos, p.name));
+        editors::props(ui, "part_info", |ui| {
+            editors::caption(ui, "Деталь");
+            editors::value_box(ui, format!("{} {}", p.pos, p.name).trim().to_string());
             ui.end_row();
-            ui.label("Материал");
-            ui.label(panel::material_name(&p.material));
+            editors::caption(ui, "Материал");
+            editors::value_box(ui, panel::material_name(&p.material).to_string());
             ui.end_row();
-            ui.label("Пильный размер");
-            ui.label(format!("{} × {} × {} мм", num(l), num(w), num(p.thickness)));
+            editors::caption(ui, "Пильный размер");
+            editors::value_box(ui, format!("{} × {} × {} мм", num(l), num(w), num(p.thickness)));
             ui.end_row();
-            ui.label("Габарит в проекте");
-            ui.label(format!("{} × {} × {} мм", num(part.size[0]), num(part.size[1]), num(part.size[2])));
+            editors::caption(ui, "Габарит в проекте");
+            editors::value_box(ui, format!("{} × {} × {} мм", num(part.size[0]), num(part.size[1]), num(part.size[2])));
             ui.end_row();
-            ui.label("Начало габарита");
-            ui.label(format!("X {} Y {} Z {}", num(part.origin[0]), num(part.origin[1]), num(part.origin[2])));
+            editors::caption(ui, "Начало габарита");
+            editors::value_box(ui, format!("X {} Y {} Z {}", num(part.origin[0]), num(part.origin[1]), num(part.origin[2])));
             ui.end_row();
-            ui.label("Кромка");
+            editors::caption(ui, "Кромка");
             let edges: Vec<String> = [Side::L1, Side::L2, Side::W1, Side::W2]
                 .iter()
                 .filter_map(|&sd| {
@@ -1450,10 +1461,10 @@ impl App {
                     (t > 0.0).then(|| format!("{sd:?} {}", num(t)))
                 })
                 .collect();
-            ui.label(if edges.is_empty() { "нет".to_string() } else { edges.join(", ") });
+            editors::value_box(ui, if edges.is_empty() { "нет".to_string() } else { edges.join(", ") });
             ui.end_row();
-            ui.label("Отверстий");
-            ui.label(p.holes.len().to_string());
+            editors::caption(ui, "Отверстий");
+            editors::value_box(ui, p.holes.len().to_string());
             ui.end_row();
         });
         ui.separator();
