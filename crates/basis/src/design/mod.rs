@@ -219,12 +219,33 @@ pub struct Block {
     pub children: Vec<Object>,
 }
 
+/// Модель фурнитуры (из `.fr3d`): в раскрой не идёт, сверлит свои отверстия в панелях, к которым
+/// прижата, считается в смете по названию. Отверстия и габарит хранятся в проекте — файл может пропасть.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Furniture {
+    pub id: u32,
+    pub name: String,
+    #[serde(default)]
+    pub kind: String,
+    /// Файл, из которого поставлена модель.
+    #[serde(default)]
+    pub source: String,
+    #[serde(default)]
+    pub frame: Frame,
+    #[serde(default)]
+    pub holes: Vec<crate::panel::WorldHole>,
+    /// Габарит в осях модели.
+    pub lo: [f64; 3],
+    pub hi: [f64; 3],
+}
+
 /// Объект дерева проекта.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Object {
     Panel(FreePanel),
     Block(Block),
+    Furniture(Furniture),
 }
 
 impl Object {
@@ -232,6 +253,7 @@ impl Object {
         match self {
             Object::Panel(p) => p.id,
             Object::Block(b) => b.id,
+            Object::Furniture(f) => f.id,
         }
     }
 }
@@ -242,6 +264,7 @@ fn walk_panels<'a>(objects: &'a [Object], out: &mut Vec<&'a FreePanel>) {
         match o {
             Object::Panel(p) => out.push(p),
             Object::Block(b) => walk_panels(&b.children, out),
+            Object::Furniture(_) => {}
         }
     }
 }
@@ -268,7 +291,7 @@ fn remove(objects: &mut Vec<Object>, id: u32) -> Option<Object> {
     }
     objects.iter_mut().find_map(|o| match o {
         Object::Block(b) => remove(&mut b.children, id),
-        Object::Panel(_) => None,
+        Object::Panel(_) | Object::Furniture(_) => None,
     })
 }
 
@@ -277,6 +300,7 @@ fn max_id(objects: &[Object]) -> u32 {
         .iter()
         .map(|o| match o {
             Object::Panel(p) => p.id,
+            Object::Furniture(f) => f.id,
             Object::Block(b) => b.id.max(max_id(&b.children)),
         })
         .max()
@@ -677,6 +701,7 @@ pub fn fastener_joints(p: &Project, parts: &[Part]) -> Result<Vec<(crate::fasten
 }
 
 /// Присадка: отверстия крепежа — в детали. Отверстие за пределами детали — ошибка с объяснением.
+/// Затем отверстия моделей фурнитуры садятся в панели, к которым модель прижата.
 fn drill(p: &Project, parts: &mut [Part]) -> Result<(), String> {
     for (def, j, at) in fastener_joints(p, parts)? {
         for s in at {
@@ -685,17 +710,63 @@ fn drill(p: &Project, parts: &mut [Part]) -> Result<(), String> {
             }
         }
     }
+    furniture_drill(p, parts);
     Ok(())
+}
+
+/// Фурнитура дерева в координатах проекта.
+pub fn furniture(p: &Project) -> Vec<(Furniture, Frame)> {
+    fn walk(list: &[Object], parent: &Frame, out: &mut Vec<(Furniture, Frame)>) {
+        for o in list {
+            match o {
+                Object::Furniture(f) => out.push((f.clone(), parent.then(&f.frame))),
+                Object::Block(b) => walk(&b.children, &parent.then(&b.frame), out),
+                Object::Panel(_) => {}
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(&p.objects, &Frame::IDENTITY, &mut out);
+    out
+}
+
+/// Сажает отверстия фурнитуры в детали; возвращает число отверстий, не нашедших панель (по фурнитуре).
+fn furniture_drill(p: &Project, parts: &mut [Part]) -> Vec<(String, usize)> {
+    let mut panels: Vec<Panel> = parts.iter().map(|q| Panel { holes: Vec::new(), ..q.panel.clone() }).collect();
+    let mut lost = Vec::new();
+    for (f, fr) in furniture(p) {
+        let world: Vec<crate::panel::WorldHole> = f
+            .holes
+            .iter()
+            .map(|h| crate::panel::WorldHole { pos: fr.apply(h.pos), dir: fr.dir(h.dir), ..*h })
+            .collect();
+        let n = crate::panel::assign(&mut panels, &world);
+        if n > 0 {
+            lost.push((f.name.clone(), n));
+        }
+    }
+    for (part, panel) in parts.iter_mut().zip(panels) {
+        part.panel.holes.extend(panel.holes);
+    }
+    lost
+}
+
+/// Отверстия фурнитуры, не попавшие ни в одну панель: (фурнитура, число) — для анализа модели.
+pub fn furniture_lost_holes(p: &Project) -> Vec<(String, usize)> {
+    let Ok(mut parts) = build(p) else { return Vec::new() };
+    parts.iter_mut().for_each(|q| q.panel.holes.clear());
+    furniture_drill(p, &mut parts)
 }
 
 /// Крепёж для сметы: (название, штук).
 pub fn hardware(p: &Project) -> Result<Vec<(String, usize)>, String> {
     let parts = build(p)?;
     let mut out: Vec<(String, usize)> = Vec::new();
-    for (def, _, at) in fastener_joints(p, &parts)? {
-        match out.iter_mut().find(|(n, _)| *n == def.name) {
-            Some(r) => r.1 += at.len(),
-            None => out.push((def.name.clone(), at.len())),
+    let items = fastener_joints(p, &parts)?.into_iter().map(|(def, _, at)| (def.name, at.len())).chain(furniture(p).into_iter().map(|(f, _)| (f.name, 1)));
+    for (name, n) in items {
+        match out.iter_mut().find(|(k, _)| *k == name) {
+            Some(r) => r.1 += n,
+            None => out.push((name, n)),
         }
     }
     out.sort();
@@ -726,6 +797,8 @@ fn objects(p: &Project, owner: u32, list: &[Object], parent: &Frame, out: &mut V
                 b.frame.check().map_err(|e| format!("блок {} «{}»: {e}", b.id, b.name))?;
                 objects(p, owner, &b.children, &parent.then(&b.frame), out)?;
             }
+            // Фурнитура деталей не даёт; её отверстия сажает `drill`.
+            Object::Furniture(f) => f.frame.check().map_err(|e| format!("фурнитура {} «{}»: {e}", f.id, f.name))?,
             Object::Panel(fp) => {
                 let err = |e: String| format!("деталь {} «{}»: {e}", fp.id, fp.name);
                 let m = p.material(&fp.material).map_err(err)?;

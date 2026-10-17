@@ -68,6 +68,7 @@ fn shift(pr: &mut Project, id: u32, d: [f64; 3]) -> Result<(), String> {
         match find_mut(&mut pr.objects, id) {
             Some(Object::Panel(p)) => add(&mut p.frame.origin),
             Some(Object::Block(b)) => add(&mut b.frame.origin),
+            Some(Object::Furniture(f)) => add(&mut f.frame.origin),
             None => return Err(format!("нет объекта {id}")),
         }
     }
@@ -97,6 +98,7 @@ fn tree_frame(pr: &mut Project, id: u32) -> Result<&mut Frame, String> {
     match find_mut(&mut pr.objects, id) {
         Some(Object::Panel(p)) => Ok(&mut p.frame),
         Some(Object::Block(b)) => Ok(&mut b.frame),
+        Some(Object::Furniture(f)) => Ok(&mut f.frame),
         None => Err(format!("нет объекта {id}")),
     }
 }
@@ -127,6 +129,8 @@ fn mirror_panel(p: &mut FreePanel, axis: usize, at: f64) -> Result<(), String> {
 fn mirror_object(o: &mut Object, axis: usize, at: f64) -> Result<(), String> {
     match o {
         Object::Panel(p) => mirror_panel(p, axis, at),
+        // Зеркальная фурнитура — другое изделие (левое/правое): её ставят из библиотеки.
+        Object::Furniture(f) => Err(format!("«{}»: фурнитуру не отражают — поставьте зеркальное исполнение из библиотеки", f.name)),
         // Блок: отражаются его панели в координатах проекта, положение блока становится нулевым.
         Object::Block(b) => {
             let f = b.frame;
@@ -145,6 +149,7 @@ fn compose(o: &mut Object, parent: &Frame) {
     match o {
         Object::Panel(p) => p.frame = parent.then(&p.frame),
         Object::Block(b) => b.frame = parent.then(&b.frame),
+        Object::Furniture(f) => f.frame = parent.then(&f.frame),
     }
 }
 
@@ -170,6 +175,10 @@ fn renumber(o: &mut Object, next: &mut u32) {
     match o {
         Object::Panel(p) => {
             p.id = *next;
+            *next += 1;
+        }
+        Object::Furniture(f) => {
+            f.id = *next;
             *next += 1;
         }
         Object::Block(b) => {

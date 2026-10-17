@@ -196,6 +196,10 @@ struct Gpu {
 pub struct Viewport {
     pub camera: Camera,
     pub mode: Mode,
+    /// Фурнитура: положение, габарит в своих осях, выделена ли — рисуется рамкой.
+    pub furniture: Vec<(basis::geom::Frame, [f64; 3], [f64; 3], bool)>,
+    /// Рамки фурнитуры, с которыми построена сцена.
+    furniture_built: Vec<(basis::geom::Frame, [f64; 3], [f64; 3], bool)>,
     gpu: Option<Gpu>,
     scene: Option<Scene>,
     /// Сетка на процессоре: для выбора деталей щелчком и перекраски выделения.
@@ -214,6 +218,8 @@ impl Default for Viewport {
         Viewport {
             camera: Camera { target: [0.0; 3], yaw: yaw.to_radians(), pitch: pitch.to_radians(), mm_per_px: 2.0 },
             mode: Mode::Solid,
+            furniture: Vec::new(),
+            furniture_built: Vec::new(),
             gpu: None,
             scene: None,
             mesh: Mesh::default(),
@@ -340,7 +346,7 @@ impl Gpu {
 }
 
 impl Scene {
-    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: &[usize]) -> Scene {
+    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: &[usize], furniture: &[(basis::geom::Frame, [f64; 3], [f64; 3], bool)]) -> Scene {
         let mut tris = Vec::with_capacity(m.vertices.len() * STRIDE as usize);
         let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
         for v in &m.vertices {
@@ -388,6 +394,16 @@ impl Scene {
                 let b = f.apply(std::array::from_fn(|k| h.pos[k] + h.dir[k] * h.depth));
                 push_vertex(&mut lines, a.map(|v| v as f32), [0.0; 3], [0.85, 0.05, 0.05, 1.0]);
                 push_vertex(&mut lines, b.map(|v| v as f32), [0.0; 3], [0.85, 0.05, 0.05, 1.0]);
+                holes += 2;
+            }
+        }
+        // Фурнитура — рамкой по габариту (выделенная — оранжевой).
+        for (fr, lo, hi, sel) in furniture {
+            let c = if *sel { [1.0, 0.55, 0.1, 1.0] } else { [0.15, 0.35, 0.85, 1.0] };
+            let corner = |i: usize| fr.apply(std::array::from_fn(|k| if i >> k & 1 == 0 { lo[k] } else { hi[k] })).map(|v| v as f32);
+            for (a, b) in [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)] {
+                push_vertex(&mut lines, corner(a), [0.0; 3], c);
+                push_vertex(&mut lines, corner(b), [0.0; 3], c);
                 holes += 2;
             }
         }
@@ -476,9 +492,10 @@ impl Viewport {
             self.revision = Some(revision);
             self.selected = None;
         }
-        if self.selected.as_deref() != Some(selected) {
-            self.scene = Some(Scene::new(&rs.device, parts, &self.mesh, selected));
+        if self.selected.as_deref() != Some(selected) || self.furniture_built != self.furniture {
+            self.scene = Some(Scene::new(&rs.device, parts, &self.mesh, selected, &self.furniture));
             self.selected = Some(selected.to_vec());
+            self.furniture_built = self.furniture.clone();
         }
 
         let (rect, resp) = ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());

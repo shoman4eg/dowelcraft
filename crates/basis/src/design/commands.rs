@@ -46,6 +46,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("fastener.add", "{kind: название крепежа, a, b: номера панелей со стыком (торец одной на пласти другой), positions?: [мм вдоль стыка]} → {id}. Отверстия с координатами появятся на обеих панелях; справочник по умолчанию: «Конфирмат 7х50», «Эксцентрик Minifix 15», «Шкант 8х30», «Полкодержатель 5»"),
     ("fastener.auto", "{kind, ids?: [панели]} → {ids} — крепёж на все стыки панелей (как «Крепёж на стыки» в Базисе). У корпусов и угловых модулей — параметр fastener"),
     ("fastener.remove", "{id}"),
+    ("furniture.add", "{path: файл .fr3d, position?: [x,y,z] мин. угол габарита, name?} → {id}. Модель фурнитуры: её отверстия садятся в панели, к которым она прижата; двигать — object.move/rotate"),
     ("fastener.def", "{name, holes: [{panel: a|b, at, at_t?, at_tb?, dir, diameter, depth, depth_t?}], offset, step, min, max} — свой крепёж в справочник (координаты в системе стыка: X внутрь панели b, Y по нормали b, Z вдоль стыка)"),
     ("panel.set", "{id, name?, material?, frame?: {origin, x, y, z}, ...поля} — панель дерева объектов"),
     ("panel.remove", "{id}"),
@@ -266,6 +267,20 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
         "panel.add" => return panel_add(pr, p),
         "panel.fill" => return panel_fill(pr, p),
         "panel.edge" => return panel_edge(pr, p),
+        "furniture.add" => {
+            let path = s(p, "path")?;
+            let m = crate::library::read(std::path::Path::new(path))?;
+            let position: [f64; 3] = match p.get("position") {
+                Some(v) => serde_json::from_value(v.clone()).map_err(|e| format!("position: {e}"))?,
+                None => [0.0; 3],
+            };
+            let id = pr.next_id();
+            let name = p.get("name").and_then(Value::as_str).map_or(m.name.clone(), str::to_string);
+            // Мин. угол габарита модели встаёт в `position`.
+            let origin = std::array::from_fn(|k| position[k] - m.lo[k]);
+            pr.objects.push(Object::Furniture(Furniture { id, name, kind: m.kind, source: path.to_string(), frame: Frame { origin, ..Frame::IDENTITY }, holes: m.holes, lo: m.lo, hi: m.hi }));
+            return Ok(json!({ "id": id }));
+        }
         "fastener.add" | "fastener.remove" | "fastener.auto" | "fastener.def" => return fastener_cmd(pr, cmd, p),
         "panel.contour" | "panel.corner" | "panel.cutout" | "panel.resize" => return shape::command(pr, cmd, p),
         "object.move" | "object.rotate" | "object.mirror" | "object.copy" | "object.remove" | "block.create" | "block.explode" => return actions::command(pr, cmd, p),

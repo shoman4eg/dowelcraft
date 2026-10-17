@@ -7,6 +7,7 @@ pub mod export;
 pub mod fasteners;
 pub mod geom;
 pub mod job;
+pub mod library;
 pub mod mesh;
 pub mod nest;
 pub mod panel;

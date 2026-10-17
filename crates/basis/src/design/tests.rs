@@ -436,3 +436,35 @@ fn fasteners_between_panels() {
     let added = s.execute("fastener.auto", &json!({"kind": "Шкант 8х30"})).unwrap()["ids"].as_array().unwrap().len();
     assert_eq!(added, 1);
 }
+
+/// Фурнитура из библиотеки: отверстия садятся в прижатую панель; в смете — по названию; оторвали — анализ видит.
+#[test]
+fn furniture_drills_panels() {
+    let mut s = Session::new(Project::new("Тумба"));
+    s.execute("material.add", &json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
+    let side = s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "vertical", "size": [500, 700], "position": [0, 0, 0]})).unwrap()["id"].as_u64().unwrap() as u32;
+    // Направляющая: два шурупа ⌀4×12 влево (в стойку), модель прижата к правой пласти стойки (x = 16).
+    let hole = |z: f64| crate::panel::WorldHole { pos: [0.0, 10.0, z], dir: [-1.0, 0.0, 0.0], diameter: 4.0, depth: 12.0 };
+    s.project.objects.push(Object::Furniture(Furniture {
+        id: 50, name: "Направляющая".into(), kind: "Ящик".into(), source: String::new(),
+        frame: Frame { origin: [16.0, 100.0, 0.0], ..Frame::IDENTITY },
+        holes: vec![hole(37.0), hole(261.0)], lo: [0.0; 3], hi: [12.0, 45.0, 300.0],
+    }));
+    let parts = build(&s.project).unwrap();
+    let p = parts.iter().find(|p| p.id == side).unwrap();
+    assert_eq!(p.panel.holes.len(), 2);
+    // В осях стойки: X — глубина (z проекта), Y — высота, Z — к левой пласти; вход — на правой пласти (z = 0).
+    assert!(p.panel.holes.iter().any(|h| (h.pos[0] - 37.0).abs() < 1e-9 && (h.pos[1] - 110.0).abs() < 1e-9 && h.pos[2].abs() < 1e-9 && h.depth == 12.0), "{:?}", p.panel.holes);
+    assert_eq!(hardware(&s.project).unwrap(), vec![("Направляющая".to_string(), 1)]);
+    assert!(furniture_lost_holes(&s.project).is_empty());
+    s.execute("object.move", &json!({"ids": [50], "d": [200, 0, 0]})).unwrap();
+    assert_eq!(furniture_lost_holes(&s.project), vec![("Направляющая".to_string(), 2)]);
+    assert!(s.execute("object.mirror", &json!({"ids": [50], "axis": "x", "at": 0})).is_err());
+    // Настоящая модель из примеров ставится командой.
+    let tandem = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/telegram/Ящик_300_мм_TANDEM_BLUMOTION_част,выд_11_16_мм_30_кг.fr3d");
+    if tandem.exists() {
+        let id = s.execute("furniture.add", &json!({"path": tandem, "position": [1000, 0, 0]})).unwrap()["id"].as_u64().unwrap() as u32;
+        let f = furniture(&s.project).into_iter().find(|(f, _)| f.id == id).unwrap().0;
+        assert!(f.name.contains("TANDEM") && !f.holes.is_empty());
+    }
+}

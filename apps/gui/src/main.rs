@@ -39,6 +39,7 @@ fn main() -> eframe::Result {
         Some("parts") => Pane::Parts,
         Some("cut") => Pane::Cut,
         Some("front") => Pane::Front,
+        Some("library") => Pane::Library,
         _ => Pane::Model,
     };
     let _ = app.layout.apply(Action::Activate { panel: pane });
@@ -63,6 +64,7 @@ enum Pane {
     Structure,
     Project,
     Properties,
+    Library,
 }
 
 impl Pane {
@@ -75,6 +77,7 @@ impl Pane {
             Pane::Structure => "Структура модели",
             Pane::Project => "Проект",
             Pane::Properties => "Свойства",
+            Pane::Library => "Фурнитура",
         }
     }
 }
@@ -86,7 +89,7 @@ fn default_layout() -> Layout<Pane> {
         root: Some(Node::Split {
             axis: SplitAxis::Horizontal,
             size: SplitSize::FixedFirst(300.0),
-            first: tabs(vec![Pane::Structure, Pane::Project]),
+            first: tabs(vec![Pane::Structure, Pane::Project, Pane::Library]),
             second: Box::new(Node::Split {
                 axis: SplitAxis::Horizontal,
                 size: SplitSize::FixedSecond(380.0),
@@ -101,6 +104,41 @@ fn default_layout() -> Layout<Pane> {
 /// Панели не закрываются (иначе их не вернуть), но двигаются и отрываются.
 fn permissions(_: &Pane) -> Permissions {
     Permissions { closable: false, ..Permissions::default() }
+}
+
+/// Библиотека моделей фурнитуры в окне.
+struct Library {
+    dir: String,
+    models: Vec<basis::library::ModelInfo>,
+    errors: Vec<String>,
+    search: String,
+    thumbs: std::collections::HashMap<PathBuf, egui::TextureHandle>,
+}
+
+impl Default for Library {
+    fn default() -> Self {
+        // По умолчанию — папка с примерами проекта, если есть.
+        let dir = if std::path::Path::new("example").exists() { "example" } else { "." };
+        Library { dir: dir.into(), models: Vec::new(), errors: Vec::new(), search: String::new(), thumbs: Default::default() }
+    }
+}
+
+/// PNG → картинка egui.
+fn decode_png(data: &[u8]) -> Option<egui::ColorImage> {
+    let mut dec = png::Decoder::new(std::io::Cursor::new(data));
+    dec.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
+    let mut r = dec.read_info().ok()?;
+    let mut buf = vec![0; r.output_buffer_size()];
+    let info = r.next_frame(&mut buf).ok()?;
+    let px = &buf[..info.buffer_size()];
+    let rgba: Vec<u8> = match info.color_type {
+        png::ColorType::Rgba => px.to_vec(),
+        png::ColorType::Rgb => px.chunks(3).flat_map(|c| [c[0], c[1], c[2], 255]).collect(),
+        png::ColorType::Grayscale => px.iter().flat_map(|&g| [g, g, g, 255]).collect(),
+        png::ColorType::GrayscaleAlpha => px.chunks(2).flat_map(|c| [c[0], c[0], c[0], c[1]]).collect(),
+        _ => return None,
+    };
+    Some(egui::ColorImage::from_rgba_unmultiplied([info.width as usize, info.height as usize], &rgba))
 }
 
 /// Что делает щелчок по схеме контура панели.
@@ -181,6 +219,10 @@ struct App {
     fill: Option<FillTool>,
     /// Облицовка: кромка, «Подрезать», припуск.
     edging: (Option<String>, bool, f64),
+    /// Библиотека моделей фурнитуры: папка, найденные модели, превью (текстуры по пути), строка поиска.
+    library: Library,
+    /// Выделенная фурнитура (у неё нет деталей — выделяется отдельно).
+    furniture_sel: Option<u32>,
     /// Крепёж для установки между панелями.
     fastener_kind: String,
     /// Действие щелчка по схеме контура и его размер (радиус, катет фаски, радиус выреза), мм.
@@ -218,6 +260,8 @@ impl Default for App {
             edging: (None, true, 0.0),
             contour_tool: (ContourTool::Edge, 50.0),
             fastener_kind: "Конфирмат 7х50".into(),
+            library: Library::default(),
+            furniture_sel: None,
             screenshot: None,
             frames: 0,
             parts: Ok(Vec::new()),
@@ -347,6 +391,7 @@ impl eframe::App for App {
                 Pane::Structure => egui::ScrollArea::vertical().id_salt("structure").show(ui, |ui| self.structure_panel(ui)).inner,
                 Pane::Project => egui::ScrollArea::vertical().id_salt("project").show(ui, |ui| self.project_panel(ui)).inner,
                 Pane::Properties => egui::ScrollArea::vertical().id_salt("props").show(ui, |ui| self.properties_panel(ui)).inner,
+                Pane::Library => self.library_panel(ui),
             });
             for a in out.actions {
                 if let Err(e) = self.layout.apply_with_permissions(a, permissions) {
@@ -579,6 +624,115 @@ impl App {
         })
     }
 
+    /// «Фурнитура»: модели .fr3d из папки — превью, поиск, «Поставить».
+    fn library_panel(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("Папка");
+            ui.text_edit_singleline(&mut self.library.dir);
+            if ui.button("…").clicked()
+                && let Some(d) = rfd::FileDialog::new().pick_folder()
+            {
+                self.library.dir = d.display().to_string();
+                self.library.models.clear();
+            }
+            if ui.button("Обновить").clicked() || (self.library.models.is_empty() && self.library.errors.is_empty()) {
+                let (m, e) = basis::library::scan(std::path::Path::new(&self.library.dir));
+                (self.library.models, self.library.errors) = (m, e);
+                if self.library.models.is_empty() && self.library.errors.is_empty() {
+                    self.library.errors.push(format!("в «{}» нет моделей .fr3d", self.library.dir));
+                }
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label("Поиск");
+            ui.text_edit_singleline(&mut self.library.search);
+        });
+        for e in &self.library.errors {
+            ui.colored_label(Color32::from_rgb(200, 40, 40), e);
+        }
+        let editable = self.session.is_some();
+        let right = self.session.as_ref().map_or(0.0, |s| {
+            s.project.cabinets.iter().map(|c| c.position[0] + c.width).chain(s.project.corners.iter().map(|c| c.position[0] + c.width_x)).fold(0.0, f64::max)
+        });
+        let q = self.library.search.to_lowercase();
+        let mut place = None;
+        egui::ScrollArea::vertical().id_salt("lib").show(ui, |ui| {
+            for m in self.library.models.iter().filter(|m| q.is_empty() || m.name.to_lowercase().contains(&q) || m.kind.to_lowercase().contains(&q)) {
+                ui.horizontal(|ui| {
+                    let tex = self.library.thumbs.entry(m.path.clone()).or_insert_with(|| {
+                        let img = m.thumbnail.as_deref().and_then(decode_png).unwrap_or_else(|| egui::ColorImage::new([1, 1], vec![Color32::from_gray(230)]));
+                        ui.ctx().load_texture(m.path.display().to_string(), img, Default::default())
+                    });
+                    ui.add(egui::Image::new((tex.id(), Vec2::splat(64.0))));
+                    ui.vertical(|ui| {
+                        ui.label(&m.name);
+                        let size: Vec<String> = (0..3).map(|k| format!("{:.0}", m.hi[k] - m.lo[k])).collect();
+                        ui.weak(format!("{} · {} мм · отверстий {}", if m.kind.is_empty() { "модель" } else { &m.kind }, size.join("×"), m.holes.len()));
+                        if ui.add_enabled(editable, egui::Button::new("Поставить")).on_hover_text("Встанет справа от модулей; дальше — сдвиг в «Свойствах»").clicked() {
+                            place = Some(m.path.clone());
+                        }
+                    });
+                });
+                ui.separator();
+            }
+        });
+        if let Some(p) = place {
+            self.exec("furniture.add", json!({ "path": p, "position": [right, 0, 0] }));
+        }
+    }
+
+    /// Свойства выделенной фурнитуры: положение, отверстия, удаление.
+    fn furniture_properties(&mut self, ui: &mut egui::Ui, id: u32) {
+        let Some(s) = &self.session else { return };
+        let Some((f, fr)) = design::furniture(&s.project).into_iter().find(|(f, _)| f.id == id) else {
+            self.furniture_sel = None;
+            return;
+        };
+        let lost = design::furniture_lost_holes(&s.project).into_iter().find(|(n, _)| *n == f.name).map_or(0, |x| x.1);
+        let mut cmds: Cmds = Vec::new();
+        ui.heading(format!("Фурнитура «{}»", f.name));
+        egui::Grid::new("furn").num_columns(2).show(ui, |ui| {
+            ui.label("Вид");
+            ui.label(if f.kind.is_empty() { "—" } else { &f.kind });
+            ui.end_row();
+            ui.label("Файл");
+            ui.label(&f.source);
+            ui.end_row();
+            ui.label("Габарит");
+            ui.label(format!("{:.0} × {:.0} × {:.0} мм", f.hi[0] - f.lo[0], f.hi[1] - f.lo[1], f.hi[2] - f.lo[2]));
+            ui.end_row();
+            ui.label("Отверстий");
+            ui.label(format!("{} (не попали в панели: {lost})", f.holes.len()));
+            ui.end_row();
+            ui.label("Начало осей X, Y, Z");
+            if let Some(o) = editors::position_editor(ui, fr.origin) {
+                let d: [f64; 3] = std::array::from_fn(|k| o[k] - fr.origin[k]);
+                cmds.push(("object.move", json!({ "ids": [id], "d": d })));
+            }
+            ui.end_row();
+        });
+        if lost > 0 {
+            ui.colored_label(Color32::from_rgb(200, 40, 40), "Часть отверстий висит в воздухе: прижмите модель к панели.");
+        }
+        let (_, axis, angle, _) = &mut self.actions;
+        ui.horizontal(|ui| {
+            for a in ['x', 'y', 'z'] {
+                ui.selectable_value(axis, a, a.to_ascii_uppercase().to_string());
+            }
+            ui.add(egui::DragValue::new(angle).range(-360.0..=360.0).suffix("°"));
+            if ui.button("Повернуть").clicked() {
+                cmds.push(("object.rotate", json!({ "ids": [id], "axis": axis.to_string(), "angle": *angle, "center": fr.origin })));
+            }
+        });
+        if ui.button("Удалить фурнитуру").clicked() {
+            cmds.push(("object.remove", json!({ "ids": [id] })));
+            self.furniture_sel = None;
+        }
+        for (cmd, v) in cmds {
+            self.exec(cmd, v);
+        }
+    }
+
     /// «Крепёж»: между двумя выделенными панелями, на все стыки выделенных; крепёж этой панели.
     fn fastener_panel(&mut self, ui: &mut egui::Ui, project: &Project, panel: u32, cmds: &mut Cmds) {
         let panels: Vec<u32> = self.targets().into_iter().filter(|id| project.panels().iter().any(|p| p.id == *id)).collect();
@@ -700,6 +854,7 @@ impl App {
                 .or_else(|| pr.objects.iter().find(|o| o.id() == owner).map(|o| match o {
                     design::Object::Block(b) => format!("Блок: {}", b.name),
                     design::Object::Panel(p) => format!("Панель: {}", p.name),
+                    design::Object::Furniture(f) => format!("Фурнитура: {}", f.name),
                 }))
                 .unwrap_or_else(|| format!("Объект {owner}"))
         };
@@ -717,13 +872,33 @@ impl App {
                 }
             });
         }
+        let furniture: Vec<(u32, String)> = project.map(|p| design::furniture(p).into_iter().map(|(f, _)| (f.id, f.name)).collect()).unwrap_or_default();
+        let mut fsel = None;
+        if !furniture.is_empty() {
+            ui.separator();
+            ui.strong("Фурнитура");
+            for (id, name) in furniture {
+                if ui.selectable_label(self.furniture_sel == Some(id), name).clicked() {
+                    fsel = Some(id);
+                }
+            }
+        }
         if let Some(i) = pick {
             self.select(Some(i));
+            self.furniture_sel = None;
+        }
+        if fsel.is_some() {
+            self.furniture_sel = fsel;
+            self.selection.clear();
         }
     }
 
     /// «Свойства» выделенной детали: её размеры и редактор объекта, которому она принадлежит.
     fn properties_panel(&mut self, ui: &mut egui::Ui) {
+        if let Some(id) = self.furniture_sel {
+            self.furniture_properties(ui, id);
+            return;
+        }
         if self.selected().is_some() {
             self.actions_panel(ui);
         }
@@ -1027,6 +1202,8 @@ impl App {
         };
         let doors = self.show_doors;
         let selected = self.selected_all();
+        let boxes: Vec<(basis::geom::Frame, [f64; 3], [f64; 3], bool)> = self.session.as_ref().map(|s| design::furniture(&s.project).into_iter().map(|(f, fr)| (fr, f.lo, f.hi, self.furniture_sel == Some(f.id))).collect()).unwrap_or_default();
+        self.viewport.furniture = boxes;
         match self.viewport.show(ui, frame, parts, self.revision, &selected, |p| !doors && matches!(p.kind, design::Kind::Door | design::Kind::Drawer)) {
             viewport::Click::Part(i) => self.select(Some(i)),
             viewport::Click::Empty => self.select(None),

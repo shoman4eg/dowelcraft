@@ -135,6 +135,7 @@ fn owner_name(pr: &Project, owner: u32) -> String {
         .or_else(|| pr.objects.iter().find(|o| o.id() == owner).map(|o| match o {
             design::Object::Block(b) => b.name.clone(),
             design::Object::Panel(p) => p.name.clone(),
+            design::Object::Furniture(f) => f.name.clone(),
         }))
         .unwrap_or_else(|| format!("Блок {owner}"))
 }

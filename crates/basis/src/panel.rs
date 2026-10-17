@@ -197,34 +197,41 @@ pub fn panels(file: &File) -> Extract {
     let mut frames = Vec::new();
     if let Some(model) = file.section("Document").and_then(|d| d.get("Model")) {
         walk(model, &mut out, &mut frames, &IDENTITY, None);
-        out.holes_lost = drill(file, model, &mut out.panels, &frames);
+        out.holes_lost = assign(&mut out.panels, &world_holes(file));
     }
     out
 }
 
-/// Отверстия крепежа → плиты. Описание крепежа (`Document/FurnList`, по `FastID`) хранит отверстия
-/// в его координатах; экземпляр (Type 3001) ставит их в модель. Отверстие достаётся плите, в которую
-/// луч сверления входит не дальше `GAP` от начала (шуруп проходит сквозь планку петли, навеса и т.п.);
-/// точка входа становится началом отверстия. Отдельные отверстия (Type 3000) — так же.
-/// shortcut: проверка «внутри плиты» по габариту контура — у фигурных плит возможны лишние попадания; эталона присадки с парной моделью нет.
-fn drill(file: &File, model: &Node, panels: &mut [Panel], frames: &[Xform]) -> usize {
+/// Отверстие в координатах модели: начало, направление сверления, диаметр, глубина.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct WorldHole {
+    pub pos: [f64; 3],
+    pub dir: [f64; 3],
+    pub diameter: f64,
+    pub depth: f64,
+}
+
+/// Отверстия крепежа модели Базиса в её координатах. Описание крепежа (`Document/FurnList`, по `FastID`)
+/// хранит отверстия в его координатах; экземпляр (Type 3001) ставит их в модель. Отдельные отверстия — Type 3000.
+pub fn world_holes(file: &File) -> Vec<WorldHole> {
+    let Some(model) = file.section("Document").and_then(|d| d.get("Model")) else { return Vec::new() };
     let defs: Vec<(i64, &Node)> = file
         .section("Document")
         .and_then(|d| d.get("FurnList"))
         .map(|l| l.children.iter().filter_map(|f| Some((f.int("FastID")?, f))).collect())
         .unwrap_or_default();
-    let mut world: Vec<([f64; 3], [f64; 3], f64, f64)> = Vec::new();
+    let mut world = Vec::new();
     fn holes(n: &Node) -> impl Iterator<Item = ([f64; 3], [f64; 3], f64, f64)> + '_ {
         n.children.iter().filter(|h| h.name == "Hole").map(|h| {
             let g = |k: &str| h.f64(k).unwrap_or(0.0);
             ([g("X"), g("Y"), g("Z")], [g("DirX"), g("DirY"), g("DirZ")], 2.0 * g("Radius"), g("Depth"))
         })
     }
-    fn collect(n: &Node, parent: &Xform, defs: &[(i64, &Node)], out: &mut Vec<([f64; 3], [f64; 3], f64, f64)>) {
+    fn collect(n: &Node, parent: &Xform, defs: &[(i64, &Node)], out: &mut Vec<WorldHole>) {
         let xf = if n.get("Type").is_some() { parent.then(n) } else { *parent };
-        let mut put = |p: [f64; 3], d: [f64; 3], dia: f64, depth: f64| {
+        let mut put = |p: [f64; 3], d: [f64; 3], diameter: f64, depth: f64| {
             let r = &xf.r;
-            out.push((xf.apply(p), std::array::from_fn(|i| r[i][0] * d[0] + r[i][1] * d[1] + r[i][2] * d[2]), dia, depth));
+            out.push(WorldHole { pos: xf.apply(p), dir: std::array::from_fn(|i| r[i][0] * d[0] + r[i][1] * d[1] + r[i][2] * d[2]), diameter, depth });
         };
         match n.int("Type") {
             Some(3001) => {
@@ -245,17 +252,24 @@ fn drill(file: &File, model: &Node, panels: &mut [Panel], frames: &[Xform]) -> u
         }
     }
     collect(model, &IDENTITY, &defs, &mut world);
+    world
+}
 
+/// Отверстия → плиты: отверстие достаётся плите, в которую луч сверления входит не дальше `GAP` от начала
+/// (шуруп проходит сквозь планку петли, навеса и т.п.); точка входа становится началом отверстия.
+/// Возвращает число отверстий, не попавших ни в одну плиту.
+/// shortcut: проверка «внутри плиты» по габариту контура — у фигурных плит возможны лишние попадания.
+pub fn assign(panels: &mut [Panel], holes: &[WorldHole]) -> usize {
     let mut lost = 0;
-    'hole: for (p, d, diameter, depth) in world {
-        let inv = |f: &Xform, v: [f64; 3]| -> [f64; 3] { std::array::from_fn(|j| (0..3).map(|i| f.r[i][j] * v[i]).sum()) };
-        for (panel, f) in panels.iter_mut().zip(frames) {
-            let Some((lo, hi)) = panel.bounds() else { continue };
+    'hole: for h in holes {
+        let p = h.pos;
+        for panel in panels.iter_mut() {
+            let (Some((lo, hi)), Some(f)) = (panel.bounds(), panel.frame) else { continue };
             if (0..3).any(|k| p[k] < lo[k] - 1.0 || p[k] > hi[k] + 1.0) {
                 continue;
             }
-            let l = inv(f, std::array::from_fn(|k| p[k] - f.t[k]));
-            let ld = inv(f, d);
+            let l = f.local(p);
+            let ld = [f.x, f.y, f.z].map(|a| a[0] * h.dir[0] + a[1] * h.dir[1] + a[2] * h.dir[2]);
             let hi = [panel.size.0, panel.size.1, panel.thickness];
             // Вход луча в габарит плиты (метод плит): параметр входа и выхода по каждой оси.
             let (mut t0, mut t1) = (f64::MIN, f64::MAX);
@@ -272,7 +286,7 @@ fn drill(file: &File, model: &Node, panels: &mut [Panel], frames: &[Xform]) -> u
             }
             if (-0.5..=GAP).contains(&t0) && t1 - t0 > 0.5 {
                 let pos = std::array::from_fn(|k| l[k] + ld[k] * t0.max(0.0));
-                panel.holes.push(Hole { pos, dir: ld, diameter, depth: (depth - t0.max(0.0)).max(0.0) });
+                panel.holes.push(Hole { pos, dir: ld, diameter: h.diameter, depth: (h.depth - t0.max(0.0)).max(0.0) });
                 continue 'hole;
             }
         }
