@@ -273,8 +273,7 @@ impl App {
         let mut cmds: Vec<(&'static str, Value)> = Vec::new();
 
         ui.heading("Проект");
-        let mut name = project.name.clone();
-        if ui.text_edit_singleline(&mut name).lost_focus() && name != project.name {
+        if let Some(name) = text_field(ui, "project_name", &project.name) {
             cmds.push(("project.rename", json!({ "name": name })));
         }
 
@@ -657,14 +656,29 @@ fn save_png(path: &std::path::Path, img: &egui::ColorImage) -> Result<(), String
     w.write_image_data(&data).map_err(|e| e.to_string())
 }
 
+/// Текстовое поле с черновиком: набранное хранится, пока поле в фокусе,
+/// и возвращается по выходу из поля или Enter, если отличается от `value`.
+fn text_field(ui: &mut egui::Ui, key: impl std::hash::Hash, value: &str) -> Option<String> {
+    let id = egui::Id::new(key);
+    let mut draft = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_else(|| value.to_owned());
+    let r = ui.add(egui::TextEdit::singleline(&mut draft).id(id.with("edit")));
+    if r.lost_focus() {
+        ui.data_mut(|d| d.remove::<String>(id));
+        return (draft != value).then_some(draft);
+    }
+    if r.has_focus() {
+        ui.data_mut(|d| d.insert_temp(id, draft));
+    }
+    None
+}
+
 /// Поля корпуса. Каждое изменение — команда `cabinet.set` и т.п.
 fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet, cmds: &mut Vec<(&'static str, Value)>) {
     let id = c.id;
     let mut set = |key: &str, v: Value| cmds.push(("cabinet.set", json!({ "id": id, key: v })));
     egui::Grid::new(("cab", id)).num_columns(2).show(ui, |ui| {
-        let mut name = c.name.clone();
         ui.label("Название");
-        if ui.text_edit_singleline(&mut name).lost_focus() && name != c.name {
+        if let Some(name) = text_field(ui, ("cab_name", id), &c.name) {
             set("name", json!(name));
         }
         ui.end_row();
