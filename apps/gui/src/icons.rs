@@ -52,6 +52,8 @@ pub enum Icon {
     Gear,
     Table,
     CutSheet,
+    Eye,
+    EyeOff,
 }
 
 /// Цвета иконок: обычные линии, создаваемое (синий), точки (оранжевый).
@@ -349,6 +351,15 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, dim: bool) {
         Doors => {
             pen.carcass(4.0, 3.0, 20.0, 21.0, 0.0);
             pen.poly(&[(4.0, 3.0), (10.0, 6.0), (10.0, 24.0 - 6.0), (4.0, 21.0)], true, a);
+        }
+        Eye | EyeOff => {
+            let c = if icon == Eye { b } else { b.gamma_multiply(0.45) };
+            pen.arc(12.0, 18.0, 10.0, 35.0, 145.0, c);
+            pen.arc(12.0, 6.0, 10.0, 215.0, 325.0, c);
+            pen.c(12.0, 12.0, 2.8, c);
+            if icon == EyeOff {
+                pen.poly(&[(4.0, 20.0), (20.0, 4.0)], false, DANGER.gamma_multiply(if dim { 0.35 } else { 1.0 }));
+            }
         }
         Table => {
             pen.rect(3.0, 4.0, 18.0, 16.0, b);

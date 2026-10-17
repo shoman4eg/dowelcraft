@@ -24,7 +24,7 @@ basis-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 - **Front view:** drag the selected part — its edges snap to neighbours. A free panel has orange handles: drag them to resize.
 - **Right click** on a part — menu: delete, group into block, explode, clear selection.
 - **Del** deletes the selection. **Esc** exits a tool or clears the selection. **Ctrl+Z / Ctrl+Y** undo / redo. **Ctrl+S** saves. **Enter** applies move, rotate, etc.
-- Number fields accept expressions: `600-4`, `(800-36)/2`. Cabinet fields also accept its sizes by letter: **W** width, **H** height, **D** depth, **P** plinth, **T** material thickness; e.g. a middle partition is `(W-T)/2`. The formula becomes a number at once. Drag a field left or right to change it.
+- Number fields accept expressions: `600-4`, `(800-36)/2`. Cabinet fields also accept its sizes by letter: **W** width, **H** height, **D** depth, **P** plinth, **T** material thickness; e.g. a middle partition is `(W-T)/2` (Russian letters Ш, В, Г, Ц, Т are aliases). A free panel has **L** (length), **W**, **T**. The formula becomes a number at once. Drag a field left or right to change it.
 
 ## Projects, textures, grid
 

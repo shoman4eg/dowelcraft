@@ -1,5 +1,5 @@
 //! Числовые поля с вычислением выражений: можно набрать `600-4`, `720+18`, `(800-36)/2`, «600 мм + 100»,
-//! а в редакторе корпуса — его размеры буквами: `Ш/2`, `В-100`, `Г-Т` (как формулы в Базисе).
+//! а в редакторе корпуса — его размеры буквами: `W/2`, `H-100`, `D-T` (русские `Ш`, `В`, `Г`, `Т` — синонимы).
 //! Вычислитель взят из QuadFurn (github.com/rbm13s/QuadFurn, `src/ui_panels.rs`) с разрешения автора.
 
 use std::cell::RefCell;
@@ -49,7 +49,11 @@ fn substitute(input: &str) -> Option<String> {
 
 /// Подсказка к числовому полю: что можно написать.
 fn formula_help() -> String {
-    let vars = VARS.with(|v| v.borrow().iter().map(|(names, x, what)| format!("{} — {what} ({x})", names[0])).collect::<Vec<_>>());
+    // Основное имя — английское, русское — в скобках как синоним: «W (Ш) — ширина (800)».
+    let vars = VARS.with(|v| v.borrow().iter().map(|(names, x, what)| {
+        let alias = if names.len() > 1 { format!(" ({})", names[1..].join(", ")) } else { String::new() };
+        format!("{}{alias} — {} ({x})", names[0], crate::i18n::t(what))
+    }).collect::<Vec<_>>());
     let mut s = crate::i18n::t("Щёлкните, чтобы ввести число или формулу: 600-4, (800-36)/2. Тяните влево-вправо, чтобы менять.");
     if !vars.is_empty() {
         s.push('\n');
@@ -270,7 +274,7 @@ mod tests {
     /// Переменные редактора: Ш/2, В-100, «ш» строчной; неизвестное слово — ошибка.
     #[test]
     fn variables_in_formulas() {
-        with_vars(vec![(&["Ш", "W"][..], 800.0, "ширина"), (&["Т", "T"][..], 16.0, "толщина")], || {
+        with_vars(vec![(&["W", "Ш"][..], 800.0, "ширина"), (&["T", "Т"][..], 16.0, "толщина")], || {
             assert_eq!(eval_math_expression("Ш/2"), Some(400.0));
             assert_eq!(eval_math_expression("ш-2*Т"), Some(768.0));
             assert_eq!(eval_math_expression("(W - T) / 2 мм"), Some(392.0));

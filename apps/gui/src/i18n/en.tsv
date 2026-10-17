@@ -395,3 +395,12 @@
 Карты раскроя листов	Sheet cutting maps
 Щёлкните, чтобы ввести число или формулу: 600-4, (800-36)/2. Тяните влево-вправо, чтобы менять.	Click to type a number or a formula: 600-4, (800-36)/2. Drag left or right to change.
 В формуле можно: 	In a formula you can use: 
+ширина	width
+высота	height
+глубина	depth
+цоколь	plinth
+толщина материала	material thickness
+крыло X	wing X
+крыло Z	wing Z
+длина	length
+толщина	thickness
