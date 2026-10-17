@@ -337,3 +337,46 @@ fn contour_editing() {
     assert_eq!(p.panel.size, (100.0, 50.0));
     assert_eq!(p.origin, [3010.0, 0.0, 10.0]);
 }
+
+/// Действия с объектами: сдвиг, поворот на 90° (точно), зеркало с копией, массив, блок, удаление.
+#[test]
+fn object_actions() {
+    let mut s = wardrobe();
+    let id = |v: Value| v["id"].as_u64().unwrap() as u32;
+    let p1 = id(s.execute("panel.add", &json!({"material": "ЛДСП Белый 16", "plane": "front", "size": [300, 200], "position": [2000, 0, 0]})).unwrap());
+    s.execute("panel.corner", &json!({"id": p1, "at": [300, 200], "radius": 50})).unwrap();
+    let part = |s: &Session, i: u32| build(&s.project).unwrap().into_iter().find(|p| p.id == i).unwrap();
+    // Сдвиг шаблона и панели.
+    s.execute("object.move", &json!({"ids": [1, p1], "d": [100, 0, -50]})).unwrap();
+    assert_eq!(s.project.cabinets[0].position, [100.0, 0.0, -50.0]);
+    assert_eq!(part(&s, p1).origin, [2100.0, 0.0, -50.0]);
+    // Поворот на 90° вокруг Y: оси точные, габарит повёрнут.
+    s.execute("object.rotate", &json!({"ids": [p1], "axis": "y", "angle": 90, "center": [2100, 0, -50]})).unwrap();
+    let f = part(&s, p1).panel.frame.unwrap();
+    assert!(f.x.iter().chain(&f.y).chain(&f.z).all(|v| [0.0, 1.0, -1.0].contains(v)), "{f:?}");
+    assert_eq!(part(&s, p1).size, [16.0, 200.0, 300.0]);
+    assert!(s.execute("object.rotate", &json!({"ids": [1], "axis": "y", "angle": 90})).unwrap_err().contains("Разрушить"));
+    // Зеркальная копия плоскостью x = 3000: тот же габарит, отражённый; скругление — на другой стороне.
+    let before = part(&s, p1);
+    let m = s.execute("object.mirror", &json!({"ids": [p1], "axis": "x", "at": 3000, "copy": true})).unwrap()["ids"][0].as_u64().unwrap() as u32;
+    let after = part(&s, m);
+    assert_eq!(after.size, before.size);
+    assert_eq!(after.origin[0], 6000.0 - before.origin[0] - before.size[0]);
+    after.panel.frame.unwrap().check().unwrap();
+    assert!(crate::mesh::build(&[after.clone()], |_| false).errors.is_empty());
+    // Пильный размер и кромка зеркальной копии — те же.
+    assert_eq!(after.panel.cut_size(), before.panel.cut_size());
+    // Массив: 3 копии корпуса через 800 мм.
+    let ids = s.execute("object.copy", &json!({"ids": [1], "d": [800, 0, 0], "count": 3})).unwrap()["ids"].clone();
+    assert_eq!(ids.as_array().unwrap().len(), 3);
+    assert_eq!(s.project.cabinets.last().unwrap().position[0], 100.0 + 2400.0);
+    // Блок из двух панелей; разрушение возвращает их на место.
+    let b = id(s.execute("block.create", &json!({"ids": [p1, m], "name": "Боковины"})).unwrap());
+    s.execute("block.set", &json!({"id": b, "frame": {"origin": [0, 100, 0], "x": [1, 0, 0], "y": [0, 1, 0], "z": [0, 0, 1]}})).unwrap();
+    let lifted = part(&s, p1).origin;
+    s.execute("block.explode", &json!({"id": b})).unwrap();
+    assert_eq!(part(&s, p1).origin, lifted);
+    assert!(s.execute("block.create", &json!({"ids": [1]})).is_err());
+    s.execute("object.remove", &json!({"ids": [p1, 1]})).unwrap();
+    assert!(s.project.cabinets.iter().all(|c| c.id != 1));
+}

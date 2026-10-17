@@ -36,6 +36,13 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("panel.corner", "{id, at: [x, y] вершина контура, radius? | chamfer?} — скругление или фаска угла между двумя отрезками"),
     ("panel.cutout", "{id, center: [x, y], radius? | size?: [w, h]} — круглый или прямоугольный вырез"),
     ("panel.contour", "{id, segs: [{Line:{a,b}} | {Arc:{a,b,c,ccw}} | {Circle:{c,r}}]} — контур целиком (в осях панели); проверяется замкнутость и самопересечения"),
+    ("object.move", "{ids: [номера], d: [dx, dy, dz]} — сдвиг корпусов, модулей, столешниц, панелей, блоков"),
+    ("object.rotate", "{ids, axis: x|y|z, angle: градусы, center?: [x,y,z]} — поворот панелей и блоков (шаблоны — после «Разрушить»)"),
+    ("object.mirror", "{ids, axis: x|y|z, at: координата плоскости, copy?: true — зеркальная копия} → {ids}"),
+    ("object.copy", "{ids, d: [dx, dy, dz], count?: n} → {ids} — копии со сдвигом d, 2d, … (массив)"),
+    ("object.remove", "{ids} — удалить объекты"),
+    ("block.create", "{ids, name?} → {id} — собрать панели и блоки в блок"),
+    ("block.explode", "{id} — разрушить блок: содержимое выходит в корень проекта"),
     ("panel.set", "{id, name?, material?, frame?: {origin, x, y, z}, ...поля} — панель дерева объектов"),
     ("panel.remove", "{id}"),
     ("block.set", "{id, name?, frame?} — блок дерева объектов"),
@@ -256,6 +263,7 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
         "panel.fill" => return panel_fill(pr, p),
         "panel.edge" => return panel_edge(pr, p),
         "panel.contour" | "panel.corner" | "panel.cutout" | "panel.resize" => return shape::command(pr, cmd, p),
+        "object.move" | "object.rotate" | "object.mirror" | "object.copy" | "object.remove" | "block.create" | "block.explode" => return actions::command(pr, cmd, p),
         "cabinet.explode" | "corner.explode" | "countertop.explode" => return explode(pr, idx(p, "id")? as u32),
         "panel.set" | "block.set" => {
             let id = idx(p, "id")? as u32;

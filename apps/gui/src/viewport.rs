@@ -200,7 +200,7 @@ pub struct Viewport {
     mesh: Mesh,
     /// Ревизия деталей, по которой построена сетка, и выделение, с которым построена сцена.
     revision: Option<u64>,
-    selected: Option<Option<usize>>,
+    selected: Option<Vec<usize>>,
     /// Детали, контур которых не построился: (имя, причина).
     pub errors: Vec<(String, String)>,
     fitted: bool,
@@ -338,11 +338,11 @@ impl Gpu {
 }
 
 impl Scene {
-    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: Option<usize>) -> Scene {
+    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: &[usize]) -> Scene {
         let mut tris = Vec::with_capacity(m.vertices.len() * STRIDE as usize);
         let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
         for v in &m.vertices {
-            let c = if Some(v.part as usize) == selected { SELECTED } else { color(m.kinds[v.part as usize]) };
+            let c = if selected.contains(&(v.part as usize)) { SELECTED } else { color(m.kinds[v.part as usize]) };
             push_vertex(&mut tris, v.pos, v.normal, [c[0], c[1], c[2], 1.0]);
             for k in 0..3 {
                 lo[k] = lo[k].min(v.pos[k]);
@@ -444,7 +444,7 @@ impl Viewport {
 
     /// Окно модели. `revision` меняется, когда меняются детали — тогда сетка строится заново.
     /// Возвращает щелчок: по детали или по пустому месту.
-    pub fn show(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame, parts: &[Part], revision: u64, selected: Option<usize>, skip: impl Fn(&Part) -> bool) -> Click {
+    pub fn show(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame, parts: &[Part], revision: u64, selected: &[usize], skip: impl Fn(&Part) -> bool) -> Click {
         let Some(rs) = frame.wgpu_render_state() else {
             ui.label("3D недоступно: окно запущено без видеокарты (wgpu).");
             return Click::None;
@@ -461,9 +461,9 @@ impl Viewport {
             self.revision = Some(revision);
             self.selected = None;
         }
-        if self.selected != Some(selected) {
+        if self.selected.as_deref() != Some(selected) {
             self.scene = Some(Scene::new(&rs.device, parts, &self.mesh, selected));
-            self.selected = Some(selected);
+            self.selected = Some(selected.to_vec());
         }
 
         let (rect, resp) = ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());

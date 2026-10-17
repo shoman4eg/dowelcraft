@@ -159,7 +159,14 @@ struct App {
     job: Job,
     path: Option<PathBuf>,
     layout: Layout<Pane>,
-    selection: Option<Sel>,
+    /// Выделенные детали; последняя — основная (её свойства показываются).
+    selection: Vec<Sel>,
+    /// Параметры действий с выделенным: сдвиг/копия (dx, dy, dz), ось, угол, число копий.
+    actions: ([f64; 3], char, f64, u32),
+    /// Перетаскивание на виде спереди: сдвиг в мм.
+    drag: Option<[f64; 2]>,
+    /// Нажат Ctrl (на этом кадре): щелчок добавляет к выделению.
+    ctx_ctrl: bool,
     params: Params,
     cuts: Vec<MaterialCut>,
     card: usize,
@@ -192,7 +199,10 @@ impl Default for App {
             job: Job::from_project(Project::new("Новый проект")),
             path: None,
             layout: default_layout(),
-            selection: None,
+            selection: Vec::new(),
+            actions: ([0.0; 3], 'x', 90.0, 1),
+            drag: None,
+            ctx_ctrl: false,
             params: Params { sheet: (2800.0, 2070.0), kerf: 4.0, trim: 10.0 },
             cuts: Vec::new(),
             card: 0,
@@ -306,6 +316,7 @@ impl App {
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        self.ctx_ctrl = ui.input(|i| i.modifiers.command);
         let ctx = ui.ctx().clone();
         self.top_bar(ui);
         egui::Panel::bottom("status").show(ui, |ui| match &self.error {
@@ -506,24 +517,129 @@ impl App {
     }
 
     /// Выделить деталь по индексу (или снять выделение).
+    /// Выделить деталь (или снять выделение). С Ctrl — добавить к выделению или убрать из него.
     fn select(&mut self, part: Option<usize>) {
-        self.selection = match (&self.parts, part) {
-            (Ok(parts), Some(i)) if i < parts.len() => Some(Sel::of(parts, i)),
-            _ => None,
-        };
+        let add = self.ctx_ctrl;
+        let Ok(parts) = &self.parts else { return };
+        let sel = part.filter(|&i| i < parts.len()).map(|i| Sel::of(parts, i));
+        match (sel, add) {
+            (Some(s), true) => {
+                if let Some(k) = self.selection.iter().position(|x| *x == s) {
+                    self.selection.remove(k);
+                } else {
+                    self.selection.push(s);
+                }
+            }
+            (Some(s), false) => self.selection = vec![s],
+            (None, true) => {}
+            (None, false) => self.selection.clear(),
+        }
     }
 
+    /// Основная выделенная деталь.
     fn selected(&self) -> Option<usize> {
-        self.selection.and_then(|s| s.find(self.parts.as_ref().ok()?))
+        self.selection.last().and_then(|s| s.find(self.parts.as_ref().ok()?))
+    }
+
+    /// Все выделенные детали.
+    fn selected_all(&self) -> Vec<usize> {
+        let Ok(parts) = &self.parts else { return Vec::new() };
+        self.selection.iter().filter_map(|s| s.find(parts)).collect()
+    }
+
+    /// Объекты для действий: панель дерева — сама, деталь шаблона — весь шаблон.
+    fn targets(&self) -> Vec<u32> {
+        let Ok(parts) = &self.parts else { return Vec::new() };
+        let mut ids: Vec<u32> = Vec::new();
+        for i in self.selected_all() {
+            let id = if parts[i].id != 0 { parts[i].id } else { parts[i].owner };
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+        ids
+    }
+
+    /// Габарит выделенного: (мин, макс).
+    fn selection_bounds(&self) -> Option<([f64; 3], [f64; 3])> {
+        let parts = self.parts.as_ref().ok()?;
+        self.selected_all().iter().map(|&i| &parts[i]).fold(None, |acc, p| {
+            let (lo, hi) = acc.unwrap_or(([f64::MAX; 3], [f64::MIN; 3]));
+            Some((std::array::from_fn(|k| lo[k].min(p.origin[k])), std::array::from_fn(|k| hi[k].max(p.origin[k] + p.size[k]))))
+        })
+    }
+
+    /// «Действия с выделенным» (как гл. 14 руководства Базиса).
+    fn actions_panel(&mut self, ui: &mut egui::Ui) {
+        let ids = self.targets();
+        if ids.is_empty() || self.session.is_none() {
+            return;
+        }
+        let Some((lo, hi)) = self.selection_bounds() else { return };
+        let center: [f64; 3] = std::array::from_fn(|k| ((lo[k] + hi[k]) / 2.0).round());
+        let mut cmds: Cmds = Vec::new();
+        egui::CollapsingHeader::new(format!("Действия с выделенным ({})", ids.len())).default_open(true).show(ui, |ui| {
+            let (d, axis, angle, count) = &mut self.actions;
+            ui.horizontal(|ui| {
+                ui.label("dX, dY, dZ");
+                for v in d.iter_mut() {
+                    ui.add(egui::DragValue::new(v).speed(1.0).suffix(" мм"));
+                }
+            });
+            ui.horizontal(|ui| {
+                if ui.button("Сдвинуть").clicked() {
+                    cmds.push(("object.move", json!({ "ids": ids, "d": *d })));
+                }
+                ui.add(egui::DragValue::new(count).range(1..=100).prefix("копий "));
+                if ui.button("Копировать").on_hover_text("Копии со сдвигом dX, dY, dZ, 2·d, … (массив)").clicked() {
+                    cmds.push(("object.copy", json!({ "ids": ids, "d": *d, "count": *count })));
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Ось");
+                for a in ['x', 'y', 'z'] {
+                    ui.selectable_value(axis, a, a.to_ascii_uppercase().to_string());
+                }
+                ui.add(egui::DragValue::new(angle).range(-360.0..=360.0).suffix("°"));
+                if ui.button("Повернуть").on_hover_text("Вокруг центра выделенного").clicked() {
+                    cmds.push(("object.rotate", json!({ "ids": ids, "axis": axis.to_string(), "angle": *angle, "center": center })));
+                }
+            });
+            let k = match axis { 'x' => 0, 'y' => 1, _ => 2 };
+            ui.horizontal(|ui| {
+                if ui.button("Отразить").on_hover_text("Плоскостью через центр выделенного поперёк выбранной оси").clicked() {
+                    cmds.push(("object.mirror", json!({ "ids": ids, "axis": axis.to_string(), "at": center[k] })));
+                }
+                if ui.button("Зеркальная копия").on_hover_text("Копия, отражённая плоскостью по правому (верхнему, переднему) краю выделенного").clicked() {
+                    cmds.push(("object.mirror", json!({ "ids": ids, "axis": axis.to_string(), "at": hi[k], "copy": true })));
+                }
+            });
+            ui.horizontal(|ui| {
+                if ui.button("Собрать в блок").clicked() {
+                    cmds.push(("block.create", json!({ "ids": ids })));
+                }
+                if ui.button("Удалить").clicked() {
+                    cmds.push(("object.remove", json!({ "ids": ids })));
+                }
+            });
+        });
+        for (cmd, v) in cmds {
+            self.exec(cmd, v);
+            if cmd == "object.remove" {
+                self.selection.clear();
+            }
+        }
+        ui.separator();
     }
 
     /// «Структура модели»: шаблоны (корпуса, угловые модули, столешницы) и дерево панелей и блоков.
     fn structure_panel(&mut self, ui: &mut egui::Ui) {
         let Ok(parts) = &self.parts else { return };
         let sel = self.selected();
+        let all = self.selected_all();
         let mut pick = None;
         let mut row = |ui: &mut egui::Ui, i: usize, text: String| {
-            if ui.selectable_label(sel == Some(i), text).clicked() {
+            if ui.selectable_label(all.contains(&i), text).clicked() {
                 pick = Some(i);
             }
         };
@@ -567,8 +683,11 @@ impl App {
 
     /// «Свойства» выделенной детали: её размеры и редактор объекта, которому она принадлежит.
     fn properties_panel(&mut self, ui: &mut egui::Ui) {
+        if self.selected().is_some() {
+            self.actions_panel(ui);
+        }
         let (Ok(parts), Some(i)) = (&self.parts, self.selected()) else {
-            ui.weak("Выделите деталь щелчком в 3D, на виде спереди или в структуре модели.");
+            ui.weak("Выделите деталь щелчком в 3D, на виде спереди или в структуре модели. Ctrl+щелчок — добавить к выделению.");
             return;
         };
         let part = parts[i].clone();
@@ -751,18 +870,30 @@ impl App {
         }
         let rects = design::front_view(&parts, self.show_doors);
         let Some((lo, hi)) = design::bounds(&rects) else { return };
-        let (resp, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::click());
+        let (resp, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::click_and_drag());
         let area = resp.rect.shrink(30.0);
         let k = ((area.width() as f64) / (hi[0] - lo[0]).max(1.0)).min((area.height() as f64) / (hi[1] - lo[1]).max(1.0));
         let to = |x: f64, y: f64| Pos2::new(area.left() + ((x - lo[0]) * k) as f32, area.bottom() - ((y - lo[1]) * k) as f32);
         painter.rect_filled(resp.rect, 0.0, Color32::from_gray(245));
-        let selected = self.selected();
+        let selected = self.selected_all();
+        // Перетаскивание выделенного: сдвиг в мм с прилипанием краёв к краям других деталей (порог 10 пикселей).
+        let moving = self.drag.map(|d| {
+            let (lo, hi) = self.selection_bounds().unwrap_or(([0.0; 3], [0.0; 3]));
+            let snap = |axis: usize, d: f64| -> f64 {
+                let tol = 10.0 / k;
+                let edges = parts.iter().enumerate().filter(|(i, _)| !selected.contains(i)).flat_map(|(_, p)| [p.origin[axis], p.origin[axis] + p.size[axis]]);
+                let best = edges.flat_map(|e| [e - (lo[axis] + d), e - (hi[axis] + d)]).filter(|c| c.abs() < tol).min_by(|a, b| a.abs().total_cmp(&b.abs()));
+                (d + best.unwrap_or(0.0)).round()
+            };
+            [snap(0, d[0]), snap(1, d[1])]
+        });
         // Ближайшая к зрителю деталь под курсором — последняя нарисованная.
         let mut hovered: Option<usize> = None;
         for fr in &rects {
-            let r = Rect::from_two_pos(to(fr.x, fr.y), to(fr.x + fr.w, fr.y + fr.h));
+            let mv = moving.filter(|_| selected.contains(&fr.part)).unwrap_or([0.0; 2]);
+            let r = Rect::from_two_pos(to(fr.x + mv[0], fr.y + mv[1]), to(fr.x + fr.w + mv[0], fr.y + fr.h + mv[1]));
             let fill = match fr.kind {
-                _ if Some(fr.part) == selected => Color32::from_rgb(255, 170, 70),
+                _ if selected.contains(&fr.part) => Color32::from_rgb(255, 170, 70),
                 design::Kind::Door | design::Kind::Drawer => Color32::from_rgba_unmultiplied(170, 200, 230, 150),
                 design::Kind::Back => Color32::from_gray(225),
                 design::Kind::Body => Color32::from_rgb(236, 220, 190),
@@ -811,6 +942,25 @@ impl App {
         if resp.clicked() {
             self.select(hovered);
         }
+        if resp.drag_started() && hovered.is_some_and(|h| selected.contains(&h)) && self.session.is_some() {
+            self.drag = Some([0.0; 2]);
+        }
+        if let Some(d) = &mut self.drag {
+            let delta = resp.drag_delta();
+            d[0] += delta.x as f64 / k;
+            d[1] -= delta.y as f64 / k;
+            if let Some(m) = moving {
+                painter.text(resp.rect.left_top() + Vec2::new(8.0, 8.0), egui::Align2::LEFT_TOP, format!("сдвиг: X {} Y {}", m[0], m[1]), egui::FontId::proportional(14.0), Color32::from_rgb(160, 70, 0));
+            }
+            if resp.drag_stopped() {
+                self.drag = None;
+                if let Some(m) = moving.filter(|m| *m != [0.0, 0.0]) {
+                    let ids = self.targets();
+                    self.exec("object.move", json!({ "ids": ids, "d": [m[0], m[1], 0.0] }));
+                }
+            }
+            return;
+        }
         if let Some(i) = hovered {
             let p = &parts[i];
             let (l, w) = p.panel.cut_size();
@@ -834,8 +984,8 @@ impl App {
             }
         };
         let doors = self.show_doors;
-        let selected = self.selected();
-        match self.viewport.show(ui, frame, parts, self.revision, selected, |p| !doors && matches!(p.kind, design::Kind::Door | design::Kind::Drawer)) {
+        let selected = self.selected_all();
+        match self.viewport.show(ui, frame, parts, self.revision, &selected, |p| !doors && matches!(p.kind, design::Kind::Door | design::Kind::Drawer)) {
             viewport::Click::Part(i) => self.select(Some(i)),
             viewport::Click::Empty => self.select(None),
             viewport::Click::None => {}
