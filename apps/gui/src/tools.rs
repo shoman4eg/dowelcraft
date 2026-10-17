@@ -47,7 +47,7 @@ enum Pick {
 
 /// Группа палитры: заголовок и иконки в строку с переносом.
 fn group(ui: &mut egui::Ui, title: &str, body: impl FnOnce(&mut egui::Ui)) {
-    egui::CollapsingHeader::new(egui::RichText::new(title).strong()).default_open(true).show(ui, |ui| {
+    egui::CollapsingHeader::new(egui::RichText::new(crate::i18n::t(title)).strong()).default_open(true).show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
             body(ui);
@@ -63,9 +63,9 @@ impl App {
         let deletable = !self.delete_targets().is_empty();
         let explodable = self.targets().iter().any(|&id| self.explode_cmd(id).is_some());
         if !editable {
-            ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), "Модель Базиса открыта для просмотра. Нажмите замок вверху, чтобы её менять.");
+            ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), crate::i18n::t("Модель Базиса открыта для просмотра. Нажмите замок вверху, чтобы её менять."));
         } else if !has_material {
-            ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), "Сначала добавьте материал на вкладке «Проект» — без него модули не создаются.");
+            ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), crate::i18n::t("Сначала добавьте материал на вкладке «Проект» — без него модули не создаются."));
         }
         let fill = self.fill.as_ref().map(|f| f.plane);
         let mut pick = None;
@@ -252,7 +252,7 @@ impl App {
             "door" => "Дверь в проём",
             _ => "Ящики в проём",
         };
-        ui.strong(title);
+        ui.strong(crate::i18n::t(title));
         crate::editors::props(ui, "fill_params", |ui| {
             crate::editors::caption(ui, "Материал");
             if let Some(Some(m)) = crate::editors::choose(ui, "fill_mat", Some(&t.material), &names, false) {
@@ -263,16 +263,16 @@ impl App {
                 crate::editors::caption(ui, "Установка");
                 ui.horizontal_wrapped(|ui| {
                     for (m, label) in [("overlay", "накладная"), ("half", "полунакладная"), ("inset", "вкладная")] {
-                        ui.selectable_value(&mut t.mount, m, label);
+                        ui.selectable_value(&mut t.mount, m, crate::i18n::t(label));
                     }
                 });
                 ui.end_row();
                 if t.plane == "door" {
                     crate::editors::caption(ui, "Створки");
-                    ui.checkbox(&mut t.double, "двойная");
+                    ui.checkbox(&mut t.double, crate::i18n::t("двойная"));
                 } else {
                     crate::editors::caption(ui, "Фасады, мм");
-                    ui.add(egui::TextEdit::singleline(&mut t.heights).desired_width(120.0)).on_hover_text("Высоты фасадов снизу вверх через пробел");
+                    ui.add(egui::TextEdit::singleline(&mut t.heights).desired_width(120.0)).on_hover_text(crate::i18n::t("Высоты фасадов снизу вверх через пробел"));
                 }
                 ui.end_row();
                 return;
@@ -284,7 +284,7 @@ impl App {
             };
             for (g, l) in t.gaps.iter_mut().zip(labels) {
                 crate::editors::caption(ui, l);
-                crate::expr::add(ui, g, |d| d.range(-100.0..=500.0).suffix(" мм"));
+                crate::expr::add(ui, g, |d| d.range(-100.0..=500.0).suffix(crate::i18n::t(" мм")));
                 ui.end_row();
             }
         });
@@ -293,10 +293,10 @@ impl App {
     /// Параметры сдвига, копии, поворота, отражения и кнопка «Применить» (или Enter).
     fn modify_params(&mut self, ui: &mut egui::Ui) {
         let Some(m) = self.modify else { return };
-        ui.strong(m.title());
+        ui.strong(crate::i18n::t(m.title()));
         let ids = self.targets();
         if ids.is_empty() {
-            ui.weak("Выделите детали щелчком — потом «Применить».");
+            ui.weak(crate::i18n::t("Выделите детали щелчком — потом «Применить»."));
             return;
         }
         let Some((lo, hi)) = self.selection_bounds() else { return };
@@ -307,7 +307,7 @@ impl App {
                 Modify::Move | Modify::Copy => {
                     for (k, l) in ["dX", "dY", "dZ"].iter().enumerate() {
                         crate::editors::caption(ui, l);
-                        crate::expr::add(ui, &mut d[k], |d| d.speed(1.0).suffix(" мм"));
+                        crate::expr::add(ui, &mut d[k], |d| d.speed(1.0).suffix(crate::i18n::t(" мм")));
                         ui.end_row();
                     }
                     if m == Modify::Copy {
@@ -337,7 +337,7 @@ impl App {
             'y' => 1,
             _ => 2,
         };
-        let apply = ui.button("Применить (Enter)").clicked() || (!ui.ctx().text_edit_focused() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
+        let apply = ui.button(crate::i18n::t("Применить (Enter)")).clicked() || (!ui.ctx().text_edit_focused() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
         if !apply {
             return;
         }

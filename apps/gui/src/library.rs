@@ -45,11 +45,11 @@ fn row(ui: &mut egui::Ui, m: &ModelInfo, thumbs: &mut Thumbs, editable: bool, pa
         ui.vertical(|ui| {
             ui.label(&m.name);
             let size: Vec<String> = (0..3).map(|k| format!("{:.0}", m.hi[k] - m.lo[k])).collect();
-            ui.weak(format!("{} · {} мм · отверстий {}", if m.kind.is_empty() { "модель" } else { &m.kind }, size.join("×"), m.holes.len()));
+            ui.weak(crate::i18n::t(format!("{} · {} мм · отверстий {}", if m.kind.is_empty() { "модель" } else { &m.kind }, size.join("×"), m.holes.len())));
             if let Some(p) = path {
-                ui.weak(format!("папка: {p}"));
+                ui.weak(crate::i18n::t(format!("папка: {p}")));
             }
-            place = ui.add_enabled(editable, egui::Button::new("Поставить")).on_hover_text("Встанет справа от модулей; дальше — сдвиг в «Свойствах»").clicked();
+            place = ui.add_enabled(editable, egui::Button::new(crate::i18n::t("Поставить"))).on_hover_text(crate::i18n::t("Встанет справа от модулей; дальше — сдвиг в «Свойствах»")).clicked();
         });
     });
     place
@@ -76,7 +76,7 @@ pub fn show(ui: &mut egui::Ui, roots: &[PathBuf], models: &[ModelInfo], thumbs: 
     egui::ScrollArea::vertical().id_salt("lib").show(ui, |ui| {
         if !q.is_empty() {
             let found: Vec<&ModelInfo> = models.iter().filter(|m| m.name.to_lowercase().contains(&q) || m.kind.to_lowercase().contains(&q)).collect();
-            ui.weak(format!("Найдено: {}", found.len()));
+            ui.weak(crate::i18n::t(format!("Найдено: {}", found.len())));
             for m in found {
                 let path = folders(roots, m).join(" / ");
                 if row(ui, m, thumbs, editable, Some(&path)) {

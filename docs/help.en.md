@@ -1,0 +1,55 @@
+# How to use basis-craft
+
+basis-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, shelving. From the model it computes the parts, the sheet cutting, the specification and the drawings. Bazis-Mebelshchik files (.b3d, .fr3d) can be opened and saved.
+
+## The window
+
+- **Top** — the icon bar (new, open, save, undo, export, analysis) and the menus “File”, “Edit”, “View”, “Insert”, “Modify”, “Tools”, “Help”.
+- **Left** — the “Tools” palette (what you can create and how to change it), “Project” (materials and edge banding), “Hardware” (model library by folders).
+- **Centre** — “3D”, “Front view”, “Parts” (table), “Cutting” (sheet maps).
+- **Right** — “Model structure” (what the item consists of) and “Properties” of the selection.
+- **Bottom** — a hint about what to do next. Hover an icon and the same line tells what it does.
+
+## Your first furniture in 5 steps
+
+1. **Material.** “Project” → “New material”: name (for example “Chipboard 16”), thickness, sheet size → “Add material”. Modules cannot be created without a material. Add edge banding there too.
+2. **Cabinet.** “Tools” → “Modules” → the floor cabinet icon. The cabinet appears already selected; its width, height, depth, plinth and doors are on the right in “Properties”.
+3. **Shelves and partitions.** The shelf (or partition) icon in “Panels and fronts into an opening” → the “Front view” opens → click inside an opening. The shelf goes between the nearest parts. Gaps are set below the palette. Esc exits the tool.
+4. **Doors and drawers** — the same: the door or drawers icon → click into an opening. Hinges, runners and their drilling are added automatically.
+5. **Result.** “Parts” — the list with sizes and banding; “Cutting” — sheet maps. “File → Export” — cutting maps (HTML, PDF), BAZIS-Cutting project (XML), specification and estimate (CSV), drawings, .b3d model.
+
+## Mouse and keys
+
+- **3D:** left drag rotates, right drag pans, the wheel zooms. Click a part to select it, Ctrl+click adds to the selection.
+- **Front view:** drag the selected part — its edges snap to neighbours. A free panel has orange handles: drag them to resize.
+- **Right click** on a part — menu: delete, group into block, explode, clear selection.
+- **Del** deletes the selection. **Esc** exits a tool or clears the selection. **Ctrl+Z / Ctrl+Y** undo / redo. **Ctrl+S** saves. **Enter** applies move, rotate, etc.
+- Number fields accept expressions: `600-4`, `(800-36)/2`. Drag a field left or right to change it.
+
+## Cabinets and free panels
+
+Cabinets, corner units and countertops are **templates**: change the width and all parts are recalculated. To edit one part of a template (cut-out, fillet, own size), select it and press “Explode” — the template becomes a set of free panels.
+
+A free panel (the “Free panel” icon) can be placed in any of three planes, moved, rotated, copied as an array, mirrored. Its contour is edited in “Properties”: corner fillets and chamfers, cut-outs.
+
+## Hardware and fasteners
+
+- **Fasteners** (confirmats, cam locks, dowels, shelf supports): select panels and press the fastener icon — holes with coordinates appear on both panels. For cabinets the fastener type is chosen in “Properties”.
+- **Hardware models** (.fr3d — baskets, hinges, locks, sockets): the “Hardware” palette, folders as on disk. “Place” puts the model to the right of the modules; then move it in “Properties”. Its holes land in the panels it touches.
+- Baltlaminat libraries and your own models are just folders with .fr3d files. Add folders with “+ Add folder…” in the “Hardware” palette.
+
+## Checks
+
+“Tools → Model analysis” (the magnifier icon) finds intersecting parts, fasteners off panels, hardware without a panel and parts larger than the sheet. Click a problem to select its parts.
+
+## Bazis files
+
+- **Open .b3d** — the model opens read-only (parts, cutting, export). To change it press the lock icon “Make editable”.
+- **Export .b3d** — a model for Bazis-Mebelshchik.
+- **Bazis scripts** (.js) — “Tools → Run a Bazis script”. Scripts that build and change the model work; script windows are shown.
+
+## If something does not work
+
+- The reason of an error is shown in red at the bottom of the window.
+- The program prints every action to the terminal it was started from (`[команда] …`, `[ошибка] …`) — these lines help to find the problem.
+- A faded icon means a condition is missing: no material, nothing selected, etc. Hover it — the hint will say.

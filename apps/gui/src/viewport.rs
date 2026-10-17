@@ -688,7 +688,7 @@ impl Viewport {
         use crate::icons::{Icon, button};
         const S: f32 = 26.0;
         let views = [(Icon::ViewFront, "Вид спереди", 0.0, 0.0), (Icon::ViewLeft, "Вид слева", 90.0, 0.0), (Icon::ViewTop, "Вид сверху", 0.0, 89.9), (Icon::ViewIso, "Аксонометрия (объёмный вид)", Camera::AXON.0, Camera::AXON.1)];
-        ui.weak("Вид");
+        ui.weak(crate::i18n::t("Вид"));
         for (icon, tip, yaw, pitch) in views {
             let on = (self.camera.yaw - f32::to_radians(yaw)).abs() < 1e-3 && (self.camera.pitch - f32::to_radians(pitch)).abs() < 1e-3;
             if button(ui, icon, S, tip, on).clicked() {
@@ -699,7 +699,7 @@ impl Viewport {
             self.fitted = false;
         }
         ui.separator();
-        ui.weak("Показ");
+        ui.weak(crate::i18n::t("Показ"));
         let icons = [Icon::ModeSolid, Icon::ModeHidden, Icon::ModeWire, Icon::ModeXRay, Icon::ModeTextured];
         let tips = [
             "Без невидимых: детали сплошные, видны только ближние рёбра",
@@ -734,7 +734,7 @@ impl Viewport {
     /// Возвращает щелчок (по детали, по пустому месту, правой кнопкой) и отклик окна — к нему цепляется меню.
     pub fn show(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame, parts: &[Part], revision: u64, selected: &[usize], skip: impl Fn(&Part) -> bool) -> (Click, Option<egui::Response>) {
         let Some(rs) = frame.wgpu_render_state() else {
-            ui.label("3D недоступно: окно запущено без видеокарты (wgpu).");
+            ui.label(crate::i18n::t("3D недоступно: окно запущено без видеокарты (wgpu)."));
             return (Click::None, None);
         };
         if self.gpu.is_none() {

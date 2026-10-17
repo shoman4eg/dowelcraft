@@ -12,6 +12,7 @@ use crate::{App, MenuAct, Pane};
 
 /// Текст справки (docs/help.md) — вшит в программу.
 const HELP: &str = include_str!("../../../docs/help.md");
+const HELP_EN: &str = include_str!("../../../docs/help.en.md");
 /// Сколько последних файлов помнить.
 const RECENT_MAX: usize = 12;
 /// Примеры, которые предлагает стартовая страница (первый найденный).
@@ -100,17 +101,17 @@ impl App {
         let editable = self.session.is_some();
         let selected = !self.targets().is_empty();
         egui::MenuBar::new().ui(ui, |ui| {
-            ui.menu_button("Файл", |ui| {
-                if ui.button("Новый проект").clicked() {
+            ui.menu_button(crate::i18n::t("Файл"), |ui| {
+                if ui.button(crate::i18n::t("Новый проект")).clicked() {
                     self.new_project();
                 }
-                if ui.button("Открыть…").clicked() {
+                if ui.button(crate::i18n::t("Открыть…")).clicked() {
                     self.open_dialog();
                 }
-                ui.menu_button("Последние", |ui| {
+                ui.menu_button(crate::i18n::t("Последние"), |ui| {
                     let list = recent();
                     if list.is_empty() {
-                        ui.weak("пока пусто");
+                        ui.weak(crate::i18n::t("пока пусто"));
                     }
                     for p in list {
                         if ui.button(p.file_name().map_or_else(|| p.display().to_string(), |f| f.to_string_lossy().into_owned())).on_hover_text(p.display().to_string()).clicked() {
@@ -119,115 +120,124 @@ impl App {
                     }
                 });
                 ui.separator();
-                if ui.add_enabled(editable, egui::Button::new("Сохранить").shortcut_text("Ctrl+S")).clicked() {
+                if ui.add_enabled(editable, egui::Button::new(crate::i18n::t("Сохранить")).shortcut_text("Ctrl+S")).clicked() {
                     self.save(false);
                 }
-                if ui.add_enabled(editable, egui::Button::new("Сохранить как…")).clicked() {
+                if ui.add_enabled(editable, egui::Button::new(crate::i18n::t("Сохранить как…"))).clicked() {
                     self.save(true);
                 }
-                ui.menu_button("Экспорт", |ui| {
+                ui.menu_button(crate::i18n::t("Экспорт"), |ui| {
                     for (what, label) in crate::EXPORTS {
-                        if ui.button(label).clicked() {
+                        if ui.button(crate::i18n::t(label)).clicked() {
                             self.export(what);
                         }
                     }
                 });
-                if !editable && ui.button("Сделать редактируемой").clicked() {
+                if !editable && ui.button(crate::i18n::t("Сделать редактируемой")).clicked() {
                     self.make_editable();
                 }
                 ui.separator();
-                if ui.button("Выход").clicked() {
+                if ui.button(crate::i18n::t("Выход")).clicked() {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             });
-            ui.menu_button("Правка", |ui| {
+            ui.menu_button(crate::i18n::t("Правка"), |ui| {
                 let (undo, redo) = self.session.as_ref().map_or((false, false), |s| (s.can_undo(), s.can_redo()));
-                if ui.add_enabled(undo, egui::Button::new("Отменить").shortcut_text("Ctrl+Z")).clicked() {
+                if ui.add_enabled(undo, egui::Button::new(crate::i18n::t("Отменить")).shortcut_text("Ctrl+Z")).clicked() {
                     self.exec("undo", json!({}));
                 }
-                if ui.add_enabled(redo, egui::Button::new("Вернуть").shortcut_text("Ctrl+Y")).clicked() {
+                if ui.add_enabled(redo, egui::Button::new(crate::i18n::t("Вернуть")).shortcut_text("Ctrl+Y")).clicked() {
                     self.exec("redo", json!({}));
                 }
                 ui.separator();
-                if ui.add_enabled(editable && !self.delete_targets().is_empty(), egui::Button::new("Удалить").shortcut_text("Del")).clicked() {
+                if ui.add_enabled(editable && !self.delete_targets().is_empty(), egui::Button::new(crate::i18n::t("Удалить")).shortcut_text("Del")).clicked() {
                     self.menu_apply(MenuAct::Delete);
                 }
-                if ui.add(egui::Button::new("Снять выделение").shortcut_text("Esc")).clicked() {
+                if ui.add(egui::Button::new(crate::i18n::t("Снять выделение")).shortcut_text("Esc")).clicked() {
                     self.menu_apply(MenuAct::Deselect);
                 }
             });
-            ui.menu_button("Вид", |ui| {
+            ui.menu_button(crate::i18n::t("Вид"), |ui| {
                 for (label, pane) in [("3D", Pane::Model), ("Вид спереди", Pane::Front), ("Детали", Pane::Parts), ("Раскрой", Pane::Cut), ("Начало", Pane::Start)] {
-                    if ui.button(label).clicked() {
+                    if ui.button(crate::i18n::t(label)).clicked() {
                         self.show_pane(pane);
                     }
                 }
                 ui.separator();
                 for (label, yaw, pitch) in [("Спереди", 0.0, 0.0), ("Слева", 90.0, 0.0), ("Сверху", 0.0, 89.9), ("Аксонометрия", crate::viewport::Camera::AXON.0, crate::viewport::Camera::AXON.1)] {
-                    if ui.button(format!("Камера: {label}")).clicked() {
+                    if ui.button(crate::i18n::t(format!("Камера: {label}"))).clicked() {
                         self.viewport.set_view(yaw, pitch);
                         self.show_pane(Pane::Model);
                     }
                 }
-                if ui.button("Показать всё").clicked() {
+                if ui.button(crate::i18n::t("Показать всё")).clicked() {
                     self.viewport.refit();
                 }
-                ui.checkbox(&mut self.quad, "4 окна");
-                if ui.checkbox(&mut self.show_doors, "Двери и фасады").changed() {
+                ui.checkbox(&mut self.quad, crate::i18n::t("4 окна"));
+                if ui.checkbox(&mut self.show_doors, crate::i18n::t("Двери и фасады")).changed() {
                     self.revision += 1;
                 }
                 ui.separator();
                 for (mode, label) in Mode::ALL {
-                    ui.radio_value(&mut self.viewport.mode, mode, label);
+                    ui.radio_value(&mut self.viewport.mode, mode, crate::i18n::t(label));
                 }
             });
-            ui.menu_button("Вставка", |ui| {
+            ui.menu_button(crate::i18n::t("Вставка"), |ui| {
                 let can_add = editable && self.session.as_ref().is_some_and(|s| !s.project.materials.is_empty());
                 for (kind, label) in [("cabinet", "Напольный корпус"), ("wall", "Навесной корпус"), ("corner", "Угловой модуль"), ("countertop", "Столешница"), ("panel", "Отдельная панель")] {
-                    if ui.add_enabled(can_add, egui::Button::new(label)).clicked() {
+                    if ui.add_enabled(can_add, egui::Button::new(crate::i18n::t(label))).clicked() {
                         self.add_object(kind);
                     }
                 }
                 ui.separator();
                 for (plane, label) in [("horizontal", "Полка в проём"), ("vertical", "Перегородка в проём"), ("front", "Фронтальная панель в проём"), ("door", "Дверь в проём"), ("drawers", "Ящики в проём")] {
-                    if ui.add_enabled(can_add, egui::Button::new(label)).clicked() {
+                    if ui.add_enabled(can_add, egui::Button::new(crate::i18n::t(label))).clicked() {
                         self.toggle_fill(plane);
                     }
                 }
                 ui.separator();
-                if ui.button("Фурнитура из библиотеки…").clicked() {
+                if ui.button(crate::i18n::t("Фурнитура из библиотеки…")).clicked() {
                     self.show_pane(Pane::Library);
                 }
             });
-            ui.menu_button("Изменить", |ui| {
+            ui.menu_button(crate::i18n::t("Изменить"), |ui| {
                 for (m, label) in [(Modify::Move, "Сдвинуть"), (Modify::Copy, "Копировать"), (Modify::Rotate, "Повернуть"), (Modify::Mirror, "Отразить"), (Modify::MirrorCopy, "Зеркальная копия")] {
-                    if ui.add_enabled(editable && selected, egui::Button::new(label)).clicked() {
+                    if ui.add_enabled(editable && selected, egui::Button::new(crate::i18n::t(label))).clicked() {
                         self.fill = None;
                         self.modify = Some(m);
                         self.show_pane(Pane::Tools);
                     }
                 }
                 ui.separator();
-                if ui.add_enabled(editable && selected, egui::Button::new("Собрать в блок")).clicked() {
+                if ui.add_enabled(editable && selected, egui::Button::new(crate::i18n::t("Собрать в блок"))).clicked() {
                     self.menu_apply(MenuAct::Block);
                 }
-                if ui.add_enabled(editable && selected, egui::Button::new("Разрушить")).clicked() {
+                if ui.add_enabled(editable && selected, egui::Button::new(crate::i18n::t("Разрушить"))).clicked() {
                     self.menu_apply(MenuAct::Explode);
                 }
             });
-            ui.menu_button("Сервис", |ui| {
-                if ui.button("Анализ модели").clicked() {
+            ui.menu_button(crate::i18n::t("Сервис"), |ui| {
+                if ui.button(crate::i18n::t("Анализ модели")).clicked() {
                     self.analyze();
                 }
-                if ui.add_enabled(editable, egui::Button::new("Выполнить скрипт Базиса…")).clicked() {
+                if ui.add_enabled(editable, egui::Button::new(crate::i18n::t("Выполнить скрипт Базиса…"))).clicked() {
                     self.pick_script();
                 }
             });
-            ui.menu_button("Справка", |ui| {
-                if ui.button("Как пользоваться программой").clicked() {
+            ui.menu_button(crate::i18n::t("Язык / Language"), |ui| {
+                for (code, label) in [("ru", "Русский"), ("en", "English")] {
+                    if ui.radio(self.settings.language == code, label).clicked() {
+                        self.settings.language = code.into();
+                        crate::i18n::set_language(code);
+                        self.settings.save();
+                    }
+                }
+            });
+            ui.menu_button(crate::i18n::t("Справка"), |ui| {
+                if ui.button(crate::i18n::t("Как пользоваться программой")).clicked() {
                     self.help = true;
                 }
-                if ui.button("О программе").clicked() {
+                if ui.button(crate::i18n::t("О программе")).clicked() {
                     self.about = true;
                 }
             });
@@ -243,10 +253,10 @@ impl App {
         let right = egui::Rect::from_min_max(egui::pos2(left.max.x, full.min.y), full.max);
         ui.scope_builder(egui::UiBuilder::new().max_rect(left.shrink2(egui::vec2(28.0, 32.0))), |ui| {
             ui.label(RichText::new("basis-craft").size(30.0).color(Color32::from_rgb(0xdd, 0xe2, 0xea)));
-            ui.weak(format!("Версия {} · проектирование корпусной мебели", env!("CARGO_PKG_VERSION")));
+            ui.weak(crate::i18n::t(format!("Версия {} · проектирование корпусной мебели", env!("CARGO_PKG_VERSION"))));
             ui.add_space(24.0);
             let width = ui.available_width();
-            let wide = |text: &str| egui::Button::new(RichText::new(text).size(15.0)).min_size(egui::vec2(width, 34.0));
+            let wide = |text: &str| egui::Button::new(RichText::new(crate::i18n::t(text)).size(15.0)).min_size(egui::vec2(width, 34.0));
             if ui.add(wide("Открыть…")).on_hover_text(".bcraft, .b3d, .fr3d").clicked() {
                 self.open_dialog();
                 self.leave_start();
@@ -269,11 +279,11 @@ impl App {
             }
         });
         ui.scope_builder(egui::UiBuilder::new().max_rect(right.shrink2(egui::vec2(36.0, 32.0))), |ui| {
-            ui.label(RichText::new("Последние").size(22.0).color(Color32::from_rgb(0xdd, 0xe2, 0xea)));
+            ui.label(RichText::new(crate::i18n::t("Последние")).size(22.0).color(Color32::from_rgb(0xdd, 0xe2, 0xea)));
             ui.add_space(12.0);
             let list = recent();
             if list.is_empty() {
-                ui.weak("Здесь появятся файлы, которые вы открывали и сохраняли.");
+                ui.weak(crate::i18n::t("Здесь появятся файлы, которые вы открывали и сохраняли."));
             }
             let mut open = None;
             egui::ScrollArea::vertical().id_salt("recent").show(ui, |ui| {
@@ -302,14 +312,14 @@ impl App {
 
     /// Окна «Как пользоваться» и «О программе».
     pub(crate) fn help_windows(&mut self, ctx: &egui::Context) {
-        egui::Window::new("Как пользоваться basis-craft").open(&mut self.help).default_size([620.0, 640.0]).vscroll(true).show(ctx, |ui| {
-            markdown(ui, HELP);
+        egui::Window::new(crate::i18n::t("Как пользоваться basis-craft")).open(&mut self.help).default_size([620.0, 640.0]).vscroll(true).show(ctx, |ui| {
+            markdown(ui, if crate::i18n::english() { HELP_EN } else { HELP });
         });
-        egui::Window::new("О программе").open(&mut self.about).resizable(false).collapsible(false).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::t("О программе")).open(&mut self.about).resizable(false).collapsible(false).show(ctx, |ui| {
             ui.heading("basis-craft");
-            ui.label(format!("Версия {}", env!("CARGO_PKG_VERSION")));
-            ui.label("Проектирование корпусной мебели, совместимое с Базис-Мебельщиком: .b3d, XML для БАЗИС-Раскроя, карты раскроя, спецификация.");
-            ui.weak("Иконки и оболочка — по образцу cadcraft (storytold), см. NOTICE.md.");
+            ui.label(crate::i18n::t(format!("Версия {}", env!("CARGO_PKG_VERSION"))));
+            ui.label(crate::i18n::t("Проектирование корпусной мебели, совместимое с Базис-Мебельщиком: .b3d, XML для БАЗИС-Раскроя, карты раскроя, спецификация."));
+            ui.weak(crate::i18n::t("Иконки и оболочка — по образцу cadcraft (storytold), см. NOTICE.md."));
         });
     }
 }

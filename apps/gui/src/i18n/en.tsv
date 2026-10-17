@@ -1,0 +1,342 @@
+# Перевод окна на английский: русский<TAB>английский. {} — вставка (число, имя).
+Начало	Start
+Инструменты	Tools
+Вид спереди	Front view
+Детали	Parts
+Раскрой	Cutting
+Структура модели	Model structure
+Проект	Project
+Свойства	Properties
+Фурнитура	Hardware
+Кнопка	Button
+в «{}» нет моделей .fr3d	no .fr3d models in “{}”
+Карты раскроя и «Панели в производство» (HTML)…	Cutting maps and production list (HTML)…
+Проект для БАЗИС-Раскроя (XML)…	BAZIS-Cutting project (XML)…
+Спецификация (CSV)…	Specification (CSV)…
+Смета материалов (CSV)…	Material estimate (CSV)…
+Модель Базис-Мебельщика (.b3d)…	Bazis-Mebelshchik model (.b3d)…
+Чертежи: сборочный и детали (HTML для печати)…	Drawings: assembly and parts (printable HTML)…
+Чертежи (PDF)…	Drawings (PDF)…
+Карты раскроя (PDF)…	Cutting maps (PDF)…
+Новый проект	New project
+Спереди	Front
+Слева	Left
+Сверху	Top
+Открыт {}	Opened {}
+Модели	Models
+Импортировано деталей: {}	Parts imported: {}
+Модель Базиса открыта только для просмотра	The Bazis model is open read-only
+Проект basis-craft	basis-craft project
+Сохранено: {}	Saved: {}
+Карты раскроя	Cutting maps
+Проект БАЗИС-Раскроя	BAZIS-Cutting project
+Таблица CSV	CSV table
+Модель Базис-Мебельщика	Bazis-Mebelshchik model
+Чертежи	Drawings
+Модель Базиса открыта для просмотра: «Сделать редактируемой», затем экспорт	The Bazis model is read-only: use “Make editable”, then export
+Раскладка: {}	Layout: {}
+Открыть… (.bcraft, .b3d, .fr3d)	Open… (.bcraft, .b3d, .fr3d)
+Сохранить (Ctrl+S)	Save (Ctrl+S)
+Сохранить как…	Save as…
+Отменить (Ctrl+Z)	Undo (Ctrl+Z)
+Вернуть (Ctrl+Y)	Redo (Ctrl+Y)
+Экспорт: раскрой, Базис-Раскрой, спецификация, смета, .b3d, чертежи	Export: cutting, BAZIS-Cutting, specification, estimate, .b3d, drawings
+Анализ модели	Model analysis
+Выполнить скрипт Базиса (.js)	Run a Bazis script (.js)
+Сделать редактируемой: импорт модели Базиса в свой проект	Make editable: import the Bazis model into your own project
+{} — деталей: {}	{} — parts: {}
+(модель Базиса, только просмотр)	(Bazis model, read-only)
+Материалы ({})	Materials ({})
+{} мм, лист {}×{}, коэф. {}	{} mm, sheet {}×{}, factor {}
+нет	none
+текстура: {}	texture: {}
+Выбрать картинку	Choose an image
+Картинка	Image
+по артикулу	by article
+Найти d(<артикул>)1.jpg в папке текстур (Балтламинат)	Find d(<article>)1.jpg in the textures folder (Baltlaminat)
+Текстура для артикула «{}» в «{}» не найдена	No texture for article “{}” in “{}”
+плитка	tile
+Размер картинки текстуры на детали, мм: вдоль волокон × поперёк	Texture image size on the part, mm: along the grain × across
+ мм	 mm
+Плитка текстуры: вдоль волокон × поперёк	Texture tile: along the grain × across
+обрезка	trim
+пропил	kerf
+➕ Новый материал	➕ New material
+Название	Name
+такой уже есть — введите другое название	already exists — enter another name
+Толщина, мм	Thickness, mm
+Лист, мм	Sheet, mm
+Коэффициент	Factor
+Добавить материал	Add material
+Кромка ({})	Edge banding ({})
+{} мм × {} мм	{} mm × {} mm
+➕ Новая кромка	➕ New edge banding
+такая уже есть — введите другое название	already exists — enter another name
+Толщина	Thickness
+Ширина	Width
+Добавить кромку	Add edge banding
+Ничего не выделено	Nothing selected
+Удалить ({})	Delete ({})
+Собрать в блок	Group into block
+Разрушить	Explode
+Блок — содержимое в корень проекта; корпус, угловой модуль, столешница — в отдельные панели	Block — contents to the project root; cabinet, corner unit, countertop — into separate panels
+Снять выделение	Clear selection
+Анализ модели — проблем: {}	Model analysis — problems: {}
+Проблем не найдено: пересечений нет, крепёж и фурнитура на месте, детали помещаются на лист.	No problems: no intersections, fasteners and hardware in place, parts fit the sheet.
+Скрипт: {}	Script: {}
+Окно скрипта	Script window
+Применить	Apply
+Изменения скрипта — в модель (одна отмена)	Script changes into the model (one undo step)
+Отменить	Undo
+Готово. Изменений: {}.	Done. Changes: {}.
+Папки фурнитуры ({})	Hardware folders ({})
+Убрать папку из библиотеки (файлы не удаляются)	Remove the folder from the library (files are not deleted)
++ Добавить папку…	+ Add folder…
+Обновить	Refresh
+Просмотреть папки заново (если добавили файлы)	Rescan the folders (after adding files)
+Поиск	Search
+Фурнитура «{}»	Hardware “{}”
+Вид	View
+Файл	File
+Габарит	Size
+{} × {} × {} мм	{} × {} × {} mm
+Отверстий	Holes
+{} (не попали в панели: {})	{} (missed panels: {})
+Начало осей X, Y, Z	Origin X, Y, Z
+Часть отверстий висит в воздухе: прижмите модель к панели.	Some holes hang in the air: push the model against a panel.
+Повернуть	Rotate
+Удалить фурнитуру	Delete hardware
+Крепёж	Fasteners
+Между выделенными	Between selected
+Выделите две панели (Ctrl+щелчок): торец одной на пласти другой	Select two panels (Ctrl+click): the edge of one on the face of the other
+На все стыки выделенных	On all joints of the selection
+{} — панели {} и {}	{} — panels {} and {}
+удалить	delete
+Модель Базиса	Bazis model
+Корпус: {}	Cabinet: {}
+Угловой модуль: {}	Corner unit: {}
+Столешница: {}	Countertop: {}
+Блок: {}	Block: {}
+Панель: {}	Panel: {}
+Фурнитура: {}	Hardware: {}
+Объект {}	Object {}
+Выделено деталей: {}	Parts selected: {}
+Выделите деталь щелчком в 3D, на виде спереди или в структуре модели. Ctrl+щелчок — добавить к выделению.	Select a part by clicking it in 3D, in the front view or in the model structure. Ctrl+click adds to the selection.
+Деталь	Part
+Материал	Material
+Пильный размер	Cut size
+Габарит в проекте	Size in project
+Начало габарита	Bounding box origin
+Кромка	Edge banding
+Модель Базиса открыта для просмотра. «Сделать редактируемой» — в верхней строке.	The Bazis model is read-only. “Make editable” is in the top bar.
+Корпус «{}»	Cabinet “{}”
+Разрушить в панели	Explode into panels
+Детали станут отдельными панелями блока; параметры корпуса больше не действуют	Parts become separate panels of a block; cabinet parameters stop applying
+Угловой модуль «{}»	Corner unit “{}”
+Столешница «{}»	Countertop “{}”
+Панель	Panel
+Облицовка кромки	Edge banding
+Добавьте кромку на вкладке «Проект».	Add edge banding in the “Project” panel.
+Подрезать	Trim
+Заготовка меньше на толщину кромки: размер детали — чистовой	Blank reduced by the banding thickness: the part size is finished size
+припуск 	allowance
+Контур	Contour
+Скругление	Fillet
+Фаска	Chamfer
+Вырез	Cut-out
+катет 	leg
+радиус 	radius
+Щелчок по торцу — нанести или снять выбранную кромку.	Click an edge to apply or remove the chosen banding.
+Щелчок по вершине — скруглить или срезать угол.	Click a vertex to fillet or chamfer the corner.
+Щелчок внутри панели — круглый вырез с центром в этой точке.	Click inside the panel for a round cut-out centred there.
+Размеры:	Size:
+На все торцы	All edges
+Снять со всех	Remove from all
+Пусто. Добавьте материал и модуль или панель на вкладке «Проект».	Empty. Add a material, then a module or a panel.
+щелчок — дверь в этот проём	click — a door in this opening
+щелчок — ящики в этот проём	click — drawers in this opening
+сдвиг: X {} Y {}	offset: X {} Y {}
+Двери и фасады: показать или скрыть (скрыть — заглянуть внутрь корпуса)	Doors and fronts: show or hide (hide to look inside)
+4 окна: спереди, слева, сверху и аксонометрия	4 views: front, left, top and axonometric
+Наименование	Name
+Длина	Length
+Лист по умолчанию	Default sheet
+Пропил	Kerf
+Обрезка	Trim
+Нет деталей для раскроя.	No parts to cut.
+Не помещается на лист: № {} «{}»	Does not fit the sheet: No. {} “{}”
+Деталей на листе: {}, использование {}%	Parts on sheet: {}, usage {}%
+Обрезок {}×{}	Offcut {}×{}
+Сдвинуть	Move
+Копировать	Copy
+Отразить	Mirror
+Зеркальная копия	Mirror copy
+Модель Базиса открыта для просмотра. Нажмите замок вверху, чтобы её менять.	The Bazis model is read-only. Press the lock at the top to edit it.
+Сначала добавьте материал на вкладке «Проект» — без него модули не создаются.	First add a material in the “Project” panel — modules need it.
+Модули	Modules
+Напольный корпус — встанет справа от модулей	Floor cabinet — placed to the right of the modules
+Навесной корпус — над напольными	Wall cabinet — above the floor ones
+Угловой модуль (Г-образный)	Corner unit (L-shaped)
+Столешница над напольными корпусами	Countertop over the floor cabinets
+Отдельная панель — размеры и положение в «Свойствах»	Free panel — size and position in “Properties”
+Панели и фасады в проём	Panels and fronts into an opening
+Полка: щелчок в проём на виде спереди	Shelf: click into an opening in the front view
+Перегородка: щелчок в проём на виде спереди	Partition: click into an opening in the front view
+Фронтальная панель (задняя стенка, фальшпанель) в проём	Front panel (back, false panel) into an opening
+Дверь в проём, с петлями и присадкой	Door into an opening, with hinges and drilling
+Ящики в проём, с направляющими	Drawers into an opening, with runners
+Библиотека фурнитуры (.fr3d): корзины, петли, направляющие	Hardware library (.fr3d): baskets, hinges, runners
+Крепёж «{}» на все стыки выделенных панелей (вид крепежа — в «Свойствах» панели)	“{}” fasteners on all joints of the selected panels (type in the panel “Properties”)
+Изменить выделенное	Modify selection
+Сдвинуть на dX, dY, dZ (или тащить мышью на виде спереди)	Move by dX, dY, dZ (or drag in the front view)
+Копировать со сдвигом, массивом	Copy with offset, as an array
+Повернуть вокруг оси через центр выделенного	Rotate about an axis through the selection centre
+Разрушить: корпус, угловой модуль, столешницу или блок — в отдельные панели	Explode a cabinet, corner unit, countertop or block into separate panels
+Удалить (Del)	Delete (Del)
+Проверка и скрипты	Checks and scripts
+Анализ модели: пересечения, крепёж мимо панели, деталь больше листа	Model analysis: intersections, fasteners off panels, parts larger than the sheet
+Крепёж ставится между отдельными панелями: выделите их (детали корпуса — после «Разрушить»).	Fasteners go between free panels: select them (cabinet parts — after “Explode”).
+Навесной	Wall
+Полка в проём	Shelf into an opening
+Перегородка в проём	Partition into an opening
+Фронтальная панель в проём	Front panel into an opening
+Дверь в проём	Door into an opening
+Ящики в проём	Drawers into an opening
+Установка	Mounting
+накладная	overlay
+полунакладная	half overlay
+вкладная	inset
+Створки	Leaves
+двойная	double
+Фасады, мм	Fronts, mm
+Высоты фасадов снизу вверх через пробел	Front heights from the bottom up, separated by spaces
+Отступ слева	Gap left
+Отступ справа	Gap right
+Отступ сзади	Gap back
+Отступ спереди	Gap front
+Отступ снизу	Gap bottom
+Отступ сверху	Gap top
+Выделите детали щелчком — потом «Применить».	Select parts by clicking, then “Apply”.
+Копий	Copies
+Ось	Axis
+Поперёк оси	Across axis
+Угол	Angle
+Применить (Enter)	Apply (Enter)
+полку	a shelf
+перегородку	a partition
+фронтальную панель	a front panel
+дверь	a door
+ящики	drawers
+Щёлкните внутри проёма на виде спереди — поставить {}. Esc — выйти из инструмента.	Click inside an opening in the front view to place {}. Esc exits the tool.
+{}: выделите детали щелчком (Ctrl — несколько). Esc — выйти.	{}: select parts by clicking (Ctrl for several). Esc exits.
+{}: задайте параметры слева и нажмите «Применить» или Enter. Esc — выйти.	{}: set the parameters on the left and press “Apply” or Enter. Esc exits.
+Модель Базиса открыта для просмотра. Замок вверху — сделать её редактируемой.	The Bazis model is read-only. The lock at the top makes it editable.
+Начните с материала: вкладка «Проект» → «Материалы».	Start with a material: “Project” panel → “Materials”.
+Выберите инструмент слева или щёлкните деталь. ЛКМ в 3D — вращать, ПКМ — двигать вид, колесо — масштаб.	Pick a tool on the left or click a part. In 3D: left drag rotates, right drag pans, wheel zooms.
+Свойства выделенного — справа. Del — удалить, ПКМ — меню, Esc — снять выделение.	Selection properties are on the right. Del deletes, right click opens the menu, Esc clears the selection.
+Открыть…	Open…
+Последние	Recent
+пока пусто	empty so far
+Сохранить	Save
+Экспорт	Export
+Сделать редактируемой	Make editable
+Выход	Exit
+Правка	Edit
+Вернуть	Redo
+Удалить	Delete
+Аксонометрия	Axonometric
+Камера: {}	Camera: {}
+Показать всё	Zoom to fit
+4 окна	4 views
+Двери и фасады	Doors and fronts
+Вставка	Insert
+Напольный корпус	Floor cabinet
+Навесной корпус	Wall cabinet
+Угловой модуль	Corner unit
+Столешница	Countertop
+Отдельная панель	Free panel
+Фурнитура из библиотеки…	Hardware from the library…
+Изменить	Modify
+Сервис	Tools
+Выполнить скрипт Базиса…	Run a Bazis script…
+Справка	Help
+Как пользоваться программой	How to use the program
+О программе	About
+Версия {} · проектирование корпусной мебели	Version {} · cabinet furniture design
+Открыть пример	Open a sample
+Как пользоваться	How to use
+Здесь появятся файлы, которые вы открывали и сохраняли.	Files you open and save will appear here.
+Как пользоваться basis-craft	How to use basis-craft
+Версия {}	Version {}
+Проектирование корпусной мебели, совместимое с Базис-Мебельщиком: .b3d, XML для БАЗИС-Раскроя, карты раскроя, спецификация.	Cabinet furniture design compatible with Bazis-Mebelshchik: .b3d, XML for BAZIS-Cutting, cutting maps, specification.
+Иконки и оболочка — по образцу cadcraft (storytold), см. NOTICE.md.	Icons and window shell follow cadcraft (storytold), see NOTICE.md.
+Крыло X	Wing X
+Крыло Z	Wing Z
+Высота	Height
+Глубина	Depth
+Цоколь	Plinth
+Зазор дверей	Door gap
+Положение X, Y, Z	Position X, Y, Z
+Двери	Doors
+Материал дверей	Door material
+Задняя стенка	Back panel
+Полки (высота от дна, мм):	Shelves (height from the bottom, mm):
++ Полка	+ Shelf
+Детали станут отдельными панелями блока; параметры модуля больше не действуют	Parts become separate panels of a block; module parameters stop applying
+Удалить угловой модуль	Delete corner unit
+Разрушить в панель	Explode into a panel
+Удалить столешницу	Delete countertop
+Назначение	Purpose
+Текстура	Texture
+Размеры	Size
+Начало осей панели	Panel origin
+Угол контура (0, 0) на тыльной пласти; толщина идёт вдоль оси Z панели	Contour corner (0, 0) on the back face; thickness runs along the panel Z axis
+Удалить панель	Delete panel
+Корпусная	Carcass
+Дверь	Door
+Фасад ящика	Drawer front
+вдоль X контура	along contour X
+вдоль Y контура	along contour Y
+без направления	no direction
+Глубина ящиков	Drawer depth
+по глубине корпуса	cabinet depth
+Присадка всех стыков корпуса; полки — на полкодержатели	Drilling for all cabinet joints; shelves on shelf supports
+Перегородки (левая грань от левого края, мм):	Partitions (left face from the left edge, mm):
++ Перегородка посередине	+ Partition in the middle
+Полки (секция, высота от дна, мм):	Shelves (section, height from the bottom, mm):
+секция 	section
++ Полка в секцию {}	+ Shelf in section {}
+Ящики (высота фасада снизу вверх, мм):	Drawers (front heights from the bottom up, mm):
+в секции 	in section
++ Ящик	+ Drawer
+Удалить корпус	Delete cabinet
+Вершина ({}, {})	Vertex ({}, {})
+Торец {}: {} мм	Edge {}: {} mm
+{} · {} мм · отверстий {}	{} · {} mm · holes {}
+модель	model
+папка: {}	folder: {}
+Поставить	Place
+Встанет справа от модулей; дальше — сдвиг в «Свойствах»	Placed to the right of the modules; then move it in “Properties”
+Найдено: {}	Found: {}
+Без невидимых	Hidden lines removed
+Невидимые тонкие	Hidden lines thin
+Каркас	Wireframe
+Прозрачность	X-ray
+В текстурах	Textured
+добавлена выше	added above
+Вид слева	Left view
+Вид сверху	Top view
+Аксонометрия (объёмный вид)	Axonometric (3D view)
+Показать всё: вписать модель в окно	Zoom to fit: fit the model in the window
+Показ	Display
+Без невидимых: детали сплошные, видны только ближние рёбра	Hidden lines removed: solid parts, only near edges visible
+Невидимые тонкие: как сплошной, плюс скрытые рёбра светлыми линиями	Hidden lines thin: solid, plus hidden edges as light lines
+Каркас: только рёбра деталей, насквозь	Wireframe: part edges only, see-through
+Прозрачность (рентген): детали полупрозрачные, видны оси каждой детали	X-ray: translucent parts with each part's axes
+В текстурах: материалы картинками (Балтламинат по артикулу)	Textured: materials as images (Baltlaminat by article)
+3D недоступно: окно запущено без видеокарты (wgpu).	3D is unavailable: the window started without a GPU (wgpu).
+Не построены контуры деталей ({}): {}	Part contours not built ({}): {}
+{} (сейчас недоступно)	{} (not available now)
+Ошибка: {}	Error: {}
+Модель не изменена.	The model was not changed.
+{} ({})	{} ({})

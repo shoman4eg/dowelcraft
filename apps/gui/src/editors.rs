@@ -24,12 +24,13 @@ pub fn props<R>(ui: &mut egui::Ui, id: impl std::hash::Hash + std::fmt::Debug, b
 /// Подпись свойства: приглушённая, прижата вправо в колонке фиксированной ширины; длинная — с «…».
 pub fn caption(ui: &mut egui::Ui, text: &str) -> egui::Response {
     let color = ui.visuals().weak_text_color();
+    let text = &crate::i18n::t(text);
     let galley = egui::WidgetText::from(text).into_galley(ui, Some(egui::TextWrapMode::Truncate), KEY_W, egui::TextStyle::Body);
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(KEY_W, ui.spacing().interact_size.y), egui::Sense::hover());
     let at = egui::pos2(rect.right() - galley.size().x, rect.center().y - galley.size().y / 2.0);
     ui.painter().galley(at, galley.clone(), color);
     if galley.elided {
-        return resp.on_hover_text(text);
+        return resp.on_hover_text(crate::i18n::t(text));
     }
     resp
 }
@@ -51,7 +52,7 @@ fn done(r: &egui::Response) -> bool {
 /// Поле в мм; возвращает новое значение, когда изменение завершено.
 pub fn mm(ui: &mut egui::Ui, value: f64, range: std::ops::RangeInclusive<f64>) -> Option<f64> {
     let mut v = value;
-    let r = crate::expr::add(ui, &mut v, |d| d.range(range).suffix(" мм"));
+    let r = crate::expr::add(ui, &mut v, |d| d.range(range).suffix(crate::i18n::t(" мм")));
     (done(&r) && v != value).then_some(v)
 }
 
@@ -168,7 +169,7 @@ pub fn corner_editor(ui: &mut egui::Ui, project: &Project, c: &design::Corner, c
             ui.end_row();
         }
     });
-    ui.label("Полки (высота от дна, мм):");
+    ui.label(crate::i18n::t("Полки (высота от дна, мм):"));
     for (i, &h) in c.shelves.iter().enumerate() {
         ui.horizontal(|ui| {
             if let Some(v) = mm(ui, h, 0.0..=c.height) {
@@ -176,23 +177,23 @@ pub fn corner_editor(ui: &mut egui::Ui, project: &Project, c: &design::Corner, c
                 s[i] = v;
                 cmds.push(("corner.set", json!({ "id": id, "shelves": s })));
             }
-            if ui.small_button("удалить").clicked() {
+            if ui.small_button(crate::i18n::t("удалить")).clicked() {
                 let mut s = c.shelves.clone();
                 s.remove(i);
                 cmds.push(("corner.set", json!({ "id": id, "shelves": s })));
             }
         });
     }
-    if ui.button("+ Полка").clicked() {
+    if ui.button(crate::i18n::t("+ Полка")).clicked() {
         let mut s = c.shelves.clone();
         s.push(s.iter().copied().fold(0.0, f64::max) + 300.0);
         cmds.push(("corner.set", json!({ "id": id, "shelves": s })));
     }
     ui.horizontal(|ui| {
-        if ui.button("Разрушить в панели").on_hover_text("Детали станут отдельными панелями блока; параметры модуля больше не действуют").clicked() {
+        if ui.button(crate::i18n::t("Разрушить в панели")).on_hover_text(crate::i18n::t("Детали станут отдельными панелями блока; параметры модуля больше не действуют")).clicked() {
             cmds.push(("corner.explode", json!({ "id": id })));
         }
-        if ui.button("Удалить угловой модуль").clicked() {
+        if ui.button(crate::i18n::t("Удалить угловой модуль")).clicked() {
             cmds.push(("corner.remove", json!({ "id": id })));
         }
     });
@@ -233,10 +234,10 @@ pub fn countertop_editor(ui: &mut egui::Ui, project: &Project, ct: &design::Coun
         ui.end_row();
     });
     ui.horizontal(|ui| {
-        if ui.button("Разрушить в панель").clicked() {
+        if ui.button(crate::i18n::t("Разрушить в панель")).clicked() {
             cmds.push(("countertop.explode", json!({ "id": id })));
         }
-        if ui.button("Удалить столешницу").clicked() {
+        if ui.button(crate::i18n::t("Удалить столешницу")).clicked() {
             cmds.push(("countertop.remove", json!({ "id": id })));
         }
     });
@@ -280,15 +281,15 @@ pub fn panel_editor(ui: &mut egui::Ui, project: &Project, fp: &design::FreePanel
         }
         ui.end_row();
         caption(ui, "Размеры");
-        ui.label(format!("{} × {} × {} мм", size.0, size.1, size.2));
+        ui.label(crate::i18n::t(format!("{} × {} × {} мм", size.0, size.1, size.2)));
         ui.end_row();
-        caption(ui, "Начало осей панели").on_hover_text("Угол контура (0, 0) на тыльной пласти; толщина идёт вдоль оси Z панели");
+        caption(ui, "Начало осей панели").on_hover_text(crate::i18n::t("Угол контура (0, 0) на тыльной пласти; толщина идёт вдоль оси Z панели"));
         if let Some(origin) = position_editor(ui, fp.frame.origin) {
             set("frame", json!(basis::geom::Frame { origin, ..fp.frame }));
         }
         ui.end_row();
     });
-    if ui.button("Удалить панель").clicked() {
+    if ui.button(crate::i18n::t("Удалить панель")).clicked() {
         cmds.push(("panel.remove", json!({ "id": id })));
     }
 }
@@ -346,7 +347,7 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
             caption(ui, label);
             let mut v = value;
             // Применяем по отпусканию, чтобы перетаскивание давало один шаг отмены.
-            let r = crate::expr::add(ui, &mut v, |d| d.range(min..=6000.0).suffix(" мм"));
+            let r = crate::expr::add(ui, &mut v, |d| d.range(min..=6000.0).suffix(crate::i18n::t(" мм")));
             if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != value {
                 set(key, json!(v));
             }
@@ -362,7 +363,7 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
             set("drawer_depth", json!(v));
         }
         ui.end_row();
-        caption(ui, "Крепёж").on_hover_text("Присадка всех стыков корпуса; полки — на полкодержатели");
+        caption(ui, "Крепёж").on_hover_text(crate::i18n::t("Присадка всех стыков корпуса; полки — на полкодержатели"));
         if let Some(v) = choose(ui, ("cab_fast", id), c.fastener.as_deref(), &fastener_names(project), true) {
             set("fastener", json!(v));
         }
@@ -398,52 +399,52 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
         }
     });
 
-    ui.label("Перегородки (левая грань от левого края, мм):");
+    ui.label(crate::i18n::t("Перегородки (левая грань от левого края, мм):"));
     for (i, &x) in c.partitions.iter().enumerate() {
         ui.horizontal(|ui| {
             let mut v = x;
-            let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=c.width).suffix(" мм"));
+            let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=c.width).suffix(crate::i18n::t(" мм")));
             if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != x {
                 let mut xs = c.partitions.clone();
                 xs[i] = v;
                 cmds.push(("cabinet.set", json!({ "id": id, "partitions": xs })));
             }
-            if ui.small_button("удалить").clicked() {
+            if ui.small_button(crate::i18n::t("удалить")).clicked() {
                 cmds.push(("partition.remove", json!({ "cabinet": id, "index": i })));
             }
         });
     }
-    if ui.button("+ Перегородка посередине").clicked() {
+    if ui.button(crate::i18n::t("+ Перегородка посередине")).clicked() {
         let t = project.material(&c.material).map_or(16.0, |m| m.thickness);
         cmds.push(("partition.add", json!({ "cabinet": id, "x": ((c.width - t) / 2.0).round() })));
     }
 
-    ui.label("Полки (секция, высота от дна, мм):");
+    ui.label(crate::i18n::t("Полки (секция, высота от дна, мм):"));
     for (i, sh) in c.shelves.iter().enumerate() {
         ui.horizontal(|ui| {
             let (mut sec, mut h) = (sh.section, sh.height);
             let r1 = crate::expr::add(ui, &mut sec, |d| d.range(0..=c.partitions.len()).prefix("секция "));
-            let r2 = crate::expr::add(ui, &mut h, |d| d.range(0.0..=c.height).suffix(" мм"));
+            let r2 = crate::expr::add(ui, &mut h, |d| d.range(0.0..=c.height).suffix(crate::i18n::t(" мм")));
             let done = |r: &egui::Response| r.drag_stopped() || (r.changed() && !r.dragged());
             if (done(&r1) || done(&r2)) && (sec != sh.section || h != sh.height) {
                 let mut shelves = c.shelves.clone();
                 shelves[i] = design::Shelf { section: sec, height: h };
                 cmds.push(("cabinet.set", json!({ "id": id, "shelves": shelves })));
             }
-            if ui.small_button("удалить").clicked() {
+            if ui.small_button(crate::i18n::t("удалить")).clicked() {
                 cmds.push(("shelf.remove", json!({ "cabinet": id, "index": i })));
             }
         });
     }
     ui.horizontal(|ui| {
         for sec in 0..=c.partitions.len() {
-            if ui.button(format!("+ Полка в секцию {}", sec)).clicked() {
+            if ui.button(crate::i18n::t(format!("+ Полка в секцию {}", sec))).clicked() {
                 let top = c.shelves.iter().filter(|s| s.section == sec).map(|s| s.height).fold(0.0, f64::max);
                 cmds.push(("shelf.add", json!({ "cabinet": id, "section": sec, "height": top + 350.0 })));
             }
         }
     });
-    ui.label("Ящики (высота фасада снизу вверх, мм):");
+    ui.label(crate::i18n::t("Ящики (высота фасада снизу вверх, мм):"));
     if !c.partitions.is_empty() {
         let mut sec = c.drawer_section;
         let r = crate::expr::add(ui, &mut sec, |d| d.range(0..=c.partitions.len()).prefix("в секции "));
@@ -454,25 +455,25 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
     for (i, &hf) in c.drawers.iter().enumerate() {
         ui.horizontal(|ui| {
             let mut v = hf;
-            let r = crate::expr::add(ui, &mut v, |d| d.range(100.0..=1000.0).suffix(" мм"));
+            let r = crate::expr::add(ui, &mut v, |d| d.range(100.0..=1000.0).suffix(crate::i18n::t(" мм")));
             if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != hf {
                 let mut ds = c.drawers.clone();
                 ds[i] = v;
                 cmds.push(("cabinet.set", json!({ "id": id, "drawers": ds })));
             }
-            if ui.small_button("удалить").clicked() {
+            if ui.small_button(crate::i18n::t("удалить")).clicked() {
                 let mut ds = c.drawers.clone();
                 ds.remove(i);
                 cmds.push(("cabinet.set", json!({ "id": id, "drawers": ds })));
             }
         });
     }
-    if ui.button("+ Ящик").clicked() {
+    if ui.button(crate::i18n::t("+ Ящик")).clicked() {
         let mut ds = c.drawers.clone();
         ds.push(if ds.is_empty() { 140.0 } else { 280.0 });
         cmds.push(("cabinet.set", json!({ "id": id, "drawers": ds })));
     }
-    if ui.button("Удалить корпус").clicked() {
+    if ui.button(crate::i18n::t("Удалить корпус")).clicked() {
         cmds.push(("cabinet.remove", json!({ "id": id })));
     }
 }
@@ -557,10 +558,10 @@ pub fn contour_view(ui: &mut egui::Ui, segs: &[basis::contour::Seg], edges: &[ba
         painter.circle(to(v), if hot { 5.0 } else { 2.5 }, if hot { Color32::from_rgb(230, 120, 0) } else { Color32::from_gray(90) }, Stroke::NONE);
     }
     if let Some(v) = vertex {
-        resp.clone().on_hover_text(format!("Вершина ({}, {})", v[0], v[1]));
+        resp.clone().on_hover_text(crate::i18n::t(format!("Вершина ({}, {})", v[0], v[1])));
     } else if let Some(i) = hovered {
         let len = basis::contour::length(&segs[i]);
-        resp.clone().on_hover_text(format!("Торец {i}: {len:.1} мм"));
+        resp.clone().on_hover_text(crate::i18n::t(format!("Торец {i}: {len:.1} мм")));
     }
     let point = mouse.map(from)?;
     resp.clicked().then_some(ContourClick { segment: hovered, vertex, point })

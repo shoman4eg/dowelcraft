@@ -400,17 +400,19 @@ fn style() -> IconButtonStyle {
 /// Кнопка-иконка, которая может быть неактивной (бледная, не нажимается). Без обёртки `add_enabled_ui`:
 /// та не переносится в `horizontal_wrapped`, и иконки уезжают за край панели.
 pub fn button_if(ui: &mut egui::Ui, enabled: bool, icon: Icon, size: f32, tooltip: &str, selected: bool) -> egui::Response {
+    let tooltip = &crate::i18n::t(tooltip);
     if enabled && ui.is_enabled() {
         return button(ui, icon, size, tooltip, selected);
     }
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
     paint(ui.painter(), rect.shrink(size * 0.1), icon, true);
-    remember_hover(&resp, &format!("{tooltip} (сейчас недоступно)"));
+    remember_hover(&resp, &crate::i18n::t(format!("{tooltip} (сейчас недоступно)")));
     resp.on_hover_text(tooltip)
 }
 
 /// Кнопка-иконка размером `size` с подсказкой; `selected` — нажатое состояние (включённый инструмент, режим).
 pub fn button(ui: &mut egui::Ui, icon: Icon, size: f32, tooltip: &str, selected: bool) -> egui::Response {
+    let tooltip = &crate::i18n::t(tooltip);
     let style = style();
     let resp = IconButton::new(tooltip, egui::vec2(size, size), &style).selected(selected).show(ui, |ui, rect, _| {
         paint(ui.painter(), rect.shrink(size * 0.1), icon, !ui.is_enabled());
