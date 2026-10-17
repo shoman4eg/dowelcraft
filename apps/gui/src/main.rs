@@ -56,7 +56,7 @@ fn main() -> eframe::Result {
     };
     // Без файла — стартовая страница на всё окно, как в cadcraft.
     app.start = (file.is_none() && tab.is_none()) || tab.as_deref() == Some("start");
-    let _ = app.layout.apply(Action::Activate { panel: pane });
+    app.show_pane(pane);
     app.quad = args.iter().any(|a| a == "--quad");
     // Для снимков: окно выбора текстуры нового материала.
     if let Some(i) = args.iter().position(|a| a == "--pick-texture") {
@@ -140,7 +140,7 @@ fn default_layout() -> Layout<Pane> {
             second: Box::new(Node::Split {
                 axis: SplitAxis::Horizontal,
                 size: SplitSize::FixedSecond(380.0),
-                first: tabs(vec![Pane::Model, Pane::Front, Pane::Parts, Pane::Cut]),
+                first: tabs(vec![Pane::Model]),
                 second: stack(vec![(Pane::Structure, true, Some(300.0)), (Pane::Properties, true, None)]),
             }),
         }),
@@ -149,8 +149,9 @@ fn default_layout() -> Layout<Pane> {
 }
 
 /// Панели не закрываются (иначе их не вернуть), но двигаются и отрываются.
-fn permissions(_: &Pane) -> Permissions {
-    Permissions { closable: false, ..Permissions::default() }
+fn permissions(p: &Pane) -> Permissions {
+    // Холст в центре — без строки вкладок и неподвижный, как в cadcraft; вид выбирается в верхней строке.
+    if *p == Pane::Model { Permissions::PROTECTED } else { Permissions { closable: false, ..Permissions::default() } }
 }
 
 /// Скрипт Базиса с открытыми окнами.
@@ -466,6 +467,8 @@ struct App {
     drafting: bool,
     /// Показана стартовая страница (вместо рабочих панелей), как вкладка «Start» в cadcraft.
     start: bool,
+    /// Вид на холсте: 3D, вид спереди, таблица деталей или раскрой (переключатель в верхней строке).
+    view: Pane,
     /// Включён инструмент «Крепёж» (параметры под палитрой).
     fastening: bool,
     /// Открыты окна «Как пользоваться» и «О программе».
@@ -541,6 +544,7 @@ impl Default for App {
             close_ask: None,
             help: false,
             fastening: false,
+            view: Pane::Model,
             about: false,
             edging: (None, true, 0.0),
             contour_tool: (ContourTool::Edge, 50.0),
@@ -654,7 +658,11 @@ impl App {
 
     /// Сделать вкладку видимой (активной в своей группе).
     fn show_pane(&mut self, pane: Pane) {
-        let _ = self.layout.apply(Action::Activate { panel: pane });
+        if matches!(pane, Pane::Model | Pane::Front | Pane::Parts | Pane::Cut) {
+            self.view = pane;
+        } else {
+            let _ = self.layout.apply(Action::Activate { panel: pane });
+        }
     }
 
     /// «Анализ модели»: окно с проблемами.
@@ -830,10 +838,13 @@ impl eframe::App for App {
             style.border = Stroke::new(1.0, t.border);
             let out = DockArea::new(egui::Id::new("dock")).show(ui, &layout, &style, |p| i18n::t(p.label()), permissions, |ui, pane| match pane {
                 Pane::Tools => side(ui, "tools", |ui| self.tools_panel(ui)),
-                Pane::Model => self.iso_view(ui, frame),
-                Pane::Front => self.front_view(ui),
-                Pane::Parts => self.parts_table(ui),
-                Pane::Cut => self.cut_view(ui),
+                // Холст: вид, выбранный в верхней строке.
+                Pane::Model | Pane::Front | Pane::Parts | Pane::Cut => match self.view {
+                    Pane::Front => self.front_view(ui),
+                    Pane::Parts => egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| self.parts_table(ui)).inner,
+                    Pane::Cut => egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| self.cut_view(ui)).inner,
+                    _ => self.iso_view(ui, frame),
+                },
                 Pane::Structure => side(ui, "structure", |ui| self.structure_panel(ui)),
                 Pane::Project => side(ui, "project", |ui| self.project_panel(ui)),
                 Pane::Properties => side(ui, "props", |ui| self.properties_panel(ui)),
@@ -910,6 +921,19 @@ impl App {
                 }
                 if button_if(ui, self.session.is_some(), Icon::Script, S, "Выполнить скрипт Базиса (.js)", false).clicked() {
                     self.pick_script();
+                }
+                ui.separator();
+                // Вид на холсте — как вкладки, но в строке иконок.
+                for (pane, icon, text, tip) in [
+                    (Pane::Model, Icon::ViewIso, "3D", "Модель в 3D"),
+                    (Pane::Front, Icon::ViewFront, "Спереди", "Вид спереди: ставить полки, двери и ящики в проём, двигать мышью"),
+                    (Pane::Parts, Icon::Table, "Детали", "Таблица деталей: размеры, материал, кромка"),
+                    (Pane::Cut, Icon::CutSheet, "Раскрой", "Карты раскроя листов"),
+                ] {
+                    if icons::labeled(ui, icon, text, tip, !self.start && self.view == pane).clicked() {
+                        self.start = false;
+                        self.view = pane;
+                    }
                 }
                 if self.session.is_none() && button(ui, Icon::Unlock, S, "Сделать редактируемой: импорт модели Базиса в свой проект", false).clicked() {
                     self.make_editable();
@@ -1755,7 +1779,11 @@ impl App {
 
     /// Панель режима «в проём»: включение, плоскость, материал, отступы.
     fn front_view(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| self.doors_toggle(ui));
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.add_space(8.0);
+            self.doors_toggle(ui);
+        });
         let parts = match &self.parts {
             Ok(p) => p.clone(),
             Err(e) => {
@@ -1994,8 +2022,10 @@ impl App {
     }
 
     fn iso_view(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame) {
+        ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 2.0;
+            ui.add_space(8.0);
             self.viewport.toolbar(ui);
             ui.separator();
             if icons::button(ui, icons::Icon::Quad, 26.0, "4 окна: спереди, слева, сверху и аксонометрия", self.quad).clicked() {

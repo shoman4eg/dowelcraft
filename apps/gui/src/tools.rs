@@ -45,9 +45,8 @@ enum Pick {
 
 /// Группа палитры: заголовок и иконки в строку с переносом.
 fn group(ui: &mut egui::Ui, title: &str, body: impl FnOnce(&mut egui::Ui)) {
-    // Без отступа слева: в ряд помещаются три подписанные кнопки.
-    ui.spacing_mut().indent = 0.0;
-    egui::CollapsingHeader::new(egui::RichText::new(crate::i18n::t(title)).strong()).default_open(true).show(ui, |ui| {
+    // Без отступа содержимого: в ряд помещаются три подписанные кнопки.
+    egui::CollapsingHeader::new(egui::RichText::new(crate::i18n::t(title)).strong()).default_open(true).show_unindented(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
             body(ui);

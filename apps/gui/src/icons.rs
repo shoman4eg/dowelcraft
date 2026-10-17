@@ -50,6 +50,8 @@ pub enum Icon {
     ModeTextured,
     Grid,
     Gear,
+    Table,
+    CutSheet,
 }
 
 /// Цвета иконок: обычные линии, создаваемое (синий), точки (оранжевый).
@@ -348,6 +350,21 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, dim: bool) {
             pen.carcass(4.0, 3.0, 20.0, 21.0, 0.0);
             pen.poly(&[(4.0, 3.0), (10.0, 6.0), (10.0, 24.0 - 6.0), (4.0, 21.0)], true, a);
         }
+        Table => {
+            pen.rect(3.0, 4.0, 18.0, 16.0, b);
+            pen.fill_rect(3.0, 4.0, 18.0, 4.0, a.gamma_multiply(0.6));
+            for y in [8.0, 12.0, 16.0] {
+                pen.l(3.0, y, 21.0, y);
+            }
+            pen.l(9.0, 8.0, 9.0, 20.0);
+            pen.l(15.0, 8.0, 15.0, 20.0);
+        }
+        CutSheet => {
+            pen.rect(2.0, 5.0, 20.0, 14.0, b);
+            pen.fill_rect(3.0, 6.0, 8.0, 7.0, a.gamma_multiply(0.55));
+            pen.fill_rect(12.0, 6.0, 5.0, 12.0, a.gamma_multiply(0.55));
+            pen.fill_rect(3.0, 14.0, 8.0, 4.0, a.gamma_multiply(0.55));
+        }
         Grid => {
             for k in 0..4 {
                 let v = 4.0 + 5.33 * k as f32;
@@ -464,6 +481,26 @@ pub fn tool(ui: &mut egui::Ui, enabled: bool, icon: Icon, tooltip: &str, selecte
     let galley = ui.painter().layout(text, egui::FontId::proportional(11.0), color, rect.width());
     ui.painter().galley(egui::pos2(rect.center().x - galley.size().x / 2.0, rect.top() + 37.0), galley, color);
     remember_hover(&resp, &if enabled { tooltip.clone() } else { crate::i18n::t(format!("{tooltip} (сейчас недоступно)")) });
+    resp.on_hover_text(tooltip)
+}
+
+/// Кнопка «иконка + текст» для переключателя видов в верхней строке; `selected` — выбранный вид.
+pub fn labeled(ui: &mut egui::Ui, icon: Icon, text: &str, tooltip: &str, selected: bool) -> egui::Response {
+    let text = crate::i18n::t(text);
+    let galley = ui.painter().layout_no_wrap(text, egui::FontId::proportional(13.0), Color32::from_rgb(0xd7, 0xdb, 0xe0));
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(28.0 + galley.size().x + 10.0, 26.0), egui::Sense::click());
+    let fill = if selected {
+        Color32::from_rgb(0x2f, 0x5f, 0x99)
+    } else if resp.hovered() {
+        Color32::from_rgb(0x5c, 0x67, 0x7c).gamma_multiply(0.6)
+    } else {
+        Color32::TRANSPARENT
+    };
+    ui.painter().rect_filled(rect, 3.0, fill);
+    paint(ui.painter(), egui::Rect::from_min_size(rect.min + egui::vec2(4.0, 3.0), egui::vec2(20.0, 20.0)), icon, false);
+    ui.painter().galley(egui::pos2(rect.left() + 28.0, rect.center().y - galley.size().y / 2.0), galley, Color32::from_rgb(0xd7, 0xdb, 0xe0));
+    let tooltip = crate::i18n::t(tooltip);
+    remember_hover(&resp, &tooltip);
     resp.on_hover_text(tooltip)
 }
 

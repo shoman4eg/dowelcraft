@@ -389,3 +389,7 @@
 Скрипт	Script
 сдвиг: 0	offset: 0
 сдвиг по {}: {} мм	offset along {}: {} mm
+Модель в 3D	Model in 3D
+Вид спереди: ставить полки, двери и ящики в проём, двигать мышью	Front view: place shelves, doors and drawers into openings, drag with the mouse
+Таблица деталей: размеры, материал, кромка	Parts table: sizes, material, edge banding
+Карты раскроя листов	Sheet cutting maps
