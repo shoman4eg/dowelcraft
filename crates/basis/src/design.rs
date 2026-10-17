@@ -145,10 +145,19 @@ fn full(name: &str, article: &str) -> String {
     if article.is_empty() { name.into() } else { format!("{name}\r{article}") }
 }
 
+/// Назначение детали — для отображения.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    Body,
+    Back,
+    Door,
+}
+
 /// Деталь изделия: плита для отчётов и её габаритный параллелепипед в координатах проекта.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Part {
     pub cabinet: u32,
+    pub kind: Kind,
     pub panel: Panel,
     /// Минимальный угол, мм.
     pub origin: [f64; 3],
@@ -222,20 +231,20 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         return Err(format!("габариты {w}×{h}×{d} с плитой {t} мм и цоколем {} мм не дают внутреннего объёма", c.plinth));
     }
     let o = c.position;
-    let mut add = |panel: Panel, origin: [f64; 3], size: [f64; 3]| {
-        out.push(Part { cabinet: c.id, panel, origin: [o[0] + origin[0], o[1] + origin[1], o[2] + origin[2]], size });
+    let mut add = |kind: Kind, panel: Panel, origin: [f64; 3], size: [f64; 3]| {
+        out.push(Part { cabinet: c.id, kind, panel, origin: [o[0] + origin[0], o[1] + origin[1], o[2] + origin[2]], size });
     };
     // Вертикальные детали: контур X — глубина (от задней кромки к лицевой), Y — высота, текстура вдоль высоты.
     let vertical = |name: &str, height: f64| rect(name, m, d, height, Texture::Vertical, &[RIGHT], edge);
     // Горизонтальные: X — длина, Y — глубина (лицевая кромка — верх контура), текстура вдоль длины.
     let horizontal = |name: &str, length: f64| rect(name, m, length, d, Texture::Horizontal, &[TOP], edge);
 
-    add(vertical("Боковина левая", h), [0.0, 0.0, 0.0], [t, h, d]);
-    add(vertical("Боковина правая", h), [w - t, 0.0, 0.0], [t, h, d]);
-    add(horizontal("Дно", inner_w), [t, c.plinth, 0.0], [inner_w, t, d]);
-    add(horizontal("Крыша", inner_w), [t, h - t, 0.0], [inner_w, t, d]);
+    add(Kind::Body, vertical("Боковина левая", h), [0.0, 0.0, 0.0], [t, h, d]);
+    add(Kind::Body, vertical("Боковина правая", h), [w - t, 0.0, 0.0], [t, h, d]);
+    add(Kind::Body, horizontal("Дно", inner_w), [t, c.plinth, 0.0], [inner_w, t, d]);
+    add(Kind::Body, horizontal("Крыша", inner_w), [t, h - t, 0.0], [inner_w, t, d]);
     if c.plinth > 0.0 {
-        add(rect("Цоколь", m, inner_w, c.plinth, Texture::Horizontal, &[], None), [t, 0.0, d - t], [inner_w, c.plinth, t]);
+        add(Kind::Body, rect("Цоколь", m, inner_w, c.plinth, Texture::Horizontal, &[], None), [t, 0.0, d - t], [inner_w, c.plinth, t]);
     }
 
     // Перегородки и секции между ними.
@@ -248,7 +257,7 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
             return Err(format!("перегородка на {x} мм не помещается (свободно от {left} до {} мм)", w - 2.0 * t));
         }
         sections.push((left, x - left));
-        add(vertical("Перегородка", inner_h), [x, c.plinth + t, 0.0], [t, inner_h, d]);
+        add(Kind::Body, vertical("Перегородка", inner_h), [x, c.plinth + t, 0.0], [t, inner_h, d]);
         left = x + t;
     }
     sections.push((left, w - t - left));
@@ -263,13 +272,13 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         if s.height < 0.0 || s.height + t > inner_h {
             return Err(format!("полка на высоте {} мм не помещается (внутри {inner_h} мм)", s.height));
         }
-        add(horizontal("Полка", sw), [sx, c.plinth + t + s.height, 0.0], [sw, t, d]);
+        add(Kind::Body, horizontal("Полка", sw), [sx, c.plinth + t + s.height, 0.0], [sw, t, d]);
     }
 
     if let Some(name) = &c.back {
         let bm = p.material(name)?;
         let bh = h - c.plinth;
-        add(rect("Задняя стенка", bm, w, bh, Texture::Default, &[], None), [0.0, c.plinth, -bm.thickness], [w, bh, bm.thickness]);
+        add(Kind::Back, rect("Задняя стенка", bm, w, bh, Texture::Default, &[], None), [0.0, c.plinth, -bm.thickness], [w, bh, bm.thickness]);
     }
 
     if c.doors > 0 {
@@ -286,10 +295,42 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         for i in 0..c.doors {
             let x = g + i as f64 * (dw + g);
             let door = rect("Дверь", dm, dw, dh, Texture::Vertical, &[BOTTOM, LEFT, TOP, RIGHT], edge);
-            add(door, [x, c.plinth + g, d], [dw, dh, dm.thickness]);
+            add(Kind::Door, door, [x, c.plinth + g, d], [dw, dh, dm.thickness]);
         }
     }
     Ok(())
+}
+
+/// Деталь на виде спереди: прямоугольник в мм (X вправо, Y вверх).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FrontRect {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+    pub kind: Kind,
+    /// Индекс в списке деталей.
+    pub part: usize,
+}
+
+/// Вид спереди: проекции деталей, от дальних к ближним (рисовать по порядку).
+pub fn front_view(parts: &[Part], doors: bool) -> Vec<FrontRect> {
+    let mut v: Vec<(f64, FrontRect)> = parts
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| doors || p.kind != Kind::Door)
+        .map(|(i, p)| (p.origin[2], FrontRect { x: p.origin[0], y: p.origin[1], w: p.size[0], h: p.size[1], kind: p.kind, part: i }))
+        .collect();
+    v.sort_by(|a, b| a.0.total_cmp(&b.0));
+    v.into_iter().map(|(_, r)| r).collect()
+}
+
+/// Габарит вида: ([мин x, мин y], [макс x, макс y]).
+pub fn bounds(rects: &[FrontRect]) -> Option<([f64; 2], [f64; 2])> {
+    rects.iter().fold(None, |acc, r| {
+        let (lo, hi) = acc.unwrap_or(([f64::MAX; 2], [f64::MIN; 2]));
+        Some(([lo[0].min(r.x), lo[1].min(r.y)], [hi[0].max(r.x + r.w), hi[1].max(r.y + r.h)]))
+    })
 }
 
 /// Состояние редактирования: проект и история для отмены.

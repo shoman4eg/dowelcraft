@@ -347,28 +347,24 @@ impl App {
             ui.label("Добавьте материал и корпус в панели слева.");
             return;
         }
-        let mut parts: Vec<&Part> = parts.iter().filter(|p| self.show_doors || p.panel.name != "Дверь").collect();
-        // Сначала дальние детали: вид спереди, Z растёт к зрителю.
-        parts.sort_by(|a, b| a.origin[2].total_cmp(&b.origin[2]));
-        let (lo, hi) = parts.iter().fold(([f64::MAX; 2], [f64::MIN; 2]), |(lo, hi), p| {
-            ([lo[0].min(p.origin[0]), lo[1].min(p.origin[1])], [hi[0].max(p.origin[0] + p.size[0]), hi[1].max(p.origin[1] + p.size[1])])
-        });
+        let rects = design::front_view(&parts, self.show_doors);
+        let Some((lo, hi)) = design::bounds(&rects) else { return };
         let (resp, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::hover());
         let area = resp.rect.shrink(30.0);
         let k = ((area.width() as f64) / (hi[0] - lo[0])).min((area.height() as f64) / (hi[1] - lo[1]));
         let to = |x: f64, y: f64| Pos2::new(area.left() + ((x - lo[0]) * k) as f32, area.bottom() - ((y - lo[1]) * k) as f32);
         painter.rect_filled(resp.rect, 0.0, Color32::from_gray(245));
-        let mut hovered = None;
-        for p in &parts {
-            let r = Rect::from_two_pos(to(p.origin[0], p.origin[1]), to(p.origin[0] + p.size[0], p.origin[1] + p.size[1]));
-            let fill = match p.panel.name.as_str() {
-                "Дверь" => Color32::from_rgba_unmultiplied(170, 200, 230, 150),
-                "Задняя стенка" => Color32::from_gray(225),
-                _ => Color32::from_rgb(236, 220, 190),
+        let mut hovered: Option<&Part> = None;
+        for fr in &rects {
+            let r = Rect::from_two_pos(to(fr.x, fr.y), to(fr.x + fr.w, fr.y + fr.h));
+            let fill = match fr.kind {
+                design::Kind::Door => Color32::from_rgba_unmultiplied(170, 200, 230, 150),
+                design::Kind::Back => Color32::from_gray(225),
+                design::Kind::Body => Color32::from_rgb(236, 220, 190),
             };
             painter.rect(r, 0.0, fill, Stroke::new(1.0, Color32::from_gray(60)), StrokeKind::Inside);
             if resp.hovered() && ui.ctx().pointer_hover_pos().is_some_and(|m| r.contains(m)) {
-                hovered = Some(*p);
+                hovered = Some(&parts[fr.part]);
             }
         }
         // Габаритные размеры корпусов.

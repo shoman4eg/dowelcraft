@@ -448,6 +448,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "basis-craft-mcp"
+version = "0.1.0"
+dependencies = [
+ "basis",
+ "serde_json",
+ "tiny-skia",
+]
+
+[[package]]
 name = "bit-set"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3122,6 +3131,7 @@ dependencies = [
  "bytemuck",
  "cfg-if",
  "log",
+ "png 0.17.16",
  "tiny-skia-path",
 ]
 

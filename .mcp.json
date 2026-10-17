@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "basis-craft": {
+      "type": "stdio",
+      "command": "./target/release/basis-craft-mcp",
+      "args": []
+    }
+  }
+}
