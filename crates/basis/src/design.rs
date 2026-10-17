@@ -130,6 +130,38 @@ pub struct Countertop {
     pub edge: Option<String>,
 }
 
+/// Угловой Г-образный модуль в углу комнаты: крыло вдоль X (`width_x`) и крыло вдоль Z (`width_z`)
+/// от общего заднего угла `position`. Стены — с задних сторон крыльев, фасады смотрят во внутренний угол.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Corner {
+    pub id: u32,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub position: [f64; 3],
+    pub width_x: f64,
+    pub width_z: f64,
+    pub height: f64,
+    pub depth: f64,
+    pub material: String,
+    #[serde(default)]
+    pub edge: Option<String>,
+    #[serde(default)]
+    pub plinth: f64,
+    #[serde(default)]
+    pub back: Option<String>,
+    /// Высоты полок от верха дна, мм.
+    #[serde(default)]
+    pub shelves: Vec<f64>,
+    /// Двери на обоих крыльях.
+    #[serde(default)]
+    pub doors: bool,
+    #[serde(default)]
+    pub door_material: Option<String>,
+    #[serde(default = "default_gap")]
+    pub door_gap: f64,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Project {
     pub format: String,
@@ -142,11 +174,21 @@ pub struct Project {
     pub cabinets: Vec<Cabinet>,
     #[serde(default)]
     pub countertops: Vec<Countertop>,
+    #[serde(default)]
+    pub corners: Vec<Corner>,
 }
 
 impl Project {
     pub fn new(name: &str) -> Self {
-        Project { format: FORMAT.into(), name: name.into(), materials: Vec::new(), edges: Vec::new(), cabinets: Vec::new(), countertops: Vec::new() }
+        Project {
+            format: FORMAT.into(),
+            name: name.into(),
+            materials: Vec::new(),
+            edges: Vec::new(),
+            cabinets: Vec::new(),
+            countertops: Vec::new(),
+            corners: Vec::new(),
+        }
     }
 
     pub fn load(json: &str) -> Result<Self, String> {
@@ -207,12 +249,13 @@ const TOP: usize = 2;
 const RIGHT: usize = 3;
 
 fn rect(name: &str, mat: &Material, sx: f64, sy: f64, texture: Texture, edged: &[usize], edge: Option<&EdgeMaterial>) -> Panel {
-    let segs = vec![
-        Seg::Line { a: [sx, 0.0], b: [0.0, 0.0] },
-        Seg::Line { a: [0.0, 0.0], b: [0.0, sy] },
-        Seg::Line { a: [0.0, sy], b: [sx, sy] },
-        Seg::Line { a: [sx, sy], b: [sx, 0.0] },
-    ];
+    poly(name, mat, &[[sx, 0.0], [0.0, 0.0], [0.0, sy], [sx, sy]], texture, edged, edge)
+}
+
+/// Плита с многоугольным контуром: сегмент i идёт от вершины i к i+1. Габарит — от (0, 0).
+fn poly(name: &str, mat: &Material, pts: &[[f64; 2]], texture: Texture, edged: &[usize], edge: Option<&EdgeMaterial>) -> Panel {
+    let segs: Vec<Seg> = (0..pts.len()).map(|i| Seg::Line { a: pts[i], b: pts[(i + 1) % pts.len()] }).collect();
+    let size = pts.iter().fold((0.0, 0.0), |s: (f64, f64), p| (s.0.max(p[0]), s.1.max(p[1])));
     let edges = edge
         .map(|e| {
             edged
@@ -236,7 +279,7 @@ fn rect(name: &str, mat: &Material, sx: f64, sy: f64, texture: Texture, edged: &
         material: full(&mat.name, &mat.article),
         thickness: mat.thickness,
         segs,
-        size: (sx, sy),
+        size,
         texture,
         edges,
         bounds: None,
@@ -248,6 +291,9 @@ pub fn build(p: &Project) -> Result<Vec<Part>, String> {
     let mut parts = Vec::new();
     for c in &p.cabinets {
         cabinet(p, c, &mut parts).map_err(|e| format!("корпус {} «{}»: {e}", c.id, c.name))?;
+    }
+    for c in &p.corners {
+        corner(p, c, &mut parts).map_err(|e| format!("угловой модуль {} «{}»: {e}", c.id, c.name))?;
     }
     for ct in &p.countertops {
         countertop(p, ct, &mut parts).map_err(|e| format!("столешница {} «{}»: {e}", ct.id, ct.name))?;
@@ -382,6 +428,62 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         }
     } else if front_y > h {
         return Err(format!("ящики выше корпуса: фасады до {front_y} мм при высоте {h} мм"));
+    }
+    Ok(())
+}
+
+fn corner(p: &Project, c: &Corner, out: &mut Vec<Part>) -> Result<(), String> {
+    let m = p.material(&c.material)?;
+    let edge = p.edge(&c.edge)?;
+    let t = m.thickness;
+    let (h, d, g) = (c.height, c.depth, c.door_gap);
+    let (ax, bz) = (c.width_x - t, c.width_z - t);
+    let inner_h = h - c.plinth - 2.0 * t;
+    if !(ax >= d + 100.0 && bz >= d + 100.0 && inner_h > 0.0 && c.plinth >= 0.0) {
+        return Err(format!("крылья {}×{} должны быть хотя бы на 100 мм больше глубины {d} плюс плита; внутри по высоте {inner_h} мм", c.width_x, c.width_z));
+    }
+    let o = c.position;
+    let mut add = |kind: Kind, panel: Panel, origin: [f64; 3], size: [f64; 3]| {
+        out.push(Part { cabinet: c.id, kind, panel, origin: [o[0] + origin[0], o[1] + origin[1], o[2] + origin[2]], size });
+    };
+    // Г-образные горизонтали в плане (X, Z): лицевые кромки — внутренний угол (сегменты 3 и 4).
+    // shortcut: на видах Г-деталь рисуется своим габаритом (квадратом) — для точного 3D нужны многогранники.
+    let l_shape = |name| poly(name, m, &[[ax, 0.0], [0.0, 0.0], [0.0, bz], [d, bz], [d, d], [ax, d]], Texture::Horizontal, &[3, 4], edge);
+    let side = |name| rect(name, m, d, h, Texture::Vertical, &[RIGHT], edge);
+    add(Kind::Body, side("Боковина крыла X"), [ax, 0.0, 0.0], [t, h, d]);
+    add(Kind::Body, side("Боковина крыла Z"), [0.0, 0.0, bz], [d, h, t]);
+    add(Kind::Body, l_shape("Дно угловое"), [0.0, c.plinth, 0.0], [ax, t, bz]);
+    add(Kind::Body, l_shape("Крыша угловая"), [0.0, h - t, 0.0], [ax, t, bz]);
+    for &sh in &c.shelves {
+        if sh < 0.0 || sh + t > inner_h {
+            return Err(format!("полка на высоте {sh} мм не помещается (внутри {inner_h} мм)"));
+        }
+        add(Kind::Body, l_shape("Полка угловая"), [0.0, c.plinth + t + sh, 0.0], [ax, t, bz]);
+    }
+    if c.plinth > 0.0 {
+        add(Kind::Body, rect("Цоколь", m, ax - d + t, c.plinth, Texture::Horizontal, &[], None), [d - t, 0.0, d - t], [ax - d + t, c.plinth, t]);
+        add(Kind::Body, rect("Цоколь", m, bz - d, c.plinth, Texture::Horizontal, &[], None), [d - t, 0.0, d], [t, c.plinth, bz - d]);
+    }
+    if let Some(name) = &c.back {
+        let bm = p.material(name)?;
+        let bh = h - c.plinth;
+        add(Kind::Back, rect("Задняя стенка", bm, c.width_x, bh, Texture::Default, &[], None), [0.0, c.plinth, -bm.thickness], [c.width_x, bh, bm.thickness]);
+        add(Kind::Back, rect("Задняя стенка", bm, c.width_z, bh, Texture::Default, &[], None), [-bm.thickness, c.plinth, 0.0], [bm.thickness, bh, c.width_z]);
+    }
+    if c.doors {
+        let dm = match &c.door_material {
+            Some(n) => p.material(n)?,
+            None => m,
+        };
+        let dh = h - c.plinth - 2.0 * g;
+        // Дверь крыла X начинается за дверью крыла Z, чтобы они не сталкивались во внутреннем углу.
+        let (dwx, dwz) = (c.width_x - d - dm.thickness - 2.0 * g, c.width_z - d - 2.0 * g);
+        if !(dwx > 0.0 && dwz > 0.0 && dh > 0.0) {
+            return Err("двери не помещаются".into());
+        }
+        let door = |w| rect("Дверь", dm, w, dh, Texture::Vertical, &[BOTTOM, LEFT, TOP, RIGHT], edge);
+        add(Kind::Door, door(dwx), [d + dm.thickness + g, c.plinth + g, d], [dwx, dh, dm.thickness]);
+        add(Kind::Door, door(dwz), [d, c.plinth + g, d + g], [dm.thickness, dh, dwz]);
     }
     Ok(())
 }
@@ -540,6 +642,9 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("countertop.add", "{material, length, depth, position?: [x,y,z] левого нижнего заднего угла, edge?, name?} → {id}"),
     ("countertop.set", "{id, ...поля}"),
     ("countertop.remove", "{id}"),
+    ("corner.add", "{width_x, width_z, height, depth, material, edge?, plinth?, back?, shelves?: [высоты], doors?: true, door_material?, door_gap?, position?: [x,y,z] заднего угла, name?} → {id}. Г-образный угловой модуль: крылья вдоль X и Z от угла комнаты"),
+    ("corner.set", "{id, ...поля}"),
+    ("corner.remove", "{id}"),
     ("parts", "список деталей: имя, материал, длина, ширина, толщина, корпус"),
     ("undo", "отменить последнее изменение"),
     ("redo", "вернуть отменённое"),
@@ -626,6 +731,51 @@ fn cabinet_mut<'a>(pr: &'a mut Project, p: &Value, key: &str) -> Result<&'a mut 
     pr.cabinets.iter_mut().find(|c| c.id == id).ok_or_else(|| format!("нет корпуса {id}"))
 }
 
+/// Элемент проекта с номером и именем: столешница, угловой модуль.
+trait Item: Serialize + for<'de> Deserialize<'de> {
+    fn id(&self) -> u32;
+    fn name(&mut self) -> &mut String;
+}
+impl Item for Countertop {
+    fn id(&self) -> u32 {
+        self.id
+    }
+    fn name(&mut self) -> &mut String {
+        &mut self.name
+    }
+}
+impl Item for Corner {
+    fn id(&self) -> u32 {
+        self.id
+    }
+    fn name(&mut self) -> &mut String {
+        &mut self.name
+    }
+}
+
+/// Команды `*.add` (→ {id}), `*.set` {id, ...поля}, `*.remove` {id} над списком элементов.
+fn item<T: Item>(list: &mut Vec<T>, cmd: &str, p: &Value, what: &str) -> Result<Value, String> {
+    if cmd.ends_with(".add") {
+        let id = list.iter().map(Item::id).max().map_or(1, |m| m + 1);
+        let mut v = p.clone();
+        v.as_object_mut().ok_or("параметры должны быть объектом")?.insert("id".into(), json!(id));
+        let mut x: T = serde_json::from_value(v).map_err(|e| format!("{what}: {e}"))?;
+        if x.name().is_empty() {
+            *x.name() = format!("{what} {id}");
+        }
+        list.push(x);
+        return Ok(json!({ "id": id }));
+    }
+    let id = idx(p, "id")? as u32;
+    let i = list.iter().position(|x| x.id() == id).ok_or_else(|| format!("{what}: нет номера {id}"))?;
+    if cmd.ends_with(".set") {
+        list[i] = patch(&list[i], p, "id")?;
+    } else {
+        list.remove(i);
+    }
+    Ok(Value::Null)
+}
+
 fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
     match cmd {
         "project.rename" => pr.name = s(p, "name")?.into(),
@@ -698,30 +848,8 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
             }
             c.partitions.remove(i);
         }
-        "countertop.add" => {
-            let id = pr.countertops.iter().map(|c| c.id).max().map_or(1, |m| m + 1);
-            let mut v = p.clone();
-            v.as_object_mut().ok_or("параметры должны быть объектом")?.insert("id".into(), json!(id));
-            let mut ct: Countertop = serde_json::from_value(v).map_err(|e| format!("столешница: {e}"))?;
-            if ct.name.is_empty() {
-                ct.name = format!("Столешница {id}");
-            }
-            pr.countertops.push(ct);
-            return Ok(json!({ "id": id }));
-        }
-        "countertop.set" => {
-            let id = idx(p, "id")? as u32;
-            let ct = pr.countertops.iter_mut().find(|c| c.id == id).ok_or_else(|| format!("нет столешницы {id}"))?;
-            *ct = patch(&*ct, p, "id")?;
-        }
-        "countertop.remove" => {
-            let id = idx(p, "id")? as u32;
-            let n = pr.countertops.len();
-            pr.countertops.retain(|c| c.id != id);
-            if pr.countertops.len() == n {
-                return Err(format!("нет столешницы {id}"));
-            }
-        }
+        "countertop.add" | "countertop.set" | "countertop.remove" => return item(&mut pr.countertops, cmd, p, "Столешница"),
+        "corner.add" | "corner.set" | "corner.remove" => return item(&mut pr.corners, cmd, p, "Угловой модуль"),
         _ => return Err(format!("неизвестная команда «{cmd}»")),
     }
     Ok(Value::Null)
@@ -855,6 +983,31 @@ mod tests {
         // Спереди-справа-сверху видны фронт, правая грань и верх каждой детали.
         assert_eq!(faces.len(), parts.len() * 3);
         assert_eq!(iso_view(&parts, false).len(), (parts.len() - 2) * 3);
+    }
+
+    #[test]
+    fn corner_module() {
+        let mut s = wardrobe();
+        s.execute("corner.add", &json!({"width_x": 1000, "width_z": 900, "height": 820, "depth": 560, "material": "ЛДСП Белый 16",
+            "edge": "ПВХ 0,4 белая", "plinth": 100, "back": "ХДФ 3", "shelves": [300], "doors": true, "position": [3000, 0, 0]})).unwrap();
+        let parts: Vec<Part> = build(&s.project).unwrap().into_iter().filter(|p| p.origin[0] >= 2990.0 || p.panel.name.contains("углов")).collect();
+        let bottom = parts.iter().find(|p| p.panel.name == "Дно угловое").unwrap();
+        // Г-контур из 6 отрезков: это фигурная деталь (BOARDFIG), лицевая кромка на двух внутренних сторонах.
+        assert_eq!(bottom.panel.segs.len(), 6);
+        assert!(!bottom.panel.is_rect());
+        assert_eq!(bottom.panel.size, (984.0, 884.0));
+        assert_eq!(bottom.panel.edges.iter().map(|e| e.segment).collect::<Vec<_>>(), vec![3, 4]);
+        assert_eq!(parts.iter().filter(|p| p.kind == Kind::Door).count(), 2);
+        assert_eq!(parts.iter().filter(|p| p.kind == Kind::Back).count(), 2);
+        // Двери не пересекаются во внутреннем углу.
+        let doors: Vec<&Part> = parts.iter().filter(|p| p.kind == Kind::Door).collect();
+        let overlap = (0..3).all(|k| doors[0].origin[k] < doors[1].origin[k] + doors[1].size[k] && doors[1].origin[k] < doors[0].origin[k] + doors[0].size[k]);
+        assert!(!overlap, "двери пересекаются");
+        assert!(s.execute("corner.set", &json!({"id": 1, "width_x": 600})).is_err(), "крыло меньше глубины");
+        let xml = crate::raskroy::project_string("т", &parts.iter().map(|p| p.panel.clone()).collect::<Vec<_>>(), |_| (2800.0, 2070.0));
+        assert_eq!(xml.matches("<BOARDFIG>").count(), 3, "дно, крыша, полка");
+        s.execute("corner.remove", &json!({"id": 1})).unwrap();
+        assert!(s.project.corners.is_empty());
     }
 
     #[test]

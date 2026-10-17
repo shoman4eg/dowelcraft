@@ -333,6 +333,45 @@ impl App {
             });
         }
         ui.separator();
+        ui.heading("Угловые модули");
+        for c in &project.corners {
+            egui::CollapsingHeader::new(format!("{} ({}×{}×{})", c.name, c.width_x, c.width_z, c.height)).id_salt(("corner", c.id)).show(ui, |ui| {
+                let id = c.id;
+                egui::Grid::new(("cg", id)).num_columns(2).show(ui, |ui| {
+                    for (key, label, value) in [
+                        ("width_x", "Крыло X", c.width_x),
+                        ("width_z", "Крыло Z", c.width_z),
+                        ("height", "Высота", c.height),
+                        ("depth", "Глубина", c.depth),
+                        ("plinth", "Цоколь", c.plinth),
+                    ] {
+                        ui.label(label);
+                        let mut v = value;
+                        let r = ui.add(egui::DragValue::new(&mut v).range(0.0..=6000.0).suffix(" мм"));
+                        if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != value {
+                            cmds.push(("corner.set", json!({ "id": id, key: v })));
+                        }
+                        ui.end_row();
+                    }
+                    ui.label("Двери");
+                    let mut doors = c.doors;
+                    if ui.checkbox(&mut doors, "").changed() {
+                        cmds.push(("corner.set", json!({ "id": id, "doors": doors })));
+                    }
+                    ui.end_row();
+                });
+                if ui.button("Удалить угловой модуль").clicked() {
+                    cmds.push(("corner.remove", json!({ "id": id })));
+                }
+            });
+        }
+        if let Some(m) = project.materials.first()
+            && ui.button("+ Угловой модуль").clicked()
+        {
+            cmds.push(("corner.add", json!({ "width_x": 1000, "width_z": 1000, "height": 820, "depth": 560, "material": m.name,
+                "plinth": 100, "doors": true, "edge": project.edges.first().map(|e| e.name.clone()) })));
+        }
+        ui.separator();
         ui.heading("Столешницы");
         for ct in &project.countertops {
             egui::CollapsingHeader::new(format!("{} ({}×{})", ct.name, ct.length, ct.depth)).id_salt(("ct", ct.id)).show(ui, |ui| {
