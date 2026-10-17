@@ -440,6 +440,7 @@ name = "basis-craft-gui"
 version = "0.1.0"
 dependencies = [
  "basis",
+ "craft-ui",
  "eframe",
  "egui",
  "png 0.17.16",
@@ -728,6 +729,14 @@ name = "core_detect"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f8f80099a98041a3d1622845c271458a2d73e688351bf3cb999266764b81d48"
+
+[[package]]
+name = "craft-ui"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=15ed713b8fc622302a7f2920f710cec7d261fa9a#15ed713b8fc622302a7f2920f710cec7d261fa9a"
+dependencies = [
+ "egui",
+]
 
 [[package]]
 name = "crc32fast"

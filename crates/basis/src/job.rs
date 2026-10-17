@@ -108,7 +108,7 @@ pub fn parts(job: &Job) -> Result<Vec<Part>, String> {
         .iter()
         .filter_map(|p| {
             let (lo, hi) = p.bounds()?;
-            Some(Part { owner: 0, kind: design::guess_kind(p), panel: p.clone(), origin: lo, size: std::array::from_fn(|i| hi[i] - lo[i]) })
+            Some(Part { owner: 0, id: 0, kind: design::guess_kind(p), panel: p.clone(), origin: lo, size: std::array::from_fn(|i| hi[i] - lo[i]) })
         })
         .collect())
 }

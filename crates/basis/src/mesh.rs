@@ -293,7 +293,7 @@ mod tests {
             frame: Some(Frame::new([100.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0])),
             holes: Vec::new(),
         };
-        Part { owner: 1, kind: Kind::Body, panel, origin: [0.0; 3], size: [0.0; 3] }
+        Part { owner: 1, id: 0, kind: Kind::Body, panel, origin: [0.0; 3], size: [0.0; 3] }
     }
 
     fn tri_area(m: &Mesh, normal: [f32; 3]) -> f64 {

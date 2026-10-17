@@ -3,7 +3,12 @@
 
 use std::path::PathBuf;
 
+mod editors;
 mod viewport;
+
+use craft_ui::docking::{Action, DockArea, DockStyle, Layout, Node, Permissions};
+use craft_ui::layout::{SplitAxis, SplitSize};
+use editors::{Cmds, text_field};
 
 use basis::design::{self, Part, Project, Session};
 use basis::job::{self, Job, MaterialCut};
@@ -30,12 +35,17 @@ fn main() -> eframe::Result {
         Some("xray") => viewport::Mode::XRay,
         _ => viewport::Mode::Solid,
     };
-    app.tab = match tab.as_deref() {
-        Some("parts") => Tab::Parts,
-        Some("cut") => Tab::Cut,
-        Some("3d") => Tab::Iso,
-        _ => Tab::Front,
+    let pane = match tab.as_deref() {
+        Some("parts") => Pane::Parts,
+        Some("cut") => Pane::Cut,
+        Some("front") => Pane::Front,
+        _ => Pane::Model,
     };
+    let _ = app.layout.apply(Action::Activate { panel: pane });
+    // Для снимков: выделить деталь по номеру.
+    if let Some(i) = args.iter().position(|a| a == "--select").and_then(|i| args.get(i + 1)).and_then(|v| v.parse().ok()) {
+        app.select(Some(i));
+    }
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1400.0, 900.0]).with_title("basis-craft"),
         ..Default::default()
@@ -43,12 +53,75 @@ fn main() -> eframe::Result {
     eframe::run_native("basis-craft", options, Box::new(|_| Ok(Box::new(app))))
 }
 
-#[derive(PartialEq, Clone, Copy)]
-enum Tab {
+/// Панели окна (раскладка — craft-ui docking).
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+enum Pane {
+    Model,
     Front,
-    Iso,
     Parts,
     Cut,
+    Structure,
+    Project,
+    Properties,
+}
+
+impl Pane {
+    fn label(self) -> &'static str {
+        match self {
+            Pane::Model => "3D",
+            Pane::Front => "Вид спереди",
+            Pane::Parts => "Детали",
+            Pane::Cut => "Раскрой",
+            Pane::Structure => "Структура модели",
+            Pane::Project => "Проект",
+            Pane::Properties => "Свойства",
+        }
+    }
+}
+
+/// Раскладка по умолчанию: слева структура и проект, в центре 3D и вкладки, справа свойства.
+fn default_layout() -> Layout<Pane> {
+    let tabs = |panels: Vec<Pane>| Box::new(Node::Tabs { panels, active: 0 });
+    Layout {
+        root: Some(Node::Split {
+            axis: SplitAxis::Horizontal,
+            size: SplitSize::FixedFirst(300.0),
+            first: tabs(vec![Pane::Structure, Pane::Project]),
+            second: Box::new(Node::Split {
+                axis: SplitAxis::Horizontal,
+                size: SplitSize::FixedSecond(380.0),
+                first: tabs(vec![Pane::Model, Pane::Front, Pane::Parts, Pane::Cut]),
+                second: tabs(vec![Pane::Properties]),
+            }),
+        }),
+        floating: Vec::new(),
+    }
+}
+
+/// Панели не закрываются (иначе их не вернуть), но двигаются и отрываются.
+fn permissions(_: &Pane) -> Permissions {
+    Permissions { closable: false, ..Permissions::default() }
+}
+
+/// Выделение: объект верхнего уровня, панель дерева (0 — деталь шаблона) и номер детали внутри объекта.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Sel {
+    owner: u32,
+    id: u32,
+    nth: usize,
+}
+
+impl Sel {
+    fn of(parts: &[Part], i: usize) -> Sel {
+        let p = &parts[i];
+        let nth = parts[..i].iter().filter(|q| q.owner == p.owner && q.id == p.id).count();
+        Sel { owner: p.owner, id: p.id, nth }
+    }
+
+    /// Индекс выделенной детали в текущем списке деталей.
+    fn find(&self, parts: &[Part]) -> Option<usize> {
+        parts.iter().enumerate().filter(|(_, p)| p.owner == self.owner && p.id == self.id).nth(self.nth).map(|(i, _)| i)
+    }
 }
 
 /// Поля формы нового материала / кромки.
@@ -64,7 +137,8 @@ struct App {
     session: Option<Session>,
     job: Job,
     path: Option<PathBuf>,
-    tab: Tab,
+    layout: Layout<Pane>,
+    selection: Option<Sel>,
     params: Params,
     cuts: Vec<MaterialCut>,
     card: usize,
@@ -73,6 +147,8 @@ struct App {
     status: String,
     new_material: NewMaterial,
     new_edge: (String, f64, f64),
+    /// Новая панель: плоскость и размеры контура.
+    new_panel: (&'static str, f64, f64),
     screenshot: Option<PathBuf>,
     frames: u32,
     /// Детали изделия с положением (или ошибка сборки) — пересобираются в `refresh`.
@@ -88,7 +164,8 @@ impl Default for App {
             session: Some(Session::new(Project::new("Новый проект"))),
             job: Job::from_project(Project::new("Новый проект")),
             path: None,
-            tab: Tab::Front,
+            layout: default_layout(),
+            selection: None,
             params: Params { sheet: (2800.0, 2070.0), kerf: 4.0, trim: 10.0 },
             cuts: Vec::new(),
             card: 0,
@@ -97,6 +174,7 @@ impl Default for App {
             status: String::new(),
             new_material: NewMaterial { name: "ЛДСП 16".into(), thickness: 16.0, sheet: (2800.0, 2070.0), coef: 1.2 },
             new_edge: ("ПВХ 0,4".into(), 0.4, 19.0),
+            new_panel: ("vertical", 560.0, 720.0),
             screenshot: None,
             frames: 0,
             parts: Ok(Vec::new()),
@@ -208,24 +286,22 @@ impl eframe::App for App {
                 ui.label(&self.status);
             }
         });
-        if self.session.is_some() {
-            egui::Panel::left("project").default_size(360.0).show(ui, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| self.project_panel(ui));
-            });
-        }
         egui::CentralPanel::default().show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.tab, Tab::Front, "Вид спереди");
-                ui.selectable_value(&mut self.tab, Tab::Iso, "3D");
-                ui.selectable_value(&mut self.tab, Tab::Parts, "Детали");
-                ui.selectable_value(&mut self.tab, Tab::Cut, "Раскрой");
+            let layout = self.layout.clone();
+            let style = DockStyle::from_ui(ui);
+            let out = DockArea::new(egui::Id::new("dock")).show(ui, &layout, &style, |p| p.label().to_string(), permissions, |ui, pane| match pane {
+                Pane::Model => self.iso_view(ui, frame),
+                Pane::Front => self.front_view(ui),
+                Pane::Parts => self.parts_table(ui),
+                Pane::Cut => self.cut_view(ui),
+                Pane::Structure => egui::ScrollArea::vertical().id_salt("structure").show(ui, |ui| self.structure_panel(ui)).inner,
+                Pane::Project => egui::ScrollArea::vertical().id_salt("project").show(ui, |ui| self.project_panel(ui)).inner,
+                Pane::Properties => egui::ScrollArea::vertical().id_salt("props").show(ui, |ui| self.properties_panel(ui)).inner,
             });
-            ui.separator();
-            match self.tab {
-                Tab::Front => self.front_view(ui),
-                Tab::Iso => self.iso_view(ui, frame),
-                Tab::Parts => self.parts_table(ui),
-                Tab::Cut => self.cut_view(ui),
+            for a in out.actions {
+                if let Err(e) = self.layout.apply_with_permissions(a, permissions) {
+                    self.status = format!("Раскладка: {e:?}");
+                }
             }
         });
         self.take_screenshot(&ctx);
@@ -290,7 +366,7 @@ impl App {
     fn project_panel(&mut self, ui: &mut egui::Ui) {
         let Some(s) = &self.session else { return };
         let project = s.project.clone();
-        let mut cmds: Vec<(&'static str, Value)> = Vec::new();
+        let mut cmds: Cmds = Vec::new();
 
         ui.heading("Проект");
         if let Some(name) = text_field(ui, "project_name", &project.name) {
@@ -352,174 +428,230 @@ impl App {
         });
 
         ui.separator();
-        ui.heading("Корпуса");
-        for c in &project.cabinets {
-            egui::CollapsingHeader::new(format!("{} ({}×{}×{})", c.name, c.width, c.height, c.depth)).id_salt(c.id).default_open(true).show(ui, |ui| {
-                cabinet_editor(ui, &project, c, &mut cmds);
-            });
-        }
-        if !project.objects.is_empty() {
-            ui.separator();
-            egui::CollapsingHeader::new(format!("Детали из модели ({})", project.panels().len())).show(ui, |ui| {
-                let names: Vec<String> = project.materials.iter().map(|m| m.name.clone()).collect();
-                egui::Grid::new("free").striped(true).num_columns(3).show(ui, |ui| {
-                    for fp in project.panels() {
-                        ui.label(format!("{} {}", fp.pos, fp.name));
-                        let mut chosen = fp.material.clone();
-                        egui::ComboBox::from_id_salt(("fp", fp.id)).selected_text(&chosen).show_ui(ui, |ui| {
-                            for n in &names {
-                                ui.selectable_value(&mut chosen, n.clone(), n);
-                            }
-                        });
-                        if chosen != fp.material {
-                            cmds.push(("panel.set", json!({ "id": fp.id, "material": chosen })));
-                        }
-                        if ui.small_button("удалить").clicked() {
-                            cmds.push(("panel.remove", json!({ "id": fp.id })));
-                        }
-                        ui.end_row();
-                    }
-                });
-            });
-        }
-        ui.separator();
-        ui.heading("Угловые модули");
-        for c in &project.corners {
-            egui::CollapsingHeader::new(format!("{} ({}×{}×{})", c.name, c.width_x, c.width_z, c.height)).id_salt(("corner", c.id)).show(ui, |ui| {
-                let id = c.id;
-                egui::Grid::new(("cg", id)).num_columns(2).show(ui, |ui| {
-                    for (key, label, value) in [
-                        ("width_x", "Крыло X", c.width_x),
-                        ("width_z", "Крыло Z", c.width_z),
-                        ("height", "Высота", c.height),
-                        ("depth", "Глубина", c.depth),
-                        ("plinth", "Цоколь", c.plinth),
-                    ] {
-                        ui.label(label);
-                        let mut v = value;
-                        let r = ui.add(egui::DragValue::new(&mut v).range(0.0..=6000.0).suffix(" мм"));
-                        if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != value {
-                            cmds.push(("corner.set", json!({ "id": id, key: v })));
-                        }
-                        ui.end_row();
-                    }
-                    ui.label("Двери");
-                    let mut doors = c.doors;
-                    if ui.checkbox(&mut doors, "").changed() {
-                        cmds.push(("corner.set", json!({ "id": id, "doors": doors })));
-                    }
-                    ui.end_row();
-                });
-                if ui.button("Удалить угловой модуль").clicked() {
-                    cmds.push(("corner.remove", json!({ "id": id })));
-                }
-            });
-        }
-        if let Some(m) = project.materials.first()
-            && ui.button("+ Угловой модуль").clicked()
-        {
-            cmds.push(("corner.add", json!({ "width_x": 1000, "width_z": 1000, "height": 820, "depth": 560, "material": m.name,
-                "plinth": 100, "doors": true, "edge": project.edges.first().map(|e| e.name.clone()) })));
-        }
-        ui.separator();
-        ui.heading("Столешницы");
-        for ct in &project.countertops {
-            egui::CollapsingHeader::new(format!("{} ({}×{})", ct.name, ct.length, ct.depth)).id_salt(("ct", ct.id)).show(ui, |ui| {
-                let id = ct.id;
-                egui::Grid::new(("ctg", id)).num_columns(2).show(ui, |ui| {
-                    for (key, label, value) in [("length", "Длина", ct.length), ("depth", "Глубина", ct.depth)] {
-                        ui.label(label);
-                        let mut v = value;
-                        let r = ui.add(egui::DragValue::new(&mut v).range(10.0..=6000.0).suffix(" мм"));
-                        if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != value {
-                            cmds.push(("countertop.set", json!({ "id": id, key: v })));
-                        }
-                        ui.end_row();
-                    }
-                    ui.label("Положение X, Y, Z");
-                    ui.horizontal(|ui| {
-                        let mut pos = ct.position;
-                        let mut done = false;
-                        for v in &mut pos {
-                            let r = ui.add(egui::DragValue::new(v).range(-10000.0..=10000.0));
-                            done |= r.drag_stopped() || (r.changed() && !r.dragged());
-                        }
-                        if done && pos != ct.position {
-                            cmds.push(("countertop.set", json!({ "id": id, "position": pos })));
-                        }
-                    });
-                    ui.end_row();
-                });
-                if ui.button("Удалить столешницу").clicked() {
-                    cmds.push(("countertop.remove", json!({ "id": id })));
-                }
-            });
-        }
-        if let Some(m) = project.materials.first()
-            && ui.button("+ Столешница над корпусами").clicked()
-        {
-            // По умолчанию — на напольные корпуса (стоят на полу), по всей их длине, с выносом 20 мм вперёд.
-            let floor: Vec<&design::Cabinet> = project.cabinets.iter().filter(|c| c.position[1] <= 0.0).collect();
-            let x0 = floor.iter().map(|c| c.position[0]).fold(f64::MAX, f64::min).min(0.0);
-            let x1 = floor.iter().map(|c| c.position[0] + c.width).fold(600.0, f64::max);
-            let top = floor.iter().map(|c| c.height).fold(720.0, f64::max);
-            let depth = floor.iter().map(|c| c.depth).fold(560.0, f64::max) + 20.0;
-            cmds.push(("countertop.add", json!({ "material": m.name, "length": x1 - x0, "depth": depth,
-                "position": [x0, top, 0], "edge": project.edges.first().map(|e| e.name.clone()) })));
-        }
+        ui.heading("Добавить");
         let first = project.materials.first().map(|m| m.name.clone());
-        if ui.add_enabled(first.is_some(), egui::Button::new("+ Корпус")).on_disabled_hover_text("Сначала добавьте материал").clicked() {
-            cmds.push((
-                "cabinet.add",
-                json!({ "width": 800, "height": 2000, "depth": 600, "material": first, "plinth": 80,
-                        "edge": project.edges.first().map(|e| e.name.clone()), "doors": 2 }),
-            ));
+        let edge = project.edges.first().map(|e| e.name.clone());
+        if first.is_none() {
+            ui.weak("Сначала добавьте материал.");
         }
+        // Новый модуль встаёт справа от последнего напольного, чтобы не попасть внутрь соседа.
+        let right = project.cabinets.iter().filter(|c| c.position[1] <= 0.0).map(|c| c.position[0] + c.width)
+            .chain(project.corners.iter().map(|c| c.position[0] + c.width_x))
+            .fold(0.0, f64::max);
+        ui.add_enabled_ui(first.is_some(), |ui| {
+            if ui.button("+ Корпус").clicked() {
+                cmds.push(("cabinet.add", json!({ "width": 800, "height": 2000, "depth": 600, "material": first, "plinth": 80, "edge": edge, "doors": 2, "position": [right, 0, 0] })));
+            }
+            if ui.button("+ Угловой модуль").clicked() {
+                cmds.push(("corner.add", json!({ "width_x": 1000, "width_z": 1000, "height": 820, "depth": 560, "material": first, "plinth": 100, "doors": true, "edge": edge, "position": [right, 0, 0] })));
+            }
+            if ui.button("+ Столешница над корпусами").clicked() {
+                // По умолчанию — на напольные корпуса, по всей их длине, с выносом 20 мм вперёд.
+                let floor: Vec<&design::Cabinet> = project.cabinets.iter().filter(|c| c.position[1] <= 0.0).collect();
+                let x0 = floor.iter().map(|c| c.position[0]).fold(f64::MAX, f64::min).min(0.0);
+                let x1 = floor.iter().map(|c| c.position[0] + c.width).fold(600.0, f64::max);
+                let top = floor.iter().map(|c| c.height).fold(720.0, f64::max);
+                let depth = floor.iter().map(|c| c.depth).fold(560.0, f64::max) + 20.0;
+                cmds.push(("countertop.add", json!({ "material": first, "length": x1 - x0, "depth": depth, "position": [x0, top, 0], "edge": edge })));
+            }
+            ui.label("Панель (размеры контура, мм):");
+            let (plane, a, b) = &mut self.new_panel;
+            ui.horizontal(|ui| {
+                for (p, label) in [("vertical", "Вертикальная"), ("horizontal", "Горизонтальная"), ("front", "Фронтальная")] {
+                    ui.selectable_value(plane, p, label);
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.add(egui::DragValue::new(a).range(10.0..=3000.0).suffix(" мм"));
+                ui.label("×");
+                ui.add(egui::DragValue::new(b).range(10.0..=3000.0).suffix(" мм"));
+            });
+            if ui.button("+ Панель").on_hover_text("Встанет справа от модулей; положение — в свойствах").clicked() {
+                cmds.push(("panel.add", json!({ "material": first, "plane": plane, "size": [*a, *b], "position": [right, 0, 0] })));
+            }
+        });
         for (cmd, p) in cmds {
             self.exec(cmd, p);
         }
     }
 
+    /// Выделить деталь по индексу (или снять выделение).
+    fn select(&mut self, part: Option<usize>) {
+        self.selection = match (&self.parts, part) {
+            (Ok(parts), Some(i)) if i < parts.len() => Some(Sel::of(parts, i)),
+            _ => None,
+        };
+    }
+
+    fn selected(&self) -> Option<usize> {
+        self.selection.and_then(|s| s.find(self.parts.as_ref().ok()?))
+    }
+
+    /// «Структура модели»: шаблоны (корпуса, угловые модули, столешницы) и дерево панелей и блоков.
+    fn structure_panel(&mut self, ui: &mut egui::Ui) {
+        let Ok(parts) = &self.parts else { return };
+        let sel = self.selected();
+        let mut pick = None;
+        let mut row = |ui: &mut egui::Ui, i: usize, text: String| {
+            if ui.selectable_label(sel == Some(i), text).clicked() {
+                pick = Some(i);
+            }
+        };
+        // Группы по объекту верхнего уровня, в порядке деталей.
+        let mut owners: Vec<u32> = Vec::new();
+        for p in parts {
+            if !owners.contains(&p.owner) {
+                owners.push(p.owner);
+            }
+        }
+        let project = self.session.as_ref().map(|s| &s.project);
+        let title = |owner: u32| -> String {
+            let Some(pr) = project else { return "Модель Базиса".into() };
+            pr.cabinets.iter().find(|c| c.id == owner).map(|c| format!("Корпус: {}", c.name))
+                .or_else(|| pr.corners.iter().find(|c| c.id == owner).map(|c| format!("Угловой модуль: {}", c.name)))
+                .or_else(|| pr.countertops.iter().find(|c| c.id == owner).map(|c| format!("Столешница: {}", c.name)))
+                .or_else(|| pr.objects.iter().find(|o| o.id() == owner).map(|o| match o {
+                    design::Object::Block(b) => format!("Блок: {}", b.name),
+                    design::Object::Panel(p) => format!("Панель: {}", p.name),
+                }))
+                .unwrap_or_else(|| format!("Объект {owner}"))
+        };
+        for owner in owners {
+            let mine: Vec<usize> = (0..parts.len()).filter(|&i| parts[i].owner == owner).collect();
+            if mine.len() == 1 && parts[mine[0]].id == owner {
+                row(ui, mine[0], title(owner));
+                continue;
+            }
+            let open = sel.is_some_and(|i| parts[i].owner == owner);
+            egui::CollapsingHeader::new(format!("{} ({})", title(owner), mine.len())).id_salt(("own", owner)).open(open.then_some(true)).show(ui, |ui| {
+                for i in mine {
+                    let p = &parts[i].panel;
+                    row(ui, i, format!("{} {}", p.pos, p.name));
+                }
+            });
+        }
+        if let Some(i) = pick {
+            self.select(Some(i));
+        }
+    }
+
+    /// «Свойства» выделенной детали: её размеры и редактор объекта, которому она принадлежит.
+    fn properties_panel(&mut self, ui: &mut egui::Ui) {
+        let (Ok(parts), Some(i)) = (&self.parts, self.selected()) else {
+            ui.weak("Выделите деталь щелчком в 3D, на виде спереди или в структуре модели.");
+            return;
+        };
+        let part = parts[i].clone();
+        let p = &part.panel;
+        let (l, w) = p.cut_size();
+        egui::Grid::new("part_info").num_columns(2).show(ui, |ui| {
+            ui.label("Деталь");
+            ui.strong(format!("{} {}", p.pos, p.name));
+            ui.end_row();
+            ui.label("Материал");
+            ui.label(panel::material_name(&p.material));
+            ui.end_row();
+            ui.label("Пильный размер");
+            ui.label(format!("{l} × {w} × {} мм", p.thickness));
+            ui.end_row();
+            ui.label("Габарит в проекте");
+            ui.label(format!("{} × {} × {} мм", part.size[0], part.size[1], part.size[2]));
+            ui.end_row();
+            ui.label("Начало габарита");
+            ui.label(format!("X {} Y {} Z {}", part.origin[0], part.origin[1], part.origin[2]));
+            ui.end_row();
+            ui.label("Кромка");
+            let edges: Vec<String> = [Side::L1, Side::L2, Side::W1, Side::W2]
+                .iter()
+                .filter_map(|&sd| {
+                    let t = p.edges.iter().filter(|e| p.side(e) == sd).map(|e| e.thickness).fold(0.0, f64::max);
+                    (t > 0.0).then(|| format!("{sd:?} {t}"))
+                })
+                .collect();
+            ui.label(if edges.is_empty() { "нет".to_string() } else { edges.join(", ") });
+            ui.end_row();
+            ui.label("Отверстий");
+            ui.label(p.holes.len().to_string());
+            ui.end_row();
+        });
+        ui.separator();
+        let Some(s) = &self.session else {
+            ui.weak("Модель Базиса открыта для просмотра. «Сделать редактируемой» — в верхней строке.");
+            return;
+        };
+        let project = s.project.clone();
+        let mut cmds: Cmds = Vec::new();
+        if let Some(c) = project.cabinets.iter().find(|c| c.id == part.owner) {
+            ui.heading(format!("Корпус «{}»", c.name));
+            editors::cabinet_editor(ui, &project, c, &mut cmds);
+            if ui.button("Разрушить в панели").on_hover_text("Детали станут отдельными панелями блока; параметры корпуса больше не действуют").clicked() {
+                cmds.push(("cabinet.explode", json!({ "id": c.id })));
+            }
+        } else if let Some(c) = project.corners.iter().find(|c| c.id == part.owner) {
+            ui.heading(format!("Угловой модуль «{}»", c.name));
+            editors::corner_editor(ui, &project, c, &mut cmds);
+        } else if let Some(c) = project.countertops.iter().find(|c| c.id == part.owner) {
+            ui.heading(format!("Столешница «{}»", c.name));
+            editors::countertop_editor(ui, &project, c, &mut cmds);
+        } else if let Some(fp) = project.panels().into_iter().find(|f| f.id == part.id) {
+            ui.heading("Панель");
+            editors::panel_editor(ui, &project, fp, (p.size.0, p.size.1, p.thickness), &mut cmds);
+        }
+        for (cmd, v) in cmds {
+            self.exec(cmd, v);
+        }
+    }
+
     fn front_view(&mut self, ui: &mut egui::Ui) {
-        ui.checkbox(&mut self.show_doors, "Показывать двери и фасады");
-        let parts = match job::parts(&self.job) {
-            Ok(p) => p,
+        if ui.checkbox(&mut self.show_doors, "Показывать двери и фасады").changed() {
+            self.revision += 1;
+        }
+        let parts = match &self.parts {
+            Ok(p) => p.clone(),
             Err(e) => {
                 ui.colored_label(Color32::RED, e);
                 return;
             }
         };
         if parts.is_empty() {
-            ui.label("Добавьте материал и корпус в панели слева.");
+            ui.label("Пусто. Добавьте материал и модуль или панель на вкладке «Проект».");
             return;
         }
         let rects = design::front_view(&parts, self.show_doors);
         let Some((lo, hi)) = design::bounds(&rects) else { return };
-        let (resp, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::hover());
+        let (resp, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::click());
         let area = resp.rect.shrink(30.0);
-        let k = ((area.width() as f64) / (hi[0] - lo[0])).min((area.height() as f64) / (hi[1] - lo[1]));
+        let k = ((area.width() as f64) / (hi[0] - lo[0]).max(1.0)).min((area.height() as f64) / (hi[1] - lo[1]).max(1.0));
         let to = |x: f64, y: f64| Pos2::new(area.left() + ((x - lo[0]) * k) as f32, area.bottom() - ((y - lo[1]) * k) as f32);
         painter.rect_filled(resp.rect, 0.0, Color32::from_gray(245));
-        let mut hovered: Option<&Part> = None;
+        let selected = self.selected();
+        // Ближайшая к зрителю деталь под курсором — последняя нарисованная.
+        let mut hovered: Option<usize> = None;
         for fr in &rects {
             let r = Rect::from_two_pos(to(fr.x, fr.y), to(fr.x + fr.w, fr.y + fr.h));
             let fill = match fr.kind {
+                _ if Some(fr.part) == selected => Color32::from_rgb(255, 170, 70),
                 design::Kind::Door | design::Kind::Drawer => Color32::from_rgba_unmultiplied(170, 200, 230, 150),
                 design::Kind::Back => Color32::from_gray(225),
                 design::Kind::Body => Color32::from_rgb(236, 220, 190),
             };
             painter.rect(r, 0.0, fill, Stroke::new(1.0, Color32::from_gray(60)), StrokeKind::Inside);
-            if resp.hovered() && ui.ctx().pointer_hover_pos().is_some_and(|m| r.contains(m)) {
-                hovered = Some(&parts[fr.part]);
+            if ui.ctx().pointer_hover_pos().is_some_and(|m| resp.rect.contains(m) && r.contains(m)) {
+                hovered = Some(fr.part);
             }
         }
         // Габаритные размеры корпусов.
-        if let Some(c) = self.session.as_ref().and_then(|s| s.project.cabinets.first()) {
-            let y = c.position[1] - 0.0;
-            painter.text(to(c.position[0] + c.width / 2.0, y) + Vec2::new(0.0, 14.0), egui::Align2::CENTER_CENTER, format!("{}", c.width), egui::FontId::proportional(14.0), Color32::BLACK);
-            painter.text(to(c.position[0], c.position[1] + c.height / 2.0) - Vec2::new(16.0, 0.0), egui::Align2::CENTER_CENTER, format!("{}", c.height), egui::FontId::proportional(14.0), Color32::BLACK);
+        if let Some(s) = &self.session {
+            for c in &s.project.cabinets {
+                painter.text(to(c.position[0] + c.width / 2.0, c.position[1]) + Vec2::new(0.0, 14.0), egui::Align2::CENTER_CENTER, format!("{}", c.width), egui::FontId::proportional(13.0), Color32::BLACK);
+                painter.text(to(c.position[0], c.position[1] + c.height / 2.0) - Vec2::new(16.0, 0.0), egui::Align2::CENTER_CENTER, format!("{}", c.height), egui::FontId::proportional(13.0), Color32::BLACK);
+            }
         }
-        if let Some(p) = hovered {
+        if resp.clicked() {
+            self.select(hovered);
+        }
+        if let Some(i) = hovered {
+            let p = &parts[i];
             let (l, w) = p.panel.cut_size();
             resp.on_hover_text(format!("{} {}: {}×{}×{} мм\n{}", p.panel.pos, p.panel.name, l, w, p.panel.thickness, panel::material_name(&p.panel.material)));
         }
@@ -541,7 +673,12 @@ impl App {
             }
         };
         let doors = self.show_doors;
-        self.viewport.show(ui, frame, parts, self.revision, |p| !doors && matches!(p.kind, design::Kind::Door | design::Kind::Drawer));
+        let selected = self.selected();
+        match self.viewport.show(ui, frame, parts, self.revision, selected, |p| !doors && matches!(p.kind, design::Kind::Door | design::Kind::Drawer)) {
+            viewport::Click::Part(i) => self.select(Some(i)),
+            viewport::Click::Empty => self.select(None),
+            viewport::Click::None => {}
+        }
     }
 
     fn parts_table(&mut self, ui: &mut egui::Ui) {
@@ -660,156 +797,4 @@ fn save_png(path: &std::path::Path, img: &egui::ColorImage) -> Result<(), String
     let mut w = enc.write_header().map_err(|e| e.to_string())?;
     let data: Vec<u8> = img.pixels.iter().flat_map(|c| c.to_array()).collect();
     w.write_image_data(&data).map_err(|e| e.to_string())
-}
-
-/// Текстовое поле с черновиком: набранное хранится, пока поле в фокусе,
-/// и возвращается по выходу из поля или Enter, если отличается от `value`.
-fn text_field(ui: &mut egui::Ui, key: impl egui::AsId, value: &str) -> Option<String> {
-    let id = egui::Id::new(key);
-    let mut draft = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_else(|| value.to_owned());
-    let r = ui.add(egui::TextEdit::singleline(&mut draft).id(id.with("edit")));
-    if r.lost_focus() {
-        ui.data_mut(|d| d.remove::<String>(id));
-        return (draft != value).then_some(draft);
-    }
-    if r.has_focus() {
-        ui.data_mut(|d| d.insert_temp(id, draft));
-    }
-    None
-}
-
-/// Поля корпуса. Каждое изменение — команда `cabinet.set` и т.п.
-fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet, cmds: &mut Vec<(&'static str, Value)>) {
-    let id = c.id;
-    let mut set = |key: &str, v: Value| cmds.push(("cabinet.set", json!({ "id": id, key: v })));
-    egui::Grid::new(("cab", id)).num_columns(2).show(ui, |ui| {
-        ui.label("Название");
-        if let Some(name) = text_field(ui, ("cab_name", id), &c.name) {
-            set("name", json!(name));
-        }
-        ui.end_row();
-        for (key, label, value, min) in [
-            ("width", "Ширина", c.width, 50.0),
-            ("height", "Высота", c.height, 50.0),
-            ("depth", "Глубина", c.depth, 50.0),
-            ("plinth", "Цоколь", c.plinth, 0.0),
-            ("door_gap", "Зазор дверей", c.door_gap, 0.0),
-        ] {
-            ui.label(label);
-            let mut v = value;
-            // Применяем по отпусканию, чтобы перетаскивание давало один шаг отмены.
-            let r = ui.add(egui::DragValue::new(&mut v).range(min..=6000.0).suffix(" мм"));
-            if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != value {
-                set(key, json!(v));
-            }
-            ui.end_row();
-        }
-        ui.label("Двери");
-        let mut doors = c.doors;
-        let r = ui.add(egui::DragValue::new(&mut doors).range(0..=8));
-        if (r.drag_stopped() || (r.changed() && !r.dragged())) && doors != c.doors {
-            set("doors", json!(doors));
-        }
-        ui.end_row();
-        for (key, label, value, edges) in [
-            ("material", "Материал", Some(c.material.clone()), false),
-            ("door_material", "Материал дверей", c.door_material.clone(), false),
-            ("back", "Задняя стенка", c.back.clone(), false),
-            ("edge", "Кромка", c.edge.clone(), true),
-        ] {
-            ui.label(label);
-            let names: Vec<String> = if edges { project.edges.iter().map(|e| e.name.clone()).collect() } else { project.materials.iter().map(|m| m.name.clone()).collect() };
-            let mut chosen = value.clone();
-            egui::ComboBox::from_id_salt((key, id)).selected_text(chosen.clone().unwrap_or_else(|| "—".into())).show_ui(ui, |ui| {
-                if key != "material" {
-                    ui.selectable_value(&mut chosen, None, "—");
-                }
-                for n in names {
-                    ui.selectable_value(&mut chosen, Some(n.clone()), n);
-                }
-            });
-            if chosen != value {
-                set(key, json!(chosen));
-            }
-            ui.end_row();
-        }
-    });
-
-    ui.label("Перегородки (левая грань от левого края, мм):");
-    for (i, &x) in c.partitions.iter().enumerate() {
-        ui.horizontal(|ui| {
-            let mut v = x;
-            let r = ui.add(egui::DragValue::new(&mut v).range(0.0..=c.width).suffix(" мм"));
-            if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != x {
-                let mut xs = c.partitions.clone();
-                xs[i] = v;
-                cmds.push(("cabinet.set", json!({ "id": id, "partitions": xs })));
-            }
-            if ui.small_button("удалить").clicked() {
-                cmds.push(("partition.remove", json!({ "cabinet": id, "index": i })));
-            }
-        });
-    }
-    if ui.button("+ Перегородка посередине").clicked() {
-        let t = project.material(&c.material).map_or(16.0, |m| m.thickness);
-        cmds.push(("partition.add", json!({ "cabinet": id, "x": ((c.width - t) / 2.0).round() })));
-    }
-
-    ui.label("Полки (секция, высота от дна, мм):");
-    for (i, sh) in c.shelves.iter().enumerate() {
-        ui.horizontal(|ui| {
-            let (mut sec, mut h) = (sh.section, sh.height);
-            let r1 = ui.add(egui::DragValue::new(&mut sec).range(0..=c.partitions.len()).prefix("секция "));
-            let r2 = ui.add(egui::DragValue::new(&mut h).range(0.0..=c.height).suffix(" мм"));
-            let done = |r: &egui::Response| r.drag_stopped() || (r.changed() && !r.dragged());
-            if (done(&r1) || done(&r2)) && (sec != sh.section || h != sh.height) {
-                let mut shelves = c.shelves.clone();
-                shelves[i] = design::Shelf { section: sec, height: h };
-                cmds.push(("cabinet.set", json!({ "id": id, "shelves": shelves })));
-            }
-            if ui.small_button("удалить").clicked() {
-                cmds.push(("shelf.remove", json!({ "cabinet": id, "index": i })));
-            }
-        });
-    }
-    ui.horizontal(|ui| {
-        for sec in 0..=c.partitions.len() {
-            if ui.button(format!("+ Полка в секцию {}", sec)).clicked() {
-                let top = c.shelves.iter().filter(|s| s.section == sec).map(|s| s.height).fold(0.0, f64::max);
-                cmds.push(("shelf.add", json!({ "cabinet": id, "section": sec, "height": top + 350.0 })));
-            }
-        }
-    });
-    ui.label("Ящики (высота фасада снизу вверх, мм):");
-    if !c.partitions.is_empty() {
-        let mut sec = c.drawer_section;
-        let r = ui.add(egui::DragValue::new(&mut sec).range(0..=c.partitions.len()).prefix("в секции "));
-        if (r.drag_stopped() || (r.changed() && !r.dragged())) && sec != c.drawer_section {
-            cmds.push(("cabinet.set", json!({ "id": id, "drawer_section": sec })));
-        }
-    }
-    for (i, &hf) in c.drawers.iter().enumerate() {
-        ui.horizontal(|ui| {
-            let mut v = hf;
-            let r = ui.add(egui::DragValue::new(&mut v).range(100.0..=1000.0).suffix(" мм"));
-            if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != hf {
-                let mut ds = c.drawers.clone();
-                ds[i] = v;
-                cmds.push(("cabinet.set", json!({ "id": id, "drawers": ds })));
-            }
-            if ui.small_button("удалить").clicked() {
-                let mut ds = c.drawers.clone();
-                ds.remove(i);
-                cmds.push(("cabinet.set", json!({ "id": id, "drawers": ds })));
-            }
-        });
-    }
-    if ui.button("+ Ящик").clicked() {
-        let mut ds = c.drawers.clone();
-        ds.push(if ds.is_empty() { 140.0 } else { 280.0 });
-        cmds.push(("cabinet.set", json!({ "id": id, "drawers": ds })));
-    }
-    if ui.button("Удалить корпус").clicked() {
-        cmds.push(("cabinet.remove", json!({ "id": id })));
-    }
 }

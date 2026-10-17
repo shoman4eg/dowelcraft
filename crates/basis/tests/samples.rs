@@ -137,7 +137,7 @@ fn all_samples_parse() {
         let parts: Vec<basis::design::Part> = ex
             .panels
             .iter()
-            .map(|p| basis::design::Part { owner: 0, kind: basis::design::Kind::Body, panel: p.clone(), origin: [0.0; 3], size: [0.0; 3] })
+            .map(|p| basis::design::Part { owner: 0, id: 0, kind: basis::design::Kind::Body, panel: p.clone(), origin: [0.0; 3], size: [0.0; 3] })
             .collect();
         let mesh = basis::mesh::build(&parts, |_| false);
         // «проверить контур.b3d» — модель с заведомо незамкнутым контуром: ошибка должна найтись.

@@ -16,5 +16,6 @@ basis = { workspace = true }
 serde_json = { workspace = true }
 eframe = "0.36"
 egui = "0.36"
+craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "15ed713b8fc622302a7f2920f710cec7d261fa9a" }
 rfd = "0.17"
 png = "0.17"

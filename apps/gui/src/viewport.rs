@@ -24,6 +24,16 @@ impl Mode {
     pub const ALL: [(Mode, &str); 4] = [(Mode::Solid, "Без невидимых"), (Mode::Hidden, "Невидимые тонкие"), (Mode::Wire, "Каркас"), (Mode::XRay, "Прозрачность")];
 }
 
+/// Результат щелчка в окне модели.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Click {
+    None,
+    /// Щелчок по детали (индекс в списке деталей).
+    Part(usize),
+    /// Щелчок по пустому месту — снять выделение.
+    Empty,
+}
+
 /// Камера: точка взгляда, углы и масштаб (мм на пиксель), параллельная проекция.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Camera {
@@ -65,6 +75,13 @@ impl Camera {
         ]
     }
 
+    /// Луч взгляда через точку экрана, смещённую на `off` пикселей от центра: начало и направление.
+    fn ray(&self, off: Vec2, depth: f32) -> ([f32; 3], [f32; 3]) {
+        let (f, r, u) = self.basis();
+        let o = std::array::from_fn(|k| self.target[k] + (off.x * r[k] - off.y * u[k]) * self.mm_per_px - f[k] * depth);
+        (o, f)
+    }
+
     /// Сдвиг точки взгляда на `delta` пикселей экрана.
     fn pan(&mut self, delta: Vec2) {
         let (_, r, u) = self.basis();
@@ -77,6 +94,27 @@ impl Camera {
 fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
     [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
 }
+
+/// Пересечение луча с треугольником (Мёллер — Трумбор): расстояние вдоль луча.
+fn hit(o: [f32; 3], d: [f32; 3], t: &[[f32; 3]; 3]) -> Option<f32> {
+    let sub = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    let dot = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let (e1, e2) = (sub(t[1], t[0]), sub(t[2], t[0]));
+    let p = cross(d, e2);
+    let det = dot(e1, p);
+    if det.abs() < 1e-9 {
+        return None;
+    }
+    let s = sub(o, t[0]);
+    let u = dot(s, p) / det;
+    let q = cross(s, e1);
+    let v = dot(d, q) / det;
+    let dist = dot(e2, q) / det;
+    ((0.0..=1.0).contains(&u) && v >= 0.0 && u + v <= 1.0 && dist > 0.0).then_some(dist)
+}
+
+/// Цвет выделенной детали.
+const SELECTED: [f32; 3] = [1.0, 0.62, 0.2];
 
 /// Цвет детали по назначению: корпус — бежевый, задняя стенка — серая, фасады — голубые.
 fn color(kind: Kind) -> [f32; 3] {
@@ -158,8 +196,11 @@ pub struct Viewport {
     pub mode: Mode,
     gpu: Option<Gpu>,
     scene: Option<Scene>,
-    /// Ревизия деталей, по которой построена сцена.
+    /// Сетка на процессоре: для выбора деталей щелчком и перекраски выделения.
+    mesh: Mesh,
+    /// Ревизия деталей, по которой построена сетка, и выделение, с которым построена сцена.
     revision: Option<u64>,
+    selected: Option<Option<usize>>,
     /// Детали, контур которых не построился: (имя, причина).
     pub errors: Vec<(String, String)>,
     fitted: bool,
@@ -173,7 +214,9 @@ impl Default for Viewport {
             mode: Mode::Solid,
             gpu: None,
             scene: None,
+            mesh: Mesh::default(),
             revision: None,
+            selected: None,
             errors: Vec::new(),
             fitted: false,
         }
@@ -295,11 +338,11 @@ impl Gpu {
 }
 
 impl Scene {
-    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh) -> Scene {
+    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: Option<usize>) -> Scene {
         let mut tris = Vec::with_capacity(m.vertices.len() * STRIDE as usize);
         let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
         for v in &m.vertices {
-            let c = color(m.kinds[v.part as usize]);
+            let c = if Some(v.part as usize) == selected { SELECTED } else { color(m.kinds[v.part as usize]) };
             push_vertex(&mut tris, v.pos, v.normal, [c[0], c[1], c[2], 1.0]);
             for k in 0..3 {
                 lo[k] = lo[k].min(v.pos[k]);
@@ -381,23 +424,44 @@ impl Viewport {
         });
     }
 
+    /// Деталь под точкой экрана (смещение от центра окна в точках egui).
+    fn pick(&self, off: Vec2) -> Option<usize> {
+        let s = self.scene.as_ref()?;
+        let depth = (0..3).map(|k| (s.hi[k] - s.lo[k]).abs()).sum::<f32>() * 4.0 + 1000.0;
+        let (o, d) = self.camera.ray(off, depth);
+        let m = &self.mesh;
+        m.indices
+            .chunks_exact(3)
+            .filter_map(|t| {
+                let tri = [0, 1, 2].map(|i| m.vertices[t[i] as usize].pos);
+                Some((hit(o, d, &tri)?, m.vertices[t[0] as usize].part as usize))
+            })
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, part)| part)
+    }
+
     /// Окно модели. `revision` меняется, когда меняются детали — тогда сетка строится заново.
-    pub fn show(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame, parts: &[Part], revision: u64, skip: impl Fn(&Part) -> bool) {
+    /// Возвращает щелчок: по детали или по пустому месту.
+    pub fn show(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame, parts: &[Part], revision: u64, selected: Option<usize>, skip: impl Fn(&Part) -> bool) -> Click {
         let Some(rs) = frame.wgpu_render_state() else {
             ui.label("3D недоступно: окно запущено без видеокарты (wgpu).");
-            return;
+            return Click::None;
         };
         if self.gpu.is_none() {
             self.gpu = Some(Gpu::new(&rs.device));
         }
         if self.revision != Some(revision) {
-            let m = mesh::build(parts, skip);
-            self.errors = m.errors.iter().map(|(i, e)| (parts[*i].panel.name.clone(), e.clone())).collect();
-            self.scene = Some(Scene::new(&rs.device, parts, &m));
+            self.mesh = mesh::build(parts, skip);
+            self.errors = self.mesh.errors.iter().map(|(i, e)| (parts[*i].panel.name.clone(), e.clone())).collect();
             if self.revision.is_none() {
                 self.fitted = false;
             }
             self.revision = Some(revision);
+            self.selected = None;
+        }
+        if self.selected != Some(selected) {
+            self.scene = Some(Scene::new(&rs.device, parts, &self.mesh, selected));
+            self.selected = Some(selected);
         }
 
         let (rect, resp) = ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
@@ -406,6 +470,12 @@ impl Viewport {
             self.fitted = true;
         }
         // ЛКМ — вращение, ПКМ — сдвиг, колесо — масштаб относительно точки под курсором.
+        let mut click = Click::None;
+        if resp.clicked()
+            && let Some(pos) = resp.interact_pointer_pos()
+        {
+            click = self.pick(pos - rect.center()).map_or(Click::Empty, Click::Part);
+        }
         if resp.dragged_by(egui::PointerButton::Primary) {
             let d = resp.drag_delta();
             self.camera.yaw += d.x * 0.01;
@@ -427,7 +497,7 @@ impl Viewport {
 
         let ppp = ui.ctx().pixels_per_point();
         let size = [(rect.width() * ppp).round().max(1.0) as u32, (rect.height() * ppp).round().max(1.0) as u32];
-        let Some(scene) = &self.scene else { return };
+        let Some(scene) = &self.scene else { return click };
         let depth = (0..3).map(|k| (scene.hi[k] - scene.lo[k]).powi(2)).sum::<f32>().sqrt().max(100.0) * 2.0
             + (0..3).map(|k| (self.camera.target[k] - (scene.lo[k] + scene.hi[k]) / 2.0).powi(2)).sum::<f32>().sqrt();
         let mut cam = self.camera;
@@ -440,10 +510,10 @@ impl Viewport {
             u.extend_from_slice(&f32::to_le_bytes(v));
         }
 
-        let Some(gpu) = self.gpu.as_mut() else { return };
+        let Some(gpu) = self.gpu.as_mut() else { return click };
         gpu.ensure_target(rs, size);
         rs.queue.write_buffer(&gpu.uniforms, 0, &u);
-        let Some(target) = &gpu.target else { return };
+        let Some(target) = &gpu.target else { return click };
         let mut enc = rs.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("3d") });
         {
             let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -508,5 +578,6 @@ impl Viewport {
             let text = format!("Не построены контуры деталей ({}): {}", self.errors.len(), self.errors.iter().map(|(n, e)| format!("«{n}» — {e}")).collect::<Vec<_>>().join("; "));
             ui.painter().text(rect.left_bottom() + Vec2::new(8.0, -8.0), egui::Align2::LEFT_BOTTOM, text, egui::FontId::proportional(13.0), Color32::from_rgb(200, 40, 40));
         }
+        click
     }
 }

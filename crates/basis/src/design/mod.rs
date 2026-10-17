@@ -470,6 +470,8 @@ pub enum Kind {
 pub struct Part {
     /// Номер объекта верхнего уровня: корпуса, углового модуля, столешницы или объекта дерева.
     pub owner: u32,
+    /// Номер панели дерева объектов; 0 — деталь шаблона (корпуса и т.п.) или модели Базиса.
+    pub id: u32,
     pub kind: Kind,
     pub panel: Panel,
     /// Минимальный угол габарита, мм.
@@ -482,7 +484,7 @@ impl Part {
     /// Деталь с положением: габарит считается из положения, контура и толщины.
     fn new(owner: u32, kind: Kind, panel: Panel) -> Result<Part, String> {
         let (lo, hi) = panel.bounds().ok_or_else(|| format!("деталь «{}» без положения", panel.name))?;
-        Ok(Part { owner, kind, panel, origin: lo, size: std::array::from_fn(|k| hi[k] - lo[k]) })
+        Ok(Part { owner, id: 0, kind, panel, origin: lo, size: std::array::from_fn(|k| hi[k] - lo[k]) })
     }
 
     /// Деталь генератора, заданная габаритом: плоскость определяется по тому, вдоль какой оси толщина.
@@ -625,7 +627,7 @@ fn objects(p: &Project, owner: u32, list: &[Object], parent: &Frame, out: &mut V
                     frame: Some(parent.then(&fp.frame)),
                     holes: fp.holes.clone(),
                 };
-                out.push(Part::new(owner, fp.kind, panel)?);
+                out.push(Part { id: fp.id, ..Part::new(owner, fp.kind, panel)? });
             }
         }
     }
