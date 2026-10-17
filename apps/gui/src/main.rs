@@ -1638,6 +1638,25 @@ impl App {
         let k = ((area.width() as f64) / (hi[0] - lo[0]).max(1.0)).min((area.height() as f64) / (hi[1] - lo[1]).max(1.0));
         let to = |x: f64, y: f64| Pos2::new(area.left() + ((x - lo[0]) * k) as f32, area.bottom() - ((y - lo[1]) * k) as f32);
         painter.rect_filled(resp.rect, 0.0, Color32::from_gray(245));
+        // Сетка-миллиметровка, как фон cadcraft: шаг такой, чтобы линии были не чаще 12 пикселей; каждая десятая темнее.
+        {
+            let step = [10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0].into_iter().find(|s| s * k >= 12.0).unwrap_or(5000.0);
+            let mm = |p: Pos2| [(p.x - area.left()) as f64 / k + lo[0], (area.bottom() - p.y) as f64 / k + lo[1]];
+            let (a, b) = (mm(resp.rect.left_bottom()), mm(resp.rect.right_top()));
+            let line = |v: f64| if (v / (step * 10.0)).round() * step * 10.0 == v { Stroke::new(1.0, Color32::from_gray(212)) } else { Stroke::new(1.0, Color32::from_gray(232)) };
+            let mut x = (a[0] / step).ceil() * step;
+            while x <= b[0] {
+                let px = to(x, 0.0).x;
+                painter.line_segment([Pos2::new(px, resp.rect.top()), Pos2::new(px, resp.rect.bottom())], line(x));
+                x += step;
+            }
+            let mut y = (a[1] / step).ceil() * step;
+            while y <= b[1] {
+                let py = to(0.0, y).y;
+                painter.line_segment([Pos2::new(resp.rect.left(), py), Pos2::new(resp.rect.right(), py)], line(y));
+                y += step;
+            }
+        }
         let selected = self.selected_all();
         // Перетаскивание выделенного: сдвиг в мм с прилипанием краёв к краям других деталей (порог 10 пикселей).
         let moving = self.drag.map(|d| {

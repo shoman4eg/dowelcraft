@@ -200,6 +200,8 @@ struct Scene {
     part_axes_count: u32,
     /// Отверстия присадки: линия сверления от входа на глубину.
     holes_count: u32,
+    /// Сетка на полу (Y = 0), как фон в cadcraft: линии через 100 мм, каждая десятая темнее.
+    grid_count: u32,
     /// Габарит сцены.
     lo: [f32; 3],
     hi: [f32; 3],
@@ -559,6 +561,28 @@ impl Scene {
                 holes += 2;
             }
         }
+        // Сетка пола под изделием с запасом в метр; на больших проектах шаг крупнее.
+        let mut grid = 0;
+        {
+            let (x0, x1) = (((lo[0] / 1000.0).floor() - 1.0) * 1000.0, ((hi[0] / 1000.0).ceil() + 1.0) * 1000.0);
+            let (z0, z1) = (((lo[2] / 1000.0).floor() - 1.0) * 1000.0, ((hi[2] / 1000.0).ceil() + 1.0) * 1000.0);
+            let step = if (x1 - x0).max(z1 - z0) > 12000.0 { 500.0 } else { 100.0 };
+            let color = |v: f32| if (v / 1000.0).fract().abs() < 1e-3 { [0.70, 0.73, 0.78, 1.0] } else { [0.86, 0.87, 0.89, 1.0] };
+            let mut v = x0;
+            while v <= x1 + 0.5 {
+                push_vertex(&mut lines, [v, 0.0, z0], [0.0; 3], color(v));
+                push_vertex(&mut lines, [v, 0.0, z1], [0.0; 3], color(v));
+                grid += 2;
+                v += step;
+            }
+            let mut v = z0;
+            while v <= z1 + 0.5 {
+                push_vertex(&mut lines, [x0, 0.0, v], [0.0; 3], color(v));
+                push_vertex(&mut lines, [x1, 0.0, v], [0.0; 3], color(v));
+                grid += 2;
+                v += step;
+            }
+        }
         // Треугольники — пачками по картинке.
         let mut order: Vec<usize> = (0..m.indices.len() / 3).collect();
         order.sort_by_key(|&t| tex_of(m.vertices[m.indices[3 * t] as usize].part as usize).map_or(0, |i| i + 1));
@@ -619,6 +643,7 @@ impl Scene {
             axes_count: 6,
             part_axes_count: part_axes,
             holes_count: holes,
+            grid_count: grid,
             furniture: furn_tris,
             lo,
             hi,
@@ -826,6 +851,11 @@ impl Viewport {
             let axes = scene.line_count..scene.line_count + scene.axes_count;
             let part_axes = axes.end..axes.end + scene.part_axes_count;
             let holes = part_axes.end..part_axes.end + scene.holes_count;
+            let grid = holes.end..holes.end + scene.grid_count;
+            // Сетка пола — первой и с глубиной: детали её закрывают.
+            pass.set_pipeline(&gpu.lines_visible);
+            pass.set_vertex_buffer(0, scene.lines.slice(..));
+            pass.draw(grid, 0..1);
             match self.mode {
                 Mode::Solid | Mode::Hidden => {
                     pass.set_pipeline(&gpu.solid);
