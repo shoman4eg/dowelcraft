@@ -19,6 +19,7 @@ mod commands;
 pub mod fill;
 pub mod shape;
 pub mod actions;
+pub mod fronts;
 pub use commands::{COMMANDS, Session};
 
 /// Метка формата в файле проекта `.bcraft`.

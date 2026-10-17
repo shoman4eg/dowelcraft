@@ -468,3 +468,45 @@ fn furniture_drills_panels() {
         assert!(f.name.contains("TANDEM") && !f.holes.is_empty());
     }
 }
+
+/// Двери и ящики в проём: размеры по типу установки, петли с присадкой в двери и стойке, ящики с направляющими.
+#[test]
+fn doors_and_drawers_in_opening() {
+    let mut s = Session::new(Project::new("Тумба"));
+    s.execute("material.add", &json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
+    s.execute("material.add", &json!({"name": "ХДФ 3", "thickness": 3})).unwrap();
+    // Короб без дверей: стойки 0…16 и 584…600, дно 0…16, крыша 704…720, глубина 500.
+    s.execute("cabinet.add", &json!({"width": 600, "height": 720, "depth": 500, "material": "ЛДСП 16", "doors": 0})).unwrap();
+    let block = s.execute("door.add", &json!({"at": [300, 360], "material": "ЛДСП 16", "mount": "overlay"})).unwrap()["id"].as_u64().unwrap() as u32;
+    let parts = build(&s.project).unwrap();
+    let door = parts.iter().find(|p| p.owner == block && p.kind == Kind::Door).unwrap();
+    // Накладная: по внешним граням стоек минус зазор 2.
+    assert_eq!((door.origin, door.size), ([2.0, 2.0, 500.0], [596.0, 716.0, 16.0]));
+    // Две петли: чашка ⌀35 в двери в 22 мм от левого края, на 100 мм от низа и верха.
+    let cups: Vec<_> = door.panel.holes.iter().filter(|h| h.diameter == 35.0).collect();
+    assert_eq!(cups.len(), 2, "{:?}", door.panel.holes);
+    let side = parts.iter().find(|p| p.panel.name == "Боковина левая").unwrap();
+    // Планки: 4 отверстия ⌀2 в левой стойке, в 37 мм от переднего края (z = 463).
+    let plate: Vec<_> = side.panel.holes.iter().filter(|h| h.diameter == 2.0).collect();
+    assert_eq!(plate.len(), 4, "{:?}", side.panel.holes);
+    assert!(plate.iter().all(|h| (h.pos[0] - 463.0).abs() < 1e-9), "{plate:?}");
+    assert!(hardware(&s.project).unwrap().contains(&("Петля накладная с доводчиком".to_string(), 2)));
+    assert!(furniture_lost_holes(&s.project).is_empty());
+    s.execute("block.remove", &json!({"id": block})).unwrap();
+    // Вкладная двойная.
+    let block = s.execute("door.add", &json!({"at": [300, 360], "material": "ЛДСП 16", "mount": "inset", "double": true})).unwrap()["id"].as_u64().unwrap() as u32;
+    let parts = build(&s.project).unwrap();
+    let leaves: Vec<_> = parts.iter().filter(|p| p.owner == block && p.kind == Kind::Door).collect();
+    assert_eq!(leaves.len(), 2);
+    assert_eq!((leaves[0].origin, leaves[0].size), ([18.0, 18.0, 484.0], [281.0, 684.0, 16.0]));
+    s.execute("block.remove", &json!({"id": block})).unwrap();
+    // Ящики: два фасада, короба по ширине проёма минус 2·13.
+    let block = s.execute("drawers.add", &json!({"at": [300, 360], "material": "ЛДСП 16", "heights": [300, 400], "bottom": "ХДФ 3"})).unwrap()["id"].as_u64().unwrap() as u32;
+    let parts = build(&s.project).unwrap();
+    let mine: Vec<_> = parts.iter().filter(|p| p.owner == block).collect();
+    assert_eq!(mine.iter().filter(|p| p.kind == Kind::Drawer).count(), 2);
+    let bottom = mine.iter().find(|p| p.panel.name == "Дно ящика").unwrap();
+    assert_eq!(bottom.panel.size, (568.0 - 26.0, 450.0));
+    assert!(furniture_lost_holes(&s.project).is_empty(), "{:?}", furniture_lost_holes(&s.project));
+    assert!(s.execute("drawers.add", &json!({"at": [300, 360], "material": "ЛДСП 16", "heights": [500, 500]})).is_err());
+}

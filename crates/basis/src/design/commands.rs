@@ -46,6 +46,8 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("fastener.add", "{kind: название крепежа, a, b: номера панелей со стыком (торец одной на пласти другой), positions?: [мм вдоль стыка]} → {id}. Отверстия с координатами появятся на обеих панелях; справочник по умолчанию: «Конфирмат 7х50», «Эксцентрик Minifix 15», «Шкант 8х30», «Полкодержатель 5»"),
     ("fastener.auto", "{kind, ids?: [панели]} → {ids} — крепёж на все стыки панелей (как «Крепёж на стыки» в Базисе). У корпусов и угловых модулей — параметр fastener"),
     ("fastener.remove", "{id}"),
+    ("door.add", "{at: [x, y] точка в проёме на виде спереди, material, mount?: overlay|half|inset (накладная по умолчанию), double?: true, gap?: 2, edge?, hinges?: left|right|none} → {id блока}. Дверь с петлями: чашка ⌀35 в двери, планка — в стойке; число петель по высоте"),
+    ("drawers.add", "{at, material, heights: [фасады снизу вверх], mount?: overlay|half|inset, gap?: 2, depth?: длина направляющих, bottom?: материал дна, edge?} → {id блока}. Ящики в проём: короба, фасады, направляющие с присадкой в стойках"),
     ("furniture.add", "{path: файл .fr3d, position?: [x,y,z] мин. угол габарита, name?} → {id}. Модель фурнитуры: её отверстия садятся в панели, к которым она прижата; двигать — object.move/rotate"),
     ("fastener.def", "{name, holes: [{panel: a|b, at, at_t?, at_tb?, dir, diameter, depth, depth_t?}], offset, step, min, max} — свой крепёж в справочник (координаты в системе стыка: X внутрь панели b, Y по нормали b, Z вдоль стыка)"),
     ("panel.set", "{id, name?, material?, frame?: {origin, x, y, z}, ...поля} — панель дерева объектов"),
@@ -267,6 +269,8 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
         "panel.add" => return panel_add(pr, p),
         "panel.fill" => return panel_fill(pr, p),
         "panel.edge" => return panel_edge(pr, p),
+        "door.add" => return fronts::door(pr, p),
+        "drawers.add" => return fronts::drawers(pr, p),
         "furniture.add" => {
             let path = s(p, "path")?;
             let m = crate::library::read(std::path::Path::new(path))?;

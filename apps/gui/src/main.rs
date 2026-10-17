@@ -156,10 +156,16 @@ enum ContourTool {
 
 /// Режим установки панели в проём (как «~» в Базисе).
 struct FillTool {
+    /// horizontal | vertical | front — панель; door — дверь; drawers — ящики.
     plane: &'static str,
     material: String,
     /// Отступы от границ в осях контура (см. команду `panel.fill`).
     gaps: [f64; 4],
+    /// Двери и ящики: накладная, полунакладная, вкладная.
+    mount: &'static str,
+    double: bool,
+    /// Высоты фасадов ящиков снизу вверх, через пробел.
+    heights: String,
 }
 
 /// Выделение: объект верхнего уровня, панель дерева (0 — деталь шаблона) и номер детали внутри объекта.
@@ -1046,16 +1052,28 @@ impl App {
             let mut on = self.fill.is_some();
             if ui.toggle_value(&mut on, "Панель в проём").on_hover_text("Щелчок внутри проёма ставит панель между ближайшими деталями, как «~» в Базисе").changed() {
                 self.fill = match (on, names.first()) {
-                    (true, Some(m)) => Some(FillTool { plane: "horizontal", material: m.clone(), gaps: [0.0; 4] }),
+                    (true, Some(m)) => Some(FillTool { plane: "horizontal", material: m.clone(), gaps: [0.0; 4], mount: "overlay", double: false, heights: "140 280 280".into() }),
                     _ => None,
                 };
             }
             let Some(t) = &mut self.fill else { return };
-            for (p, label) in [("horizontal", "Горизонтальная"), ("vertical", "Вертикальная"), ("front", "Фронтальная")] {
+            for (p, label) in [("horizontal", "Горизонтальная"), ("vertical", "Вертикальная"), ("front", "Фронтальная"), ("door", "Дверь"), ("drawers", "Ящики")] {
                 ui.selectable_value(&mut t.plane, p, label);
             }
             if let Some(Some(m)) = editors::choose(ui, "fill_mat", Some(&t.material), &names, false) {
                 t.material = m;
+            }
+            if matches!(t.plane, "door" | "drawers") {
+                for (m, label) in [("overlay", "накладная"), ("half", "полунакладная"), ("inset", "вкладная")] {
+                    ui.selectable_value(&mut t.mount, m, label);
+                }
+                if t.plane == "door" {
+                    ui.checkbox(&mut t.double, "двойная");
+                } else {
+                    ui.label("фасады:");
+                    ui.add(egui::TextEdit::singleline(&mut t.heights).desired_width(110.0)).on_hover_text("Высоты фасадов снизу вверх через пробел, мм");
+                }
+                return;
             }
             let labels = match t.plane {
                 "horizontal" => ["слева", "справа", "сзади", "спереди"],
@@ -1131,6 +1149,19 @@ impl App {
         let mm_at = |p: Pos2| [((p.x - area.left()) as f64 / k + lo[0]).round(), ((area.bottom() - p.y) as f64 / k + lo[1]).round()];
         if let (Some(t), Some(m)) = (&self.fill, ui.ctx().pointer_hover_pos().filter(|m| resp.rect.contains(*m))) {
             let at = mm_at(m);
+            if matches!(t.plane, "door" | "drawers") {
+                painter.text(m + Vec2::new(12.0, 12.0), egui::Align2::LEFT_TOP, if t.plane == "door" { "щелчок — дверь в этот проём" } else { "щелчок — ящики в этот проём" }, egui::FontId::proportional(12.0), Color32::from_rgb(160, 70, 0));
+                if resp.clicked() {
+                    let heights: Vec<f64> = t.heights.split_whitespace().filter_map(|v| v.replace(',', ".").parse().ok()).collect();
+                    let (cmd, args) = if t.plane == "door" {
+                        ("door.add", json!({ "at": at, "material": t.material, "mount": t.mount, "double": t.double }))
+                    } else {
+                        ("drawers.add", json!({ "at": at, "material": t.material, "mount": t.mount, "heights": heights }))
+                    };
+                    self.exec(cmd, args);
+                }
+                return;
+            }
             let plane: Option<design::Plane> = serde_json::from_value(json!(t.plane)).ok();
             let thick = self.session.as_ref().and_then(|s| s.project.material(&t.material).ok()).map_or(16.0, |m| m.thickness);
             match plane.map(|pl| (pl, design::fill::fill(&parts, pl, at, thick, t.gaps))) {
