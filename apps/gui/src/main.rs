@@ -377,12 +377,8 @@ impl App {
     }
 
     fn front_view(&mut self, ui: &mut egui::Ui) {
-        let Some(s) = &self.session else {
-            ui.label("Вид доступен для своих проектов .bcraft. Для модели Базиса смотрите вкладки «Детали» и «Раскрой».");
-            return;
-        };
-        ui.checkbox(&mut self.show_doors, "Показывать двери");
-        let parts = match design::build(&s.project) {
+        ui.checkbox(&mut self.show_doors, "Показывать двери и фасады");
+        let parts = match job::parts(&self.job) {
             Ok(p) => p,
             Err(e) => {
                 ui.colored_label(Color32::RED, e);
@@ -414,7 +410,7 @@ impl App {
             }
         }
         // Габаритные размеры корпусов.
-        if let Some(c) = s.project.cabinets.first() {
+        if let Some(c) = self.session.as_ref().and_then(|s| s.project.cabinets.first()) {
             let y = c.position[1] - 0.0;
             painter.text(to(c.position[0] + c.width / 2.0, y) + Vec2::new(0.0, 14.0), egui::Align2::CENTER_CENTER, format!("{}", c.width), egui::FontId::proportional(14.0), Color32::BLACK);
             painter.text(to(c.position[0], c.position[1] + c.height / 2.0) - Vec2::new(16.0, 0.0), egui::Align2::CENTER_CENTER, format!("{}", c.height), egui::FontId::proportional(14.0), Color32::BLACK);

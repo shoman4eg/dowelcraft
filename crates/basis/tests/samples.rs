@@ -65,3 +65,19 @@ fn all_samples_parse() {
     }
     eprintln!("файлов {}, плит {panels}", files.len());
 }
+
+/// Положение плит Базиса: в шкафу полки стоят между боковинами, а не заходят в них.
+#[test]
+fn panel_positions_in_space() {
+    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/шкаф.b3d");
+    let Ok(data) = std::fs::read(&p) else { return };
+    let ex = basis::panel::panels(&basis::b3d::parse(&data).unwrap());
+    let b = |name: &str| ex.panels.iter().filter(|p| p.name == name).map(|p| p.bounds.unwrap()).collect::<Vec<_>>();
+    let left = b("Вертикальная1")[0];
+    let shelves = b("Горизонтальная1");
+    assert_eq!(shelves.len(), 8);
+    for (lo, hi) in shelves {
+        assert!((lo[0] - left.1[0]).abs() < 0.01, "полка начинается у правой грани левой боковины: {} vs {}", lo[0], left.1[0]);
+        assert!((hi[1] - lo[1] - 18.0).abs() < 0.01, "полка горизонтальна, толщина 18 по вертикали");
+    }
+}

@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use crate::design::{self, Project};
+use crate::design::{self, Kind, Part, Project};
 use crate::nest::{self, Item, Layout, Params};
 use crate::panel::{self, Panel, Side, material_name};
 use crate::report::{self, Card, Label};
@@ -59,6 +59,31 @@ impl Job {
         let pos = self.panels[i].pos.trim();
         if pos.is_empty() { (i + 1).to_string() } else { pos.to_string() }
     }
+}
+
+/// Детали с положением в пространстве — для вида спереди.
+/// Свой проект строится заново; у модели Базиса берутся габариты плит.
+pub fn parts(job: &Job) -> Result<Vec<Part>, String> {
+    if let Some(p) = &job.project {
+        return design::build(p);
+    }
+    Ok(job
+        .panels
+        .iter()
+        .filter_map(|p| {
+            let (lo, hi) = p.bounds?;
+            // shortcut: назначение детали Базиса угадывается по имени — влияет только на цвет вида.
+            let name = p.name.to_lowercase();
+            let kind = if name.contains("фасад") || name.contains("двер") {
+                Kind::Door
+            } else if name.contains("задн") && name.contains("стен") && p.thickness <= 6.0 {
+                Kind::Back
+            } else {
+                Kind::Body
+            };
+            Some(Part { cabinet: 0, kind, panel: p.clone(), origin: lo, size: std::array::from_fn(|i| hi[i] - lo[i]) })
+        })
+        .collect())
 }
 
 /// Раскрой одного материала.

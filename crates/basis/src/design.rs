@@ -230,6 +230,7 @@ fn rect(name: &str, mat: &Material, sx: f64, sy: f64, texture: Texture, edged: &
         size: (sx, sy),
         texture,
         edges,
+        bounds: None,
     }
 }
 

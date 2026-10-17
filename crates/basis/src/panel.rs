@@ -66,6 +66,9 @@ pub struct Panel {
     pub size: (f64, f64),
     pub texture: Texture,
     pub edges: Vec<Edge>,
+    /// Габарит в пространстве модели ([мин], [макс]), мм: X вправо, Y вверх, Z к зрителю.
+    /// Есть у плит из моделей Базиса; у своих проектов положение хранит `design::Part`.
+    pub bounds: Option<([f64; 3], [f64; 3])>,
 }
 
 const EPS: f64 = 0.01;
@@ -153,27 +156,63 @@ pub struct Extract {
 pub fn panels(file: &File) -> Extract {
     let mut out = Extract::default();
     if let Some(model) = file.section("Document").and_then(|d| d.get("Model")) {
-        walk(model, &mut out);
+        walk(model, &mut out, &IDENTITY);
     }
     out
 }
 
-fn walk(n: &Node, out: &mut Extract) {
+/// Преобразование «локальные → мировые» координаты: поворот и смещение.
+#[derive(Clone, Copy)]
+struct Xform {
+    r: [[f64; 3]; 3],
+    t: [f64; 3],
+}
+
+const IDENTITY: Xform = Xform { r: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], t: [0.0; 3] };
+
+impl Xform {
+    fn apply(&self, p: [f64; 3]) -> [f64; 3] {
+        let r = &self.r;
+        std::array::from_fn(|i| r[i][0] * p[0] + r[i][1] * p[1] + r[i][2] * p[2] + self.t[i])
+    }
+
+    /// `Trans` объекта: X, Y, Z и кватернион Rx, Ry, Rz, Rw относительно родителя.
+    fn then(&self, n: &Node) -> Xform {
+        let Some(tr) = n.get("Trans") else { return *self };
+        let g = |k: &str, d: f64| tr.f64(k).unwrap_or(d);
+        let (x, y, z, w) = (g("Rx", 0.0), g("Ry", 0.0), g("Rz", 0.0), g("Rw", 1.0));
+        let q = [
+            [1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - z * w), 2.0 * (x * z + y * w)],
+            [2.0 * (x * y + z * w), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - x * w)],
+            [2.0 * (x * z - y * w), 2.0 * (y * z + x * w), 1.0 - 2.0 * (x * x + y * y)],
+        ];
+        let r = std::array::from_fn(|i| std::array::from_fn(|j| (0..3).map(|k| self.r[i][k] * q[k][j]).sum()));
+        let local = [g("X", 0.0), g("Y", 0.0), g("Z", 0.0)];
+        Xform { r, t: self.apply(local) }
+    }
+}
+
+fn walk(n: &Node, out: &mut Extract, parent: &Xform) {
+    let xf = if n.get("Type").is_some() { parent.then(n) } else { *parent };
     // Плиты нулевой толщины — изображения внутри фурнитуры (заглушки, крепления), в раскрой не идут.
     if n.int("Type") == Some(TYPE_PANEL) && n.f64("Thick").is_some_and(|t| t > 0.0) {
-        match panel(n) {
+        match panel(n, &xf) {
             Some(p) => out.panels.push(p),
             None => out.skipped.push(n.str("Name").unwrap_or_default().to_string()),
         }
     }
     for c in &n.children {
-        walk(c, out);
+        walk(c, out, &xf);
     }
 }
 
-fn panel(n: &Node) -> Option<Panel> {
+fn panel(n: &Node, xf: &Xform) -> Option<Panel> {
     let segs = contour::parse(n.blob("Contour")?)?;
     let (lo, hi) = contour::bounds(&segs)?;
+    // Контур лежит в плоскости XY плиты, толщина откладывается в +Z (сверено по шкафу: полки встают между боковинами).
+    let thick = n.f64("Thick").unwrap_or(0.0);
+    let corners = (0..8).map(|i| xf.apply([if i & 1 == 0 { lo[0] } else { hi[0] }, if i & 2 == 0 { lo[1] } else { hi[1] }, if i & 4 == 0 { 0.0 } else { thick }]));
+    let bounds = corners.fold(([f64::MAX; 3], [f64::MIN; 3]), |(a, b), p| (std::array::from_fn(|k| a[k].min(p[k])), std::array::from_fn(|k| b[k].max(p[k]))));
     let sh = |p: [f64; 2]| [p[0] - lo[0], p[1] - lo[1]];
     let segs = segs
         .into_iter()
@@ -213,6 +252,7 @@ fn panel(n: &Node) -> Option<Panel> {
             _ => Texture::Default,
         },
         edges,
+        bounds: Some(bounds),
     })
 }
 

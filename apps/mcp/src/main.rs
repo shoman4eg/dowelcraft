@@ -81,7 +81,7 @@ fn tools() -> Value {
          "inputSchema": {"type": "object", "properties": {
              "kind": {"type": "string", "enum": ["cards_html", "raskroy_xml", "spec_csv", "smeta_csv"]},
              "path": {"type": "string"}}, "required": ["kind", "path"]}},
-        {"name": "render_front", "description": "Картинка вида спереди (PNG) своего проекта: корпус — бежевый, двери — голубые полупрозрачные, задняя стенка — серая.",
+        {"name": "render_front", "description": "Картинка вида спереди (PNG) проекта или модели Базиса: корпус — бежевый, двери — голубые полупрозрачные, задняя стенка — серая.",
          "inputSchema": {"type": "object", "properties": {
              "width": {"type": "integer", "description": "ширина картинки, пикселей (по умолчанию 800)"},
              "doors": {"type": "boolean", "description": "рисовать двери (по умолчанию да)"}}}},
@@ -211,8 +211,7 @@ impl Server {
                 Ok(text(format!("Сохранено: {}", path.display())))
             }
             "render_front" => {
-                let s = self.session.as_ref().ok_or("вид спереди пока есть только для своих проектов")?;
-                let parts = design::build(&s.project)?;
+                let parts = job::parts(&self.job)?;
                 let width = a.get("width").and_then(Value::as_u64).unwrap_or(800).clamp(100, 4000) as u32;
                 let doors = a.get("doors").and_then(Value::as_bool).unwrap_or(true);
                 let png = render_front(&parts, width, doors)?;
