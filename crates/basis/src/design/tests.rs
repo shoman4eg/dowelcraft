@@ -298,3 +298,42 @@ fn panel_edges_by_segment() {
     assert!(s.execute("panel.edge", &json!({"id": id, "segments": [0], "edge": "нет такой"})).is_err());
     assert!(s.execute("panel.edge", &json!({"id": 1, "segments": [0], "edge": "ПВХ 0,4 белая"})).unwrap_err().contains("Разрушить"));
 }
+
+/// Правка контура: скругление и фаска угла, вырез, размеры; деталь не смещается, ошибки отклоняются.
+#[test]
+fn contour_editing() {
+    let mut s = wardrobe();
+    let id = s.execute("panel.add", &json!({"material": "ЛДСП Белый 16", "plane": "front", "size": [600, 400], "position": [2000, 0, 0]})).unwrap()["id"].clone();
+    let part = |s: &Session| build(&s.project).unwrap().into_iter().find(|p| json!(p.id) == id).unwrap();
+    s.execute("panel.edge", &json!({"id": id, "segments": [0, 1, 2, 3], "edge": "ПВХ 0,4 белая"})).unwrap();
+    // Скругление R50 в углу (600, 400): габарит тот же, торцов 5, новая дуга с той же кромкой.
+    s.execute("panel.corner", &json!({"id": id, "at": [600, 400], "radius": 50})).unwrap();
+    let p = part(&s);
+    assert_eq!((p.origin, p.size), ([2000.0, 0.0, 0.0], [600.0, 400.0, 16.0]));
+    assert_eq!(p.panel.segs.len(), 5);
+    assert!(matches!(p.panel.segs[4], crate::contour::Seg::Arc { c, .. } if c == [550.0, 350.0]));
+    assert_eq!(p.panel.edges.len(), 5);
+    // Фаска 30 в углу (0, 0) и круглый вырез.
+    s.execute("panel.corner", &json!({"id": id, "at": [0, 0], "chamfer": 30})).unwrap();
+    s.execute("panel.cutout", &json!({"id": id, "center": [300, 200], "radius": 40})).unwrap();
+    let m = crate::mesh::build(&[part(&s)], |_| false);
+    assert!(m.errors.is_empty());
+    // Ошибки: скругление больше торца, вырез вне панели, разрыв контура, размеры фигурной.
+    assert!(s.execute("panel.corner", &json!({"id": id, "at": [600, 0], "radius": 900})).is_err());
+    assert!(s.execute("panel.cutout", &json!({"id": id, "center": [900, 200], "radius": 10})).unwrap_err().contains("вне"));
+    assert!(s.execute("panel.contour", &json!({"id": id, "segs": [{"Line": {"a": [0, 0], "b": [10, 0]}}]})).is_err());
+    assert!(s.execute("panel.resize", &json!({"id": id, "size": [500, 300]})).is_err());
+    // Размеры прямоугольной панели: кромка остаётся на тех же торцах.
+    let id2 = s.execute("panel.add", &json!({"material": "ЛДСП Белый 16", "plane": "horizontal", "size": [600, 400], "position": [3000, 0, 0]})).unwrap()["id"].clone();
+    s.execute("panel.edge", &json!({"id": id2, "segments": [2], "edge": "ПВХ 0,4 белая"})).unwrap();
+    s.execute("panel.resize", &json!({"id": id2, "size": [800, 450]})).unwrap();
+    let p = build(&s.project).unwrap().into_iter().find(|p| json!(p.id) == id2).unwrap();
+    assert_eq!(p.panel.size, (800.0, 450.0));
+    assert_eq!(p.panel.cut_size(), (800.0, 449.6));
+    // Контур целиком: треугольник, смещённый от (0, 0), — нормализуется, начало осей переносится.
+    s.execute("panel.contour", &json!({"id": id2, "segs": [
+        {"Line": {"a": [10, 10], "b": [110, 10]}}, {"Line": {"a": [110, 10], "b": [10, 60]}}, {"Line": {"a": [10, 60], "b": [10, 10]}}]})).unwrap();
+    let p = build(&s.project).unwrap().into_iter().find(|p| json!(p.id) == id2).unwrap();
+    assert_eq!(p.panel.size, (100.0, 50.0));
+    assert_eq!(p.origin, [3010.0, 0.0, 10.0]);
+}

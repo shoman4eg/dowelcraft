@@ -2,8 +2,6 @@
 //! Дуги разбиваются с отклонением хорды не больше [`TOLERANCE`]; рёбра — контур обеих пластей
 //! и вертикали в концах сегментов (как «Без невидимых» в Базисе: без рёбер разбиения дуг).
 
-use std::f64::consts::TAU;
-
 use crate::contour::{self, Seg};
 use crate::design::{Kind, Part};
 
@@ -33,38 +31,7 @@ pub struct Mesh {
 
 /// Точки сегмента от начала до конца (без конечной), дуги — с разбиением.
 fn points(s: &Seg, out: &mut Vec<[f64; 2]>) {
-    match *s {
-        Seg::Line { a, .. } => out.push(a),
-        Seg::Arc { a, b, c, ccw } => {
-            let r = (a[0] - c[0]).hypot(a[1] - c[1]);
-            let ang = |p: [f64; 2]| (p[1] - c[1]).atan2(p[0] - c[0]);
-            let a0 = ang(a);
-            let sweep = if ccw { ang(b) - a0 } else { a0 - ang(b) }.rem_euclid(TAU);
-            let sweep = if sweep < 1e-12 { TAU } else { sweep };
-            let n = segments(r, sweep);
-            let sign = if ccw { 1.0 } else { -1.0 };
-            for i in 0..n {
-                let t = a0 + sign * sweep * i as f64 / n as f64;
-                out.push(if i == 0 { a } else { [c[0] + r * t.cos(), c[1] + r * t.sin()] });
-            }
-        }
-        Seg::Circle { c, r } => {
-            let n = segments(r, TAU);
-            out.extend((0..n).map(|i| {
-                let t = TAU * i as f64 / n as f64;
-                [c[0] + r * t.cos(), c[1] + r * t.sin()]
-            }));
-        }
-    }
-}
-
-/// Число хорд, чтобы отклонение от дуги радиуса `r` не превышало допуска.
-fn segments(r: f64, sweep: f64) -> usize {
-    if r <= TOLERANCE {
-        return 1;
-    }
-    let step = 2.0 * (1.0 - TOLERANCE / r).acos();
-    ((sweep / step).ceil() as usize).clamp(1, 512)
+    out.extend(contour::tessellate(s, TOLERANCE));
 }
 
 /// Замкнутый контур как многоугольник: точки и начала сегментов (там ставятся вертикальные рёбра).

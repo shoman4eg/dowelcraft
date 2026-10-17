@@ -110,6 +110,90 @@ pub fn loops(segs: &[Seg]) -> Result<Vec<Loop>, String> {
     Ok(out)
 }
 
+/// Точки сегмента от начала до конца (конец не включается); дуги — хордами с отклонением не больше `tol`.
+pub fn tessellate(s: &Seg, tol: f64) -> Vec<[f64; 2]> {
+    let steps = |r: f64, sweep: f64| -> usize {
+        if r <= tol {
+            return 1;
+        }
+        ((sweep / (2.0 * (1.0 - tol / r).acos())).ceil() as usize).clamp(1, 512)
+    };
+    match *s {
+        Seg::Line { a, .. } => vec![a],
+        Seg::Arc { a, b, c, ccw } => {
+            let r = (a[0] - c[0]).hypot(a[1] - c[1]);
+            let ang = |p: [f64; 2]| (p[1] - c[1]).atan2(p[0] - c[0]);
+            let a0 = ang(a);
+            let sweep = if ccw { ang(b) - a0 } else { a0 - ang(b) }.rem_euclid(TAU);
+            let sweep = if sweep < 1e-12 { TAU } else { sweep };
+            let n = steps(r, sweep);
+            let sign = if ccw { 1.0 } else { -1.0 };
+            (0..n)
+                .map(|i| {
+                    let t = a0 + sign * sweep * i as f64 / n as f64;
+                    if i == 0 { a } else { [c[0] + r * t.cos(), c[1] + r * t.sin()] }
+                })
+                .collect()
+        }
+        Seg::Circle { c, r } => {
+            let n = steps(r, TAU);
+            (0..n).map(|i| {
+                let t = TAU * i as f64 / n as f64;
+                [c[0] + r * t.cos(), c[1] + r * t.sin()]
+            }).collect()
+        }
+    }
+}
+
+/// Проверка контура, как при «Закончить редактирование» в Базисе: все контуры замкнуты, ни один
+/// не пересекает себя или другой, вырезы лежат внутри внешнего контура.
+pub fn validate(segs: &[Seg]) -> Result<(), String> {
+    if segs.is_empty() {
+        return Err("контур пуст".into());
+    }
+    let rings: Vec<Vec<[f64; 2]>> = loops(segs)?
+        .into_iter()
+        .map(|lp| lp.into_iter().flat_map(|(i, rev)| tessellate(&if rev { reversed(&segs[i]) } else { segs[i] }, 0.05)).collect())
+        .collect();
+    let area = |p: &[[f64; 2]]| (0..p.len()).map(|i| { let (a, b) = (p[i], p[(i + 1) % p.len()]); a[0] * b[1] - b[0] * a[1] }).sum::<f64>() / 2.0;
+    if rings.iter().any(|r| r.len() < 3 || area(r).abs() < 1e-6) {
+        return Err("контур вырожден: нулевая площадь".into());
+    }
+    // Рёбра всех контуров: (контур, номер, начало, конец).
+    let edges: Vec<(usize, usize, [f64; 2], [f64; 2])> = rings.iter().enumerate().flat_map(|(r, pts)| (0..pts.len()).map(move |i| (r, i, pts[i], pts[(i + 1) % pts.len()]))).collect();
+    let o = |p: [f64; 2], q: [f64; 2], r: [f64; 2]| (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    for (x, &(ra, ia, a0, a1)) in edges.iter().enumerate() {
+        for &(rb, ib, b0, b1) in &edges[x + 1..] {
+            let n = rings[ra].len();
+            // Соседние рёбра одного контура касаются концами — это не пересечение.
+            if ra == rb && (ia + 1) % n == ib || ra == rb && (ib + 1) % n == ia {
+                continue;
+            }
+            let (d1, d2, d3, d4) = (o(b0, b1, a0), o(b0, b1, a1), o(a0, a1, b0), o(a0, a1, b1));
+            if d1 * d2 < -1e-9 && d3 * d4 < -1e-9 {
+                return Err(format!("контур пересекает себя около точки ({:.1}, {:.1})", a0[0], a0[1]));
+            }
+        }
+    }
+    let outer = (0..rings.len()).max_by(|&a, &b| area(&rings[a]).abs().total_cmp(&area(&rings[b]).abs())).unwrap_or(0);
+    let inside = |p: [f64; 2], poly: &[[f64; 2]]| {
+        let mut c = false;
+        for i in 0..poly.len() {
+            let (a, b) = (poly[i], poly[(i + 1) % poly.len()]);
+            if (a[1] > p[1]) != (b[1] > p[1]) && p[0] < a[0] + (p[1] - a[1]) / (b[1] - a[1]) * (b[0] - a[0]) {
+                c = !c;
+            }
+        }
+        c
+    };
+    for (i, r) in rings.iter().enumerate() {
+        if i != outer && !inside(r[0], &rings[outer]) {
+            return Err(format!("вырез у точки ({:.1}, {:.1}) лежит вне панели", r[0][0], r[0][1]));
+        }
+    }
+    Ok(())
+}
+
 /// Габарит [min, max] контура с учётом выпуклости дуг.
 pub fn bounds(segs: &[Seg]) -> Option<([f64; 2], [f64; 2])> {
     let mut lo = [f64::INFINITY; 2];
@@ -184,5 +268,25 @@ mod tests {
         assert_eq!(l, vec![vec![(0, false), (2, true), (4, true), (1, false)], vec![(3, false)]]);
         assert_eq!(reversed(&segs[4]), Seg::Arc { a: [10.0, 5.0], b: [0.0, 5.0], c: [5.0, 5.0], ccw: false });
         assert!(loops(&segs[..2]).is_err());
+    }
+
+    #[test]
+    fn validate_catches_bad_contours() {
+        let rect = |w: f64, h: f64, x: f64, y: f64| -> Vec<Seg> {
+            let p = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+            (0..4).map(|i| Seg::Line { a: p[i], b: p[(i + 1) % 4] }).collect()
+        };
+        validate(&rect(100.0, 50.0, 0.0, 0.0)).unwrap();
+        let mut with_hole = rect(100.0, 50.0, 0.0, 0.0);
+        with_hole.push(Seg::Circle { c: [50.0, 25.0], r: 10.0 });
+        validate(&with_hole).unwrap();
+        let mut outside = rect(100.0, 50.0, 0.0, 0.0);
+        outside.push(Seg::Circle { c: [500.0, 25.0], r: 10.0 });
+        assert!(validate(&outside).unwrap_err().contains("вне"));
+        // «Бабочка»: самопересечение.
+        let bow = [[0.0, 0.0], [10.0, 10.0], [10.0, 0.0], [0.0, 6.0]];
+        let bow: Vec<Seg> = (0..4).map(|i| Seg::Line { a: bow[i], b: bow[(i + 1) % 4] }).collect();
+        assert!(validate(&bow).unwrap_err().contains("пересекает"));
+        assert!(validate(&rect(100.0, 50.0, 0.0, 0.0)[..3]).is_err(), "незамкнут");
     }
 }

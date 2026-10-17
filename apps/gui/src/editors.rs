@@ -450,9 +450,17 @@ fn seg_points(s: &basis::contour::Seg) -> Vec<[f64; 2]> {
     }
 }
 
+/// Щелчок по схеме контура: торец под курсором, вершина рядом и точка в мм осей панели.
+#[derive(Clone, Copy, Debug)]
+pub struct ContourClick {
+    pub segment: Option<usize>,
+    pub vertex: Option<[f64; 2]>,
+    pub point: [f64; 2],
+}
+
 /// Схема контура панели (как в Базисе при облицовке: панель параллельно экрану). Торцы с кромкой —
-/// толстой линией с подписью толщины, торец под курсором — оранжевым. Возвращает торец, по которому щёлкнули.
-pub fn contour_view(ui: &mut egui::Ui, segs: &[basis::contour::Seg], edges: &[basis::panel::Edge], height: f32) -> Option<usize> {
+/// толстой линией с подписью толщины, торец под курсором — оранжевым, вершины — кружками.
+pub fn contour_view(ui: &mut egui::Ui, segs: &[basis::contour::Seg], edges: &[basis::panel::Edge], height: f32) -> Option<ContourClick> {
     use egui::{Color32, Pos2, Stroke};
     let (resp, painter) = ui.allocate_painter(egui::vec2(ui.available_width(), height), egui::Sense::click());
     let (lo, hi) = basis::contour::bounds(segs)?;
@@ -460,6 +468,10 @@ pub fn contour_view(ui: &mut egui::Ui, segs: &[basis::contour::Seg], edges: &[ba
     let k = (area.width() as f64 / (hi[0] - lo[0]).max(1.0)).min(area.height() as f64 / (hi[1] - lo[1]).max(1.0));
     let off = egui::vec2((area.width() - ((hi[0] - lo[0]) * k) as f32) / 2.0, -(area.height() - ((hi[1] - lo[1]) * k) as f32) / 2.0);
     let to = |p: [f64; 2]| Pos2::new(area.left() + ((p[0] - lo[0]) * k) as f32, area.bottom() - ((p[1] - lo[1]) * k) as f32) + off;
+    let from = |q: Pos2| {
+        let q = q - off;
+        [((q.x - area.left()) as f64 / k + lo[0]).round(), ((area.bottom() - q.y) as f64 / k + lo[1]).round()]
+    };
     painter.rect_filled(resp.rect, 4.0, Color32::from_gray(245));
     let mouse = ui.ctx().pointer_hover_pos().filter(|m| resp.rect.contains(*m));
     let polylines: Vec<Vec<Pos2>> = segs.iter().map(|s| seg_points(s).into_iter().map(to).collect()).collect();
@@ -486,9 +498,19 @@ pub fn contour_view(ui: &mut egui::Ui, segs: &[basis::contour::Seg], edges: &[ba
         };
         painter.text(mid, egui::Align2::CENTER_CENTER, label, egui::FontId::proportional(11.0), Color32::from_rgb(20, 60, 160));
     }
-    if let Some(i) = hovered {
-        let len = basis::contour::length(&segs[i]);
-        resp.clone().on_hover_text(format!("Торец {i}: {len:.1} мм — щелчок наносит или снимает кромку"));
+    // Вершины: концы отрезков и дуг.
+    let vertices: Vec<[f64; 2]> = segs.iter().filter(|s| !matches!(s, basis::contour::Seg::Circle { .. })).map(|s| basis::contour::ends(s).0).collect();
+    let vertex = mouse.and_then(|m| vertices.iter().copied().filter(|&v| (to(v) - m).length() < 9.0).min_by(|a, b| (to(*a) - m).length().total_cmp(&(to(*b) - m).length())));
+    for &v in &vertices {
+        let hot = Some(v) == vertex;
+        painter.circle(to(v), if hot { 5.0 } else { 2.5 }, if hot { Color32::from_rgb(230, 120, 0) } else { Color32::from_gray(90) }, Stroke::NONE);
     }
-    if resp.clicked() { hovered } else { None }
+    if let Some(v) = vertex {
+        resp.clone().on_hover_text(format!("Вершина ({}, {})", v[0], v[1]));
+    } else if let Some(i) = hovered {
+        let len = basis::contour::length(&segs[i]);
+        resp.clone().on_hover_text(format!("Торец {i}: {len:.1} мм"));
+    }
+    let point = mouse.map(from)?;
+    resp.clicked().then_some(ContourClick { segment: hovered, vertex, point })
 }

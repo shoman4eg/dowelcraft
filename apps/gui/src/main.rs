@@ -103,6 +103,19 @@ fn permissions(_: &Pane) -> Permissions {
     Permissions { closable: false, ..Permissions::default() }
 }
 
+/// Что делает щелчок по схеме контура панели.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum ContourTool {
+    /// Нанести или снять кромку на торце.
+    Edge,
+    /// Скруглить угол в вершине.
+    Round,
+    /// Срезать угол фаской.
+    Chamfer,
+    /// Круглый вырез в точке.
+    Hole,
+}
+
 /// Режим установки панели в проём (как «~» в Базисе).
 struct FillTool {
     plane: &'static str,
@@ -161,6 +174,8 @@ struct App {
     fill: Option<FillTool>,
     /// Облицовка: кромка, «Подрезать», припуск.
     edging: (Option<String>, bool, f64),
+    /// Действие щелчка по схеме контура и его размер (радиус, катет фаски, радиус выреза), мм.
+    contour_tool: (ContourTool, f64),
     screenshot: Option<PathBuf>,
     frames: u32,
     /// Детали изделия с положением (или ошибка сборки) — пересобираются в `refresh`.
@@ -189,6 +204,7 @@ impl Default for App {
             new_panel: ("vertical", 560.0, 720.0),
             fill: None,
             edging: (None, true, 0.0),
+            contour_tool: (ContourTool::Edge, 50.0),
             screenshot: None,
             frames: 0,
             parts: Ok(Vec::new()),
@@ -627,6 +643,36 @@ impl App {
                 ui.checkbox(clip, "Подрезать").on_hover_text("Заготовка меньше на толщину кромки: размер детали — чистовой");
                 ui.add(egui::DragValue::new(allowance).range(0.0..=10.0).speed(0.1).prefix("припуск ").suffix(" мм"));
             });
+            ui.separator();
+            ui.heading("Контур");
+            let (tool, size) = &mut self.contour_tool;
+            ui.horizontal(|ui| {
+                for (t, label) in [(ContourTool::Edge, "Кромка"), (ContourTool::Round, "Скругление"), (ContourTool::Chamfer, "Фаска"), (ContourTool::Hole, "Вырез")] {
+                    ui.selectable_value(tool, t, label);
+                }
+                if *tool != ContourTool::Edge {
+                    let label = match tool { ContourTool::Round => "R ", ContourTool::Chamfer => "катет ", _ => "радиус " };
+                    ui.add(egui::DragValue::new(size).range(1.0..=2000.0).prefix(label).suffix(" мм"));
+                }
+            });
+            ui.weak(match tool {
+                ContourTool::Edge => "Щелчок по торцу — нанести или снять выбранную кромку.",
+                ContourTool::Round | ContourTool::Chamfer => "Щелчок по вершине — скруглить или срезать угол.",
+                ContourTool::Hole => "Щелчок внутри панели — круглый вырез с центром в этой точке.",
+            });
+            if fp.segs.len() == 4 {
+                ui.horizontal(|ui| {
+                    ui.label("Размеры:");
+                    let (mut a, mut b) = (p.size.0, p.size.1);
+                    let ra = ui.add(egui::DragValue::new(&mut a).range(1.0..=6000.0).suffix(" мм"));
+                    ui.label("×");
+                    let rb = ui.add(egui::DragValue::new(&mut b).range(1.0..=6000.0).suffix(" мм"));
+                    let done = |r: &egui::Response| r.drag_stopped() || (r.changed() && !r.dragged());
+                    if (done(&ra) || done(&rb)) && (a, b) != p.size {
+                        cmds.push(("panel.resize", json!({ "id": fp.id, "size": [a, b] })));
+                    }
+                });
+            }
             let all: Vec<usize> = (0..fp.segs.len()).collect();
             ui.horizontal(|ui| {
                 if ui.button("На все торцы").clicked() {
@@ -636,10 +682,19 @@ impl App {
                     cmds.push(("panel.edge", json!({ "id": fp.id, "segments": all, "edge": null })));
                 }
             });
-            if let Some(i) = editors::contour_view(ui, &fp.segs, &fp.edges, 220.0) {
-                let same = fp.edges.iter().any(|e| e.segment == i && edge.as_deref().is_some_and(|n| panel::material_name(&e.material) == n));
-                let edge = if same { None } else { edge.clone() };
-                cmds.push(("panel.edge", json!({ "id": fp.id, "segments": [i], "edge": edge, "clip": clip, "allowance": allowance })));
+            let (tool, size) = self.contour_tool;
+            if let Some(c) = editors::contour_view(ui, &fp.segs, &fp.edges, 260.0) {
+                match (tool, c.segment, c.vertex) {
+                    (ContourTool::Edge, Some(i), _) => {
+                        let same = fp.edges.iter().any(|e| e.segment == i && edge.as_deref().is_some_and(|n| panel::material_name(&e.material) == n));
+                        let edge = if same { None } else { edge.clone() };
+                        cmds.push(("panel.edge", json!({ "id": fp.id, "segments": [i], "edge": edge, "clip": clip, "allowance": allowance })));
+                    }
+                    (ContourTool::Round, _, Some(v)) => cmds.push(("panel.corner", json!({ "id": fp.id, "at": v, "radius": size }))),
+                    (ContourTool::Chamfer, _, Some(v)) => cmds.push(("panel.corner", json!({ "id": fp.id, "at": v, "chamfer": size }))),
+                    (ContourTool::Hole, _, _) => cmds.push(("panel.cutout", json!({ "id": fp.id, "center": c.point, "radius": size }))),
+                    _ => {}
+                }
             }
         }
         for (cmd, v) in cmds {

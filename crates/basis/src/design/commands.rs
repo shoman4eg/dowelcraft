@@ -32,6 +32,10 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("panel.add", "{material, plane: front|horizontal|vertical, size: [a, b], position?: [x,y,z] мин. угол габарита, name?, texture?: Horizontal|Vertical|Default, kind?: body|back|door|drawer, block?} → {id}. Размеры контура: front — ширина×высота, horizontal — ширина×глубина, vertical — глубина×высота; толщина — из материала"),
     ("panel.fill", "{material, plane, at: [x, y] точка в проёме на виде спереди, gaps?: [4 отступа], name?, kind?} → {id}. Панель во весь проём между ближайшими деталями (двери не в счёт), как «~» в Базисе. horizontal — нижней пластью на высоту y, gaps [слева, справа, сзади, спереди]; vertical — левой пластью на x, gaps [сзади, спереди, снизу, сверху]; front — вровень с передом проёма, gaps [слева, справа, снизу, сверху]"),
     ("panel.edge", "{id, segments: [номера торцов], edge: имя кромки | null, clip?: true — подрезать заготовку на толщину кромки, allowance?: припуск на прифуговку, мм} — кромка на торцах панели; null — снять"),
+    ("panel.resize", "{id, size: [a, b]} — новые размеры прямоугольной панели (кромка сохраняется)"),
+    ("panel.corner", "{id, at: [x, y] вершина контура, radius? | chamfer?} — скругление или фаска угла между двумя отрезками"),
+    ("panel.cutout", "{id, center: [x, y], radius? | size?: [w, h]} — круглый или прямоугольный вырез"),
+    ("panel.contour", "{id, segs: [{Line:{a,b}} | {Arc:{a,b,c,ccw}} | {Circle:{c,r}}]} — контур целиком (в осях панели); проверяется замкнутость и самопересечения"),
     ("panel.set", "{id, name?, material?, frame?: {origin, x, y, z}, ...поля} — панель дерева объектов"),
     ("panel.remove", "{id}"),
     ("block.set", "{id, name?, frame?} — блок дерева объектов"),
@@ -251,6 +255,7 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
         "panel.add" => return panel_add(pr, p),
         "panel.fill" => return panel_fill(pr, p),
         "panel.edge" => return panel_edge(pr, p),
+        "panel.contour" | "panel.corner" | "panel.cutout" | "panel.resize" => return shape::command(pr, cmd, p),
         "cabinet.explode" | "corner.explode" | "countertop.explode" => return explode(pr, idx(p, "id")? as u32),
         "panel.set" | "block.set" => {
             let id = idx(p, "id")? as u32;

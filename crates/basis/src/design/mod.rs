@@ -17,6 +17,7 @@ pub use crate::view::{Face, FrontRect, bounds, front_view, iso_view};
 
 mod commands;
 pub mod fill;
+pub mod shape;
 pub use commands::{COMMANDS, Session};
 
 /// Метка формата в файле проекта `.bcraft`.
