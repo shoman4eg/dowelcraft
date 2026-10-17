@@ -144,4 +144,23 @@ mod tests {
         let flat = models.iter().filter(|m| (0..3).any(|k| m.hi[k] - m.lo[k] < 1.0)).map(|m| m.name.as_str()).collect::<Vec<_>>();
         println!("плоских: {flat:?}");
     }
+
+    /// Фрагменты Балтламината (замки, магниты, освещение, розетки): читаются все, у каждой сетка и объём.
+    #[test]
+    fn baltlaminat_fragments() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/fragments");
+        if !dir.exists() {
+            return;
+        }
+        let t = std::time::Instant::now();
+        let (models, bad) = scan(&dir);
+        println!("моделей {}, ошибок {}, {:?}", models.len(), bad.len(), t.elapsed());
+        assert!(bad.is_empty(), "{bad:?}");
+        let flat: Vec<&str> = models.iter().filter(|m| (0..3).any(|k| m.hi[k] - m.lo[k] < 1.0)).map(|m| m.name.as_str()).collect();
+        let no_mesh: Vec<&str> = models.iter().filter(|m| m.mesh.is_empty()).map(|m| m.name.as_str()).collect();
+        let holes: usize = models.iter().map(|m| m.holes.len()).sum();
+        println!("плоских {}: {flat:?}\nбез сетки {}: {no_mesh:?}\nотверстий всего {holes}", flat.len(), no_mesh.len());
+        assert!(flat.is_empty() && no_mesh.is_empty());
+    }
 }
+
