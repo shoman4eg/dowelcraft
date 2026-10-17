@@ -8,6 +8,7 @@ mod editors;
 mod expr;
 mod icons;
 mod library;
+mod settings;
 mod tools;
 mod viewport;
 
@@ -236,18 +237,33 @@ fn script_control(ui: &mut egui::Ui, c: &Value, ev: &mut Vec<ScriptEvent>) {
 
 /// Библиотека моделей фурнитуры в окне.
 struct Library {
-    dir: String,
+    /// Папки с моделями; дерево — по каждой. Запоминаются в настройках.
+    dirs: Vec<String>,
     models: Vec<basis::library::ModelInfo>,
     errors: Vec<String>,
     search: String,
     thumbs: library::Thumbs,
+    /// Папки уже просмотрены (иначе — просмотреть при показе вкладки).
+    scanned: bool,
 }
 
-impl Default for Library {
-    fn default() -> Self {
-        // По умолчанию — папка с примерами проекта, если есть.
-        let dir = if std::path::Path::new("example").exists() { "example" } else { "." };
-        Library { dir: dir.into(), models: Vec::new(), errors: Vec::new(), search: String::new(), thumbs: Default::default() }
+impl Library {
+    fn new(dirs: Vec<String>) -> Self {
+        Library { dirs, models: Vec::new(), errors: Vec::new(), search: String::new(), thumbs: Default::default(), scanned: false }
+    }
+
+    /// Просмотреть все папки заново.
+    fn scan(&mut self) {
+        (self.models, self.errors) = (Vec::new(), Vec::new());
+        for d in &self.dirs {
+            let (m, e) = basis::library::scan(std::path::Path::new(d));
+            if m.is_empty() && e.is_empty() {
+                self.errors.push(format!("в «{d}» нет моделей .fr3d"));
+            }
+            self.models.extend(m);
+            self.errors.extend(e);
+        }
+        self.scanned = true;
     }
 }
 
@@ -412,6 +428,8 @@ struct App {
     textures_dir: String,
     /// Выделенная фурнитура (у неё нет деталей — выделяется отдельно).
     furniture_sel: Option<u32>,
+    /// Настройки между запусками (папки фурнитуры, язык).
+    settings: settings::Settings,
     /// Загруженные сетки фурнитуры: файл → треугольники.
     meshes: std::collections::HashMap<String, std::sync::Arc<Vec<basis::panel::Tri>>>,
     /// Крепёж для установки между панелями.
@@ -432,6 +450,7 @@ struct App {
 
 impl Default for App {
     fn default() -> Self {
+        let settings = settings::Settings::load();
         let mut app = App {
             session: Some(Session::new(Project::new("Новый проект"))),
             job: Job::from_project(Project::new("Новый проект")),
@@ -458,11 +477,12 @@ impl Default for App {
             edging: (None, true, 0.0),
             contour_tool: (ContourTool::Edge, 50.0),
             fastener_kind: "Конфирмат 7х50".into(),
-            library: Library::default(),
+            library: Library::new(settings.library_dirs.clone()),
             script: None,
             problems: None,
             furniture_sel: None,
             meshes: Default::default(),
+            settings,
             textures_dir: "example/textures".into(),
             screenshot: None,
             frames: 0,
@@ -485,6 +505,7 @@ impl App {
                 self.job = job;
                 self.status = format!("Открыт {}", path.display());
                 chrome::remember(&path);
+                self.show_pane(Pane::Model);
                 self.path = Some(path);
                 self.error = None;
                 self.card = 0;
@@ -1215,23 +1236,44 @@ impl App {
 
     /// «Фурнитура»: модели .fr3d из папки — превью, поиск, «Поставить».
     fn library_panel(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            ui.label("Папка");
-            ui.text_edit_singleline(&mut self.library.dir);
-            if ui.button("…").clicked()
-                && let Some(d) = rfd::FileDialog::new().pick_folder()
-            {
-                self.library.dir = d.display().to_string();
-                self.library.models.clear();
+        if !self.library.scanned {
+            self.library.scan();
+        }
+        let mut changed = false;
+        egui::CollapsingHeader::new(format!("Папки фурнитуры ({})", self.library.dirs.len())).default_open(self.library.dirs.is_empty()).show(ui, |ui| {
+            let mut remove = None;
+            for (i, d) in self.library.dirs.iter().enumerate() {
+                ui.horizontal(|ui| {
+                    if ui.small_button("✕").on_hover_text("Убрать папку из библиотеки (файлы не удаляются)").clicked() {
+                        remove = Some(i);
+                    }
+                    ui.add(egui::Label::new(d.as_str()).truncate()).on_hover_text(d.as_str());
+                });
             }
-            if ui.button("Обновить").clicked() || (self.library.models.is_empty() && self.library.errors.is_empty()) {
-                let (m, e) = basis::library::scan(std::path::Path::new(&self.library.dir));
-                (self.library.models, self.library.errors) = (m, e);
-                if self.library.models.is_empty() && self.library.errors.is_empty() {
-                    self.library.errors.push(format!("в «{}» нет моделей .fr3d", self.library.dir));
+            if let Some(i) = remove {
+                self.library.dirs.remove(i);
+                changed = true;
+            }
+            ui.horizontal(|ui| {
+                if ui.button("+ Добавить папку…").clicked()
+                    && let Some(d) = rfd::FileDialog::new().pick_folder()
+                {
+                    let d = d.display().to_string();
+                    if !self.library.dirs.contains(&d) {
+                        self.library.dirs.push(d);
+                        changed = true;
+                    }
                 }
-            }
+                if ui.button("Обновить").on_hover_text("Просмотреть папки заново (если добавили файлы)").clicked() {
+                    self.library.scan();
+                }
+            });
         });
+        if changed {
+            self.settings.library_dirs = self.library.dirs.clone();
+            self.settings.save();
+            self.library.scan();
+        }
         ui.horizontal(|ui| {
             ui.label("Поиск");
             ui.text_edit_singleline(&mut self.library.search);
@@ -1243,8 +1285,8 @@ impl App {
         let right = self.session.as_ref().map_or(0.0, |s| {
             s.project.cabinets.iter().map(|c| c.position[0] + c.width).chain(s.project.corners.iter().map(|c| c.position[0] + c.width_x)).fold(0.0, f64::max)
         });
-        let root = PathBuf::from(&self.library.dir);
-        let place = library::show(ui, &root, &self.library.models, &mut self.library.thumbs, editable, &self.library.search);
+        let roots: Vec<PathBuf> = self.library.dirs.iter().map(PathBuf::from).collect();
+        let place = library::show(ui, &roots, &self.library.models, &mut self.library.thumbs, editable, &self.library.search);
         if let Some(p) = place {
             self.exec("furniture.add", json!({ "path": p, "position": [right, 0, 0] }));
         }

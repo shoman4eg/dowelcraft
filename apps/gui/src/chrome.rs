@@ -18,8 +18,7 @@ const RECENT_MAX: usize = 12;
 const SAMPLES: [&str; 3] = ["example/Кухня Эл.b3d", "example/Детская кровать.b3d", "example/Витрина высокая.b3d"];
 
 fn recent_file() -> Option<PathBuf> {
-    let base = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
-    Some(base.join("basis-craft").join("recent.json"))
+    Some(crate::settings::config_dir()?.join("recent.json"))
 }
 
 /// Последние открытые и сохранённые файлы (новые сверху), только существующие.

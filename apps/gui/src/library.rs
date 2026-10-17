@@ -23,10 +23,14 @@ impl Folder {
     }
 }
 
-/// Папки модели относительно корня библиотеки.
-fn folders(root: &Path, m: &ModelInfo) -> Vec<String> {
+/// Папки модели: имя папки библиотеки, в которой она лежит, и подпапки внутри неё.
+fn folders(roots: &[PathBuf], m: &ModelInfo) -> Vec<String> {
     let dir = m.path.parent().unwrap_or(Path::new(""));
-    dir.strip_prefix(root).unwrap_or(dir).components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect()
+    let Some(root) = roots.iter().filter(|r| dir.starts_with(r)).max_by_key(|r| r.components().count()) else {
+        return vec![dir.display().to_string()];
+    };
+    let name = root.file_name().map_or_else(|| root.display().to_string(), |n| n.to_string_lossy().into_owned());
+    std::iter::once(name).chain(dir.strip_prefix(root).unwrap_or(dir).components().map(|c| c.as_os_str().to_string_lossy().into_owned())).collect()
 }
 
 /// Строка модели: превью, название, вид и размер, «Поставить». Возвращает true, если нажали «Поставить».
@@ -66,7 +70,7 @@ fn show_folder(ui: &mut egui::Ui, id: &str, f: &Folder, models: &[ModelInfo], th
 }
 
 /// Дерево (или найденное по `query`); возвращает файл, который надо поставить.
-pub fn show(ui: &mut egui::Ui, root: &Path, models: &[ModelInfo], thumbs: &mut Thumbs, editable: bool, query: &str) -> Option<PathBuf> {
+pub fn show(ui: &mut egui::Ui, roots: &[PathBuf], models: &[ModelInfo], thumbs: &mut Thumbs, editable: bool, query: &str) -> Option<PathBuf> {
     let q = query.trim().to_lowercase();
     let mut place = None;
     egui::ScrollArea::vertical().id_salt("lib").show(ui, |ui| {
@@ -74,7 +78,7 @@ pub fn show(ui: &mut egui::Ui, root: &Path, models: &[ModelInfo], thumbs: &mut T
             let found: Vec<&ModelInfo> = models.iter().filter(|m| m.name.to_lowercase().contains(&q) || m.kind.to_lowercase().contains(&q)).collect();
             ui.weak(format!("Найдено: {}", found.len()));
             for m in found {
-                let path = folders(root, m).join(" / ");
+                let path = folders(roots, m).join(" / ");
                 if row(ui, m, thumbs, editable, Some(&path)) {
                     place = Some(m.path.clone());
                 }
@@ -85,7 +89,7 @@ pub fn show(ui: &mut egui::Ui, root: &Path, models: &[ModelInfo], thumbs: &mut T
         let mut tree = Folder::default();
         for (i, m) in models.iter().enumerate() {
             let mut f = &mut tree;
-            for d in folders(root, m) {
+            for d in folders(roots, m) {
                 f = f.dirs.entry(d).or_default();
             }
             f.models.push(i);
