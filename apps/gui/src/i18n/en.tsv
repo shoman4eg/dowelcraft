@@ -412,8 +412,6 @@
 Собрать выделенное в группу (блок): двигается и копируется вместе	Group the selection into a block: it moves and copies together
 Выделите группу (щелчок по её названию) — её содержимое выйдет на уровень выше	Select a group (click its name) — its contents move one level up
 Показать скрытые	Show hidden
-4 вида	4 views
-Четыре окна: спереди, слева, сверху и 3D; в каждом — режим показа (прозрачность, каркас) и приближение	Four windows: front, left, top and 3D; each has its display mode (transparent, wireframe) and zoom
 Новый	New
 Открыть	Open
 Сохранить как	Save as
@@ -425,3 +423,6 @@
 внутри	inside
 снаружи	outside
 С какой стороны панели сверлится чашка ⌀15: внутри корпуса (у дна — сверху, у крыши — снизу) или снаружи. У отдельных панелей; «Поставить» меняет и уже стоящий крепёж	Which face gets the ⌀15 cup: inside the carcass (top of the bottom, underside of the top) or outside. For free panels; “Apply” also changes fasteners already there
+Вернуть четыре окна	Back to four windows
+Развернуть это окно на всю область	Maximize this window
+Модель в 3D; на панели вида — «4 окна»: спереди, слева, сверху и 3D	Model in 3D; the view bar has “4 windows”: front, left, top and 3D

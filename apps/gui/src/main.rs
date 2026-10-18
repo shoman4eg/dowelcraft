@@ -522,6 +522,8 @@ struct App {
     viewport: viewport::Viewport,
     /// «4 окна» (как «Проекции» в Базисе): спереди, слева, сверху и основное окно — аксонометрия.
     quad: bool,
+    /// В «4 видах» одно окно развёрнуто на всю область: 0 спереди, 1 слева, 2 сверху, 3 — 3D.
+    quad_max: Option<usize>,
     views: [viewport::Viewport; 3],
 }
 
@@ -582,6 +584,7 @@ impl Default for App {
             revision: 0,
             viewport: viewport::Viewport::default(),
             quad: false,
+            quad_max: None,
             views: [viewport::Viewport::with_view(0.0, 0.0, "Спереди"), viewport::Viewport::with_view(90.0, 0.0, "Слева"), viewport::Viewport::with_view(0.0, 89.9, "Сверху")],
         };
         app.refresh();
@@ -949,20 +952,15 @@ impl App {
                 }
                 ui.separator();
                 // Вид на холсте — как вкладки, но в строке иконок.
-                // `quad`: у 3D два вида — одно окно или четыре.
-                for (pane, quad, icon, text, tip) in [
-                    (Pane::Model, Some(false), Icon::ViewIso, "3D", "Модель в 3D"),
-                    (Pane::Model, Some(true), Icon::Quad, "4 вида", "Четыре окна: спереди, слева, сверху и 3D; в каждом — режим показа (прозрачность, каркас) и приближение"),
-                    (Pane::Front, None, Icon::ViewFront, "Спереди", "Вид спереди: ставить полки, двери и ящики в проём, двигать мышью"),
-                    (Pane::Parts, None, Icon::Table, "Детали", "Таблица деталей: размеры, материал, кромка"),
-                    (Pane::Cut, None, Icon::CutSheet, "Раскрой", "Карты раскроя листов"),
+                for (pane, icon, text, tip) in [
+                    (Pane::Model, Icon::ViewIso, "3D", "Модель в 3D; на панели вида — «4 окна»: спереди, слева, сверху и 3D"),
+                    (Pane::Front, Icon::ViewFront, "Спереди", "Вид спереди: ставить полки, двери и ящики в проём, двигать мышью"),
+                    (Pane::Parts, Icon::Table, "Детали", "Таблица деталей: размеры, материал, кромка"),
+                    (Pane::Cut, Icon::CutSheet, "Раскрой", "Карты раскроя листов"),
                 ] {
-                    if icons::labeled(ui, icon, text, tip, !self.start && self.view == pane && quad.is_none_or(|q| q == self.quad)).clicked() {
+                    if icons::labeled(ui, icon, text, tip, !self.start && self.view == pane).clicked() {
                         self.start = false;
                         self.view = pane;
-                        if let Some(q) = quad {
-                            self.quad = q;
-                        }
                     }
                 }
                 if self.session.is_none() && labeled(ui, Icon::Unlock, "Редактировать", "Сделать редактируемой: импорт модели Базиса в свой проект", false).clicked() {
@@ -2038,11 +2036,27 @@ impl App {
             let r = ui.available_rect_before_wrap();
             let (w, h) = (r.width() / 2.0, r.height() / 2.0);
             let cell = |i: usize, j: usize| egui::Rect::from_min_size(r.min + Vec2::new(i as f32 * w, j as f32 * h), Vec2::new(w, h)).shrink(1.0);
-            let cells = [cell(0, 0), cell(1, 0), cell(0, 1)];
+            let cells: [Option<egui::Rect>; 4] = match self.quad_max {
+                Some(k) => std::array::from_fn(|i| (i == k).then(|| r.shrink(1.0))),
+                None => [cell(0, 0), cell(1, 0), cell(0, 1), cell(1, 1)].map(Some),
+            };
             for (v, c) in self.views.iter_mut().zip(cells) {
-                clicks.push(ui.scope_builder(egui::UiBuilder::new().max_rect(c), |ui| v.show(ui, frame, parts, self.revision, &selected, skip)).inner);
+                if let Some(c) = c {
+                    clicks.push(ui.scope_builder(egui::UiBuilder::new().max_rect(c), |ui| v.show(ui, frame, parts, self.revision, &selected, skip)).inner);
+                }
             }
-            clicks.push(ui.scope_builder(egui::UiBuilder::new().max_rect(cell(1, 1)), |ui| self.viewport.show(ui, frame, parts, self.revision, &selected, skip)).inner);
+            if let Some(c) = cells[3] {
+                clicks.push(ui.scope_builder(egui::UiBuilder::new().max_rect(c), |ui| self.viewport.show(ui, frame, parts, self.revision, &selected, skip)).inner);
+            }
+            // Кнопка в углу окна: развернуть на всю область / вернуть четыре окна.
+            for (i, c) in cells.iter().enumerate() {
+                let Some(c) = c else { continue };
+                let b = egui::Rect::from_min_size(c.right_top() + Vec2::new(-28.0, 4.0), Vec2::splat(24.0));
+                let (text, tip) = if self.quad_max.is_some() { ("🗗", "Вернуть четыре окна") } else { ("🗖", "Развернуть это окно на всю область") };
+                if ui.put(b, egui::Button::new(text)).on_hover_text(crate::i18n::t(tip)).clicked() {
+                    self.quad_max = if self.quad_max.is_some() { None } else { Some(i) };
+                }
+            }
             ui.allocate_rect(r, egui::Sense::hover());
         } else {
             clicks.push(self.viewport.show(ui, frame, parts, self.revision, &selected, skip));

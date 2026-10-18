@@ -6,7 +6,7 @@ basis-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 
 - **Top** — the icon bar (new, open, save, undo, export, analysis) and the menus “File”, “Edit”, “View”, “Insert”, “Modify”, “Tools”, “Help”.
 - **Left** — the “Tools” palette (what you can create and how to change it), “Project” (materials and edge banding), “Hardware” (model library by folders).
-- **Centre** — “3D”, “4 views” (front, left, top and 3D at once, each can be transparent), “Front view”, “Parts” (table), “Cutting” (sheet maps).
+- **Centre** — “3D”, with the “4 windows” button: front, left, top and 3D at once (each with transparency and other modes; the corner button maximizes a window), “Front view”, “Parts” (table), “Cutting” (sheet maps).
 - **Right** — “Model structure” (what the item consists of) and “Properties” of the selection.
 - **Bottom** — a hint about what to do next. Hover an icon and the same line tells what it does.
 
