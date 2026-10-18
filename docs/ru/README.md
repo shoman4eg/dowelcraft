@@ -254,4 +254,4 @@ git push origin v0.1.0
 
 ## Лицензия
 
-MIT или Apache-2.0, на выбор. Сторонний код — в [NOTICE.md](../../NOTICE.md).
+MIT, см. [LICENSE](../../LICENSE). Сторонний код — в [NOTICE.md](../../NOTICE.md).
