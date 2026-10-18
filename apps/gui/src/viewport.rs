@@ -611,7 +611,9 @@ fn upload(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLa
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        // Без пересчёта из sRGB: цвета сцены и так в sRGB (как и цвета деталей), иначе декор темнеет
+        // и становится насыщеннее (светло-жёлтый — оранжевым).
+        format: wgpu::TextureFormat::Rgba8Unorm,
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
