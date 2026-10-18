@@ -11,7 +11,7 @@ var __exec = function (cmd, args) { return __call('exec', { cmd: cmd, args: args
 var __finishers = [];
 var __finish = function () { var f = __finishers; __finishers = []; f.forEach(function (fn) { fn(); }); };
 var __text = function (args) { return Array.prototype.map.call(args, function (a) { return typeof a === 'object' ? JSON.stringify(a) : String(a); }).join(' '); };
-var __unsupported = function (what) { return function () { throw new Error(what + ': недоступно в basis-craft'); }; };
+var __unsupported = function (what) { return function () { throw new Error(what + ': недоступно в dowel-craft'); }; };
 
 // ── Векторы и точки ──
 function NewVector(x, y, z) { return { x: x || 0, y: y || 0, z: z || 0 }; }
@@ -474,11 +474,11 @@ var execution = { Finish: function () {}, Continue: function () {} };
 var __noop = function () {};
 // Модуль, которого нет в программе: любой вызов — понятная ошибка.
 var __missing = function (module) {
-  return new Proxy({}, { get: function (t, k) { if (k in t) return t[k]; if (typeof k !== 'string') return undefined; return function () { throw new Error(module + '.' + k + ': недоступно в basis-craft'); }; } });
+  return new Proxy({}, { get: function (t, k) { if (k in t) return t[k]; if (typeof k !== 'string') return undefined; return function () { throw new Error(module + '.' + k + ': недоступно в dowel-craft'); }; } });
 };
 // Объект с известными методами; неизвестные — ошибка с именем.
 var __module = function (name, known) {
-  return new Proxy(known, { get: function (t, k) { if (k in t) return t[k]; if (typeof k !== 'string') return undefined; return function () { throw new Error(name + '.' + k + ': недоступно в basis-craft'); }; } });
+  return new Proxy(known, { get: function (t, k) { if (k in t) return t[k]; if (typeof k !== 'string') return undefined; return function () { throw new Error(name + '.' + k + ': недоступно в dowel-craft'); }; } });
 };
 var Undo = __module('Undo', { Changing: __noop, RecursiveChanging: __noop, BeginOper: __noop, EndOper: __noop, Commit: __noop, Rollback: __noop, Last: null, OnClick: null, Width: 0, Top: 0, ShowHint: __noop, message: '' });
 var currentFileData = { model: Model, filename: '', article: { Name: '' }, updateView: __noop };

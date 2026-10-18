@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 
 #[test]
 fn design_a_cabinet_over_mcp() {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_basis-craft-mcp"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_dowel-craft-mcp"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -29,7 +29,7 @@ fn design_a_cabinet_over_mcp() {
     };
 
     let init = rpc("initialize", json!({"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}}));
-    assert_eq!(init["result"]["serverInfo"]["name"], "basis-craft");
+    assert_eq!(init["result"]["serverInfo"]["name"], "dowel-craft");
     let tools = rpc("tools/list", json!({}));
     let names: Vec<&str> = tools["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert!(names.contains(&"command") && names.contains(&"render_front"));

@@ -427,52 +427,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
-name = "basis"
-version = "0.1.0"
-dependencies = [
- "ab_glyph",
- "encoding_rs",
- "flate2",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "basis-craft-cli"
-version = "0.1.0"
-dependencies = [
- "basis",
- "script",
- "serde_json",
-]
-
-[[package]]
-name = "basis-craft-gui"
-version = "0.1.0"
-dependencies = [
- "basis",
- "craft-ui",
- "eframe",
- "egui",
- "image",
- "png 0.17.16",
- "rfd",
- "script",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "basis-craft-mcp"
-version = "0.1.0"
-dependencies = [
- "basis",
- "script",
- "serde_json",
- "tiny-skia",
-]
-
-[[package]]
 name = "bit-set"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1037,6 +991,52 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4b8a88685455ed29a21542a33abd9cb6510b6b129abadabdcef0f4c55bc8f61"
 dependencies = [
  "litrs",
+]
+
+[[package]]
+name = "dowel"
+version = "0.1.0"
+dependencies = [
+ "ab_glyph",
+ "encoding_rs",
+ "flate2",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "dowel-craft-cli"
+version = "0.1.0"
+dependencies = [
+ "dowel",
+ "script",
+ "serde_json",
+]
+
+[[package]]
+name = "dowel-craft-gui"
+version = "0.1.0"
+dependencies = [
+ "craft-ui",
+ "dowel",
+ "eframe",
+ "egui",
+ "image",
+ "png 0.17.16",
+ "rfd",
+ "script",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "dowel-craft-mcp"
+version = "0.1.0"
+dependencies = [
+ "dowel",
+ "script",
+ "serde_json",
+ "tiny-skia",
 ]
 
 [[package]]
@@ -3278,8 +3278,8 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 name = "script"
 version = "0.1.0"
 dependencies = [
- "basis",
  "boa_engine",
+ "dowel",
  "encoding_rs",
  "serde_json",
 ]

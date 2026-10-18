@@ -27,7 +27,7 @@
 Модели	Models
 Импортировано деталей: {}	Parts imported: {}
 Модель Базиса открыта только для просмотра	The Bazis model is open read-only
-Проект basis-craft	basis-craft project
+Проект dowel-craft	dowel-craft project
 Сохранено: {}	Saved: {}
 Карты раскроя	Cutting maps
 Проект БАЗИС-Раскроя	BAZIS-Cutting project
@@ -36,7 +36,7 @@
 Чертежи	Drawings
 Модель Базиса открыта для просмотра: «Сделать редактируемой», затем экспорт	The Bazis model is read-only: use “Make editable”, then export
 Раскладка: {}	Layout: {}
-Открыть… (.bcraft, .b3d, .fr3d)	Open… (.bcraft, .b3d, .fr3d)
+Открыть… (.dcraft, .b3d, .fr3d)	Open… (.dcraft, .b3d, .fr3d)
 Сохранить (Ctrl+S)	Save (Ctrl+S)
 Сохранить как…	Save as…
 Отменить (Ctrl+Z)	Undo (Ctrl+Z)
@@ -267,7 +267,7 @@
 Открыть пример	Open a sample
 Как пользоваться	How to use
 Здесь появятся файлы, которые вы открывали и сохраняли.	Files you open and save will appear here.
-Как пользоваться basis-craft	How to use basis-craft
+Как пользоваться dowel-craft	How to use dowel-craft
 Версия {}	Version {}
 Проектирование корпусной мебели, совместимое с Базис-Мебельщиком: .b3d, XML для БАЗИС-Раскроя, карты раскроя, спецификация.	Cabinet furniture design compatible with Bazis-Mebelshchik: .b3d, XML for BAZIS-Cutting, cutting maps, specification.
 Иконки и оболочка — по образцу cadcraft (storytold), см. NOTICE.md.	Icons and window shell follow cadcraft (storytold), see NOTICE.md.
@@ -368,7 +368,7 @@
 Читаю папки текстур…	Reading texture folders…
 Найдено: {}, показаны первые {}	Found: {}, showing the first {}
 Крепёж: выбрать вид (конфирмат, эксцентрик, шкант…) и поставить на выделенный корпус или панели	Fasteners: choose a type (confirmat, cam lock, dowel…) and apply to the selected cabinet or panels
-Вид	Type
+Тип	Type
 Выделите корпус (щелчок по любой его детали) или несколько отдельных панелей (Ctrl+щелчок) и нажмите «Поставить». Отверстия с координатами появятся на обеих деталях каждого стыка.	Select a cabinet (click any of its parts) or several free panels (Ctrl+click) and press “Apply”. Holes with coordinates appear on both parts of every joint.
 Поставить на выделенное	Apply to selection
 Крепёж «{}»: корпусов {}, стыков панелей {}	“{}” fasteners: cabinets {}, panel joints {}

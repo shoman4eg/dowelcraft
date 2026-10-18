@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "basis-craft": {
+    "dowel-craft": {
       "type": "stdio",
-      "command": "./target/release/basis-craft-mcp",
+      "command": "./target/release/dowel-craft-mcp",
       "args": []
     }
   }

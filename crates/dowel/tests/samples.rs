@@ -27,9 +27,9 @@ fn materials_match_bazis_estimate() {
         eprintln!("нет reference/pairs/sanuzly — тест пропущен");
         return;
     };
-    let ex = basis::panel::panels(&basis::b3d::parse(&data).unwrap());
+    let ex = dowel::panel::panels(&dowel::b3d::parse(&data).unwrap());
     // Коэффициенты из сметы: фасады 1, остальное 1,2.
-    let rows = basis::panel::materials(&ex.panels, |m| if m.starts_with("Фасад") { 1.0 } else { 1.2 });
+    let rows = dowel::panel::materials(&ex.panels, |m| if m.starts_with("Фасад") { 1.0 } else { 1.2 });
     let qty = |prefix: &str| rows.iter().find(|r| r.material.starts_with(prefix)).map(|r| r.qty).unwrap_or(f64::NAN);
     for (name, want) in [
         ("ЛДСП Персидский Жемчуг 810 PO", 8.5),
@@ -49,7 +49,7 @@ fn materials_match_bazis_estimate() {
 fn hardware_matches_bazis_estimate() {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/pairs/sanuzly/1.0711 Мебель в санузлы.b3d");
     let Ok(data) = std::fs::read(&p) else { return };
-    let hw = basis::panel::hardware(&basis::b3d::parse(&data).unwrap());
+    let hw = dowel::panel::hardware(&dowel::b3d::parse(&data).unwrap());
     let qty = |article: &str| hw.iter().filter(|(n, _)| n.ends_with(&format!("\r{article}"))).map(|r| r.1).sum::<usize>();
     // Значения из сметы.
     for (article, want) in [("113706", 50), ("4*16", 116), ("4*20", 24), ("4*30", 107), ("9071313/9073662", 16),
@@ -65,12 +65,12 @@ fn hardware_matches_bazis_estimate() {
 fn import_basis_model_into_project() {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/pairs/kuhnya-24-04/_Кухня 24.04.b3d");
     let Ok(data) = std::fs::read(&p) else { return };
-    let ex = basis::panel::panels(&basis::b3d::parse(&data).unwrap());
+    let ex = dowel::panel::panels(&dowel::b3d::parse(&data).unwrap());
     let src = &ex.panels;
-    let project = basis::design::import("Кухня", src, &ex.blocks, &ex.panel_block);
+    let project = dowel::design::import("Кухня", src, &ex.blocks, &ex.panel_block);
     assert_eq!(project.materials.len(), 3);
-    let project = basis::design::Project::load(&project.save()).expect("сохраняется и читается");
-    let parts = basis::design::build(&project).unwrap();
+    let project = dowel::design::Project::load(&project.save()).expect("сохраняется и читается");
+    let parts = dowel::design::build(&project).unwrap();
     assert_eq!(parts.len(), src.len());
     for (a, b) in src.iter().zip(&parts) {
         assert_eq!((a.cut_size(), &a.name, a.thickness), (b.panel.cut_size(), &b.panel.name, b.panel.thickness));
@@ -79,10 +79,10 @@ fn import_basis_model_into_project() {
         assert_eq!(a.bounds().unwrap().0, b.origin);
     }
     // Блоки Базиса сохранились: есть блоки, и в них лежат плиты.
-    let blocks = project.objects.iter().filter(|o| matches!(o, basis::design::Object::Block(_))).count();
+    let blocks = project.objects.iter().filter(|o| matches!(o, dowel::design::Object::Block(_))).count();
     assert!(blocks > 0 && !ex.blocks.is_empty(), "блоков {blocks} из {}", ex.blocks.len());
     // Деталь можно перевести в другой материал командой.
-    let mut s = basis::design::Session::new(project);
+    let mut s = dowel::design::Session::new(project);
     let other = s.project.materials[1].name.clone();
     s.execute("panel.set", &serde_json::json!({"id": 1, "material": other})).unwrap();
     assert!(s.execute("panel.set", &serde_json::json!({"id": 1, "material": "нет такого"})).is_err());
@@ -93,7 +93,7 @@ fn import_basis_model_into_project() {
 fn drilling_of_wardrobe() {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/шкаф.b3d");
     let Ok(data) = std::fs::read(&p) else { return };
-    let ex = basis::panel::panels(&basis::b3d::parse(&data).unwrap());
+    let ex = dowel::panel::panels(&dowel::b3d::parse(&data).unwrap());
     let holes: usize = ex.panels.iter().map(|p| p.holes.len()).sum();
     assert_eq!((holes, ex.holes_lost), (80, 0));
     for p in &ex.panels {
@@ -107,7 +107,7 @@ fn drilling_of_wardrobe() {
             }
         }
     }
-    let xml = basis::raskroy::project_string("шкаф", &ex.panels, |_| (2800.0, 2070.0));
+    let xml = dowel::raskroy::project_string("шкаф", &ex.panels, |_| (2800.0, 2070.0));
     let n: usize = xml.matches("<DRILLING>").count();
     // <DRILLING> — и обёртка у каждой детали (11), и каждое отверстие (80).
     assert_eq!(n, 11 + 80);
@@ -124,11 +124,11 @@ fn all_samples_parse() {
     let mut panels = 0;
     let mut open_contours = Vec::new();
     for f in &files {
-        let file = basis::b3d::parse(&std::fs::read(f).unwrap()).unwrap_or_else(|e| panic!("{}: {e}", f.display()));
+        let file = dowel::b3d::parse(&std::fs::read(f).unwrap()).unwrap_or_else(|e| panic!("{}: {e}", f.display()));
         assert!(file.section("Header").is_some(), "{}: нет Header", f.display());
         // Запись и повторное чтение дают то же дерево (A3: запись .b3d).
-        assert!(basis::b3d::parse(&basis::b3d::write(&file)).as_ref() == Ok(&file), "{}: запись меняет дерево", f.display());
-        let ex = basis::panel::panels(&file);
+        assert!(dowel::b3d::parse(&dowel::b3d::write(&file)).as_ref() == Ok(&file), "{}: запись меняет дерево", f.display());
+        let ex = dowel::panel::panels(&file);
         assert!(ex.skipped.is_empty(), "{}: не разобраны контуры {:?}", f.display(), ex.skipped);
         for p in &ex.panels {
             let (l, w) = p.cut_size();
@@ -136,12 +136,12 @@ fn all_samples_parse() {
         }
         panels += ex.panels.len();
         // Контур каждой плиты сцепляется в замкнутые контуры и даёт сетку для 3D.
-        let parts: Vec<basis::design::Part> = ex
+        let parts: Vec<dowel::design::Part> = ex
             .panels
             .iter()
-            .map(|p| basis::design::Part { owner: 0, id: 0, kind: basis::design::Kind::Body, panel: p.clone(), origin: [0.0; 3], size: [0.0; 3] })
+            .map(|p| dowel::design::Part { owner: 0, id: 0, kind: dowel::design::Kind::Body, panel: p.clone(), origin: [0.0; 3], size: [0.0; 3] })
             .collect();
-        let mesh = basis::mesh::build(&parts, |_| false);
+        let mesh = dowel::mesh::build(&parts, |_| false);
         // «проверить контур.b3d» — модель с заведомо незамкнутым контуром: ошибка должна найтись.
         let broken = f.file_name().is_some_and(|n| n.to_string_lossy().starts_with("проверить контур"));
         assert_eq!(broken, !mesh.errors.is_empty(), "{}: {:?}", f.display(), mesh.errors);
@@ -158,7 +158,7 @@ fn all_samples_parse() {
 fn panel_positions_in_space() {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/шкаф.b3d");
     let Ok(data) = std::fs::read(&p) else { return };
-    let ex = basis::panel::panels(&basis::b3d::parse(&data).unwrap());
+    let ex = dowel::panel::panels(&dowel::b3d::parse(&data).unwrap());
     let b = |name: &str| ex.panels.iter().filter(|p| p.name == name).map(|p| p.bounds().unwrap()).collect::<Vec<_>>();
     let left = b("Вертикальная1")[0];
     let shelves = b("Горизонтальная1");
@@ -173,8 +173,8 @@ fn panel_positions_in_space() {
 #[test]
 fn analysis_respects_grooves() {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/шкаф.b3d");
-    let Ok(job) = basis::job::Job::open(&p) else { return };
+    let Ok(job) = dowel::job::Job::open(&p) else { return };
     assert!(job.panels.iter().any(|p| !p.grooves.is_empty()), "в шкафу есть пазы");
-    let problems = basis::design::analysis::analyze(&job.import()).unwrap();
+    let problems = dowel::design::analysis::analyze(&job.import()).unwrap();
     assert!(problems.is_empty(), "{problems:#?}");
 }

@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
 
-use basis::design::{self, Part, Session};
+use dowel::design::{self, Part, Session};
 use boa_engine::{Context, JsResult, JsString, JsValue, NativeFunction, Source, js_string};
 use serde_json::{Value, json};
 

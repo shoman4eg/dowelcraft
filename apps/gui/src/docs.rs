@@ -3,8 +3,8 @@
 
 use std::path::PathBuf;
 
-use basis::design::{Project, Session};
-use basis::job::Job;
+use dowel::design::{Project, Session};
+use dowel::job::Job;
 
 use crate::{App, Sel};
 

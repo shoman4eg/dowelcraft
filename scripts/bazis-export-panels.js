@@ -1,4 +1,4 @@
-// BAZIS-Script: выгрузка панелей текущей модели в JSON — эталон для сверки basis-craft.
+// BAZIS-Script: выгрузка панелей текущей модели в JSON — эталон для сверки dowel-craft.
 // Запуск в Базис-Мебельщике: Сервис → Скрипты. Файл пишется рядом с моделью или в текущий каталог.
 // shortcut: имена API взяты из документации BAZIS-Script без проверки на живом Базисе;
 // если свойство не найдено, оно попадает в поле errors, скрипт не падает.
@@ -56,6 +56,6 @@ function walk(list) {
 
 walk(typeof Model !== 'undefined' ? Model : currentFileData.model);
 const enums = safe(() => JSON.stringify(panelOperations.textureOrientation), [], 'enum');
-const file = 'basis-craft-export.json';
+const file = 'dowel-craft-export.json';
 fs.writeFileSync(file, JSON.stringify({ textureOrientationEnum: enums, panels }, null, 2));
 (typeof alert === 'function' ? alert : console.log)('Выгружено панелей: ' + panels.length + ' → ' + file);

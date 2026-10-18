@@ -1,6 +1,6 @@
 # Проект БАЗИС-Раскроя (XML)
 
-Эталоны: `reference/raskroy-project-*.xml`. Кодировка windows-1251, строки CRLF. Реализация: `crates/basis/src/raskroy.rs`.
+Эталоны: `reference/raskroy-project-*.xml`. Кодировка windows-1251, строки CRLF. Реализация: `crates/dowel/src/raskroy.rs`.
 
 ```
 PROJECT version=2 subver=7 name=… code=""

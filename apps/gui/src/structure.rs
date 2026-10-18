@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 
-use basis::design::{Kind, Object, Part, Project};
+use dowel::design::{Kind, Object, Part, Project};
 use eframe::egui;
 use serde_json::json;
 

@@ -1,5 +1,5 @@
 [package]
-name = "basis"
+name = "dowel"
 description = "Чтение моделей Базис-Мебельщика (.b3d/.fr3d), спецификация деталей и раскрой"
 version.workspace = true
 edition.workspace = true

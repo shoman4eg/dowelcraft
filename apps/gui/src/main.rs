@@ -1,5 +1,8 @@
-//! Окно basis-craft: проект слева, вид спереди / детали / раскрой в центре.
+//! Окно dowel-craft: проект слева, вид спереди / детали / раскрой в центре.
 //! Все изменения проекта идут через `Session::execute` — те же команды, что у CLI и будущего MCP.
+
+// Release в Windows — без чёрного окна консоли (debug оставляет её для вывода `--screenshot` и ошибок).
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
 
@@ -24,10 +27,10 @@ use craft_ui::docking::{Action, DockArea, DockStyle, Layout, Node, Permissions, 
 use craft_ui::layout::{SplitAxis, SplitSize};
 use editors::{Cmds, text_field};
 
-use basis::design::{self, Part, Project, Session};
-use basis::job::{self, Job, MaterialCut};
-use basis::nest::Params;
-use basis::panel::{self, Side};
+use dowel::design::{self, Part, Project, Session};
+use dowel::job::{self, Job, MaterialCut};
+use dowel::nest::Params;
+use dowel::panel::{self, Side};
 use eframe::egui::{self, Color32, Pos2, Rect, Stroke, StrokeKind, Vec2};
 use serde_json::{Value, json};
 
@@ -86,11 +89,11 @@ fn main() -> eframe::Result {
         app.select(Some(i));
     }
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1400.0, 900.0]).with_title("basis-craft"),
+        viewport: egui::ViewportBuilder::default().with_inner_size([1400.0, 900.0]).with_title("dowel-craft"),
         ..Default::default()
     };
     eframe::run_native(
-        "basis-craft",
+        "dowel-craft",
         options,
         Box::new(move |cc| {
             // Тема cadcraft; подсказки к иконкам — почти сразу.
@@ -98,7 +101,7 @@ fn main() -> eframe::Result {
             // Команды MCP — в открытую вкладку (не для снимков).
             #[cfg(unix)]
             if app.screenshot.is_none() {
-                app.live = live::listen(&basis::live::socket_path(), cc.egui_ctx.clone());
+                app.live = live::listen(&dowel::live::socket_path(), cc.egui_ctx.clone());
             }
             Ok(Box::new(app))
         }),
@@ -262,14 +265,14 @@ fn script_control(ui: &mut egui::Ui, c: &Value, ev: &mut Vec<ScriptEvent>) {
 struct Library {
     /// Папки с моделями; дерево — по каждой. Запоминаются в настройках.
     dirs: Vec<String>,
-    models: Vec<basis::library::ModelInfo>,
+    models: Vec<dowel::library::ModelInfo>,
     errors: Vec<String>,
     search: String,
     thumbs: library::Thumbs,
     /// Папки уже просмотрены (иначе — просмотреть при показе вкладки).
     scanned: bool,
     /// Идёт просмотр папок в фоне: результат придёт сюда (окно не замирает на сотнях моделей).
-    pending: Option<std::sync::mpsc::Receiver<(Vec<basis::library::ModelInfo>, Vec<String>)>>,
+    pending: Option<std::sync::mpsc::Receiver<(Vec<dowel::library::ModelInfo>, Vec<String>)>>,
 }
 
 impl Library {
@@ -287,7 +290,7 @@ impl Library {
         std::thread::spawn(move || {
             let (mut models, mut errors) = (Vec::new(), Vec::new());
             for d in &dirs {
-                let (m, e) = basis::library::scan(std::path::Path::new(d));
+                let (m, e) = dowel::library::scan(std::path::Path::new(d));
                 if m.is_empty() && e.is_empty() {
                     errors.push(format!("в «{d}» нет моделей .fr3d"));
                 }
@@ -504,7 +507,7 @@ struct App {
     /// Настройки между запусками (папки фурнитуры, язык).
     settings: settings::Settings,
     /// Загруженные сетки фурнитуры: файл → треугольники.
-    meshes: std::collections::HashMap<String, std::sync::Arc<Vec<basis::panel::Tri>>>,
+    meshes: std::collections::HashMap<String, std::sync::Arc<Vec<dowel::panel::Tri>>>,
     /// Крепёж для установки между панелями.
     fastener_kind: String,
     /// Чашка эксцентрика снаружи корпуса (по умолчанию внутри).
@@ -720,7 +723,7 @@ impl App {
 
     /// Открыть файл через диалог.
     fn open_dialog(&mut self) {
-        if let Some(p) = rfd::FileDialog::new().add_filter("Модели", &["bcraft", "b3d", "fr3d"]).pick_file() {
+        if let Some(p) = rfd::FileDialog::new().add_filter("Модели", &["dcraft", "b3d", "fr3d"]).pick_file() {
             self.open(p);
         }
     }
@@ -740,8 +743,8 @@ impl App {
             return;
         };
         let path = match (&self.path, ask) {
-            (Some(p), false) if p.extension().is_some_and(|e| e == "bcraft") => Some(p.clone()),
-            _ => rfd::FileDialog::new().add_filter("Проект basis-craft", &["bcraft"]).set_file_name(format!("{}.bcraft", s.project.name)).save_file(),
+            (Some(p), false) if dowel::design::is_project_file(p) => Some(p.clone()),
+            _ => rfd::FileDialog::new().add_filter("Проект dowel-craft", &["dcraft"]).set_file_name(format!("{}.dcraft", s.project.name)).save_file(),
         };
         if let Some(p) = path
             && let Err(e) = self.save_to(p)
@@ -785,26 +788,26 @@ impl App {
         let sheet = self.params.sheet;
         let bytes = match what {
             "html" => job::document(job, &self.cuts).into_bytes(),
-            "xml" => basis::raskroy::project_xml(&job.name, &job.panels, |m| job.sheet(m, sheet)),
-            "spec" => basis::report::spec_csv(&panel::spec(&job.panels)).into_bytes(),
-            "drawings_pdf" => match job::parts(job).and_then(|parts| basis::pdf::from_svg_pages(&basis::drawing::drawings(&parts, &job.name))) {
+            "xml" => dowel::raskroy::project_xml(&job.name, &job.panels, |m| job.sheet(m, sheet)),
+            "spec" => dowel::report::spec_csv(&panel::spec(&job.panels)).into_bytes(),
+            "drawings_pdf" => match job::parts(job).and_then(|parts| dowel::pdf::from_svg_pages(&dowel::drawing::drawings(&parts, &job.name))) {
                 Ok(b) => b,
                 Err(e) => return self.error = Some(e),
             },
-            "cards_pdf" => match basis::pdf::from_svg_pages(&job::cards(job, &self.cuts)) {
+            "cards_pdf" => match dowel::pdf::from_svg_pages(&job::cards(job, &self.cuts)) {
                 Ok(b) => b,
                 Err(e) => return self.error = Some(e),
             },
             "drawings" => match job::parts(job) {
-                Ok(parts) => basis::report::document_html(&job.name, &basis::drawing::drawings(&parts, &job.name), "").into_bytes(),
+                Ok(parts) => dowel::report::document_html(&job.name, &dowel::drawing::drawings(&parts, &job.name), "").into_bytes(),
                 Err(e) => return self.error = Some(e),
             },
-            "b3d" => match job.project.as_ref().map(basis::export::b3d) {
+            "b3d" => match job.project.as_ref().map(dowel::export::b3d) {
                 Some(Ok(b)) => b,
                 Some(Err(e)) => return self.error = Some(e),
                 None => return self.error = Some("Модель Базиса открыта для просмотра: «Сделать редактируемой», затем экспорт".into()),
             },
-            _ => basis::report::materials_csv(&job.estimate(1.2)).into_bytes(),
+            _ => dowel::report::materials_csv(&job.estimate(1.2)).into_bytes(),
         };
         match std::fs::write(&p, bytes) {
             Ok(()) => self.status = format!("Сохранено: {}", p.display()),
@@ -928,7 +931,7 @@ impl App {
                 if labeled(ui, Icon::New, "Новый", "Новый проект", false).clicked() {
                     self.new_project();
                 }
-                if labeled(ui, Icon::Open, "Открыть", "Открыть… (.bcraft, .b3d, .fr3d)", false).clicked() {
+                if labeled(ui, Icon::Open, "Открыть", "Открыть… (.dcraft, .b3d, .fr3d)", false).clicked() {
                     self.open_dialog();
                 }
                 if labeled(ui, Icon::Save, "Сохранить", "Сохранить (Ctrl+S)", false).clicked() {
@@ -1061,7 +1064,7 @@ impl App {
                             self.textures.open_for = Some(textures::Target::Material(m.name.clone()));
                         }
                         if ui.small_button(crate::i18n::t("по артикулу")).on_hover_text(crate::i18n::t("Найти d(<артикул>)1.jpg в папках текстур (Балтламинат)")).clicked() {
-                            match self.textures.dirs().iter().find_map(|d| basis::library::find_texture(std::path::Path::new(d), &m.article)) {
+                            match self.textures.dirs().iter().find_map(|d| dowel::library::find_texture(std::path::Path::new(d), &m.article)) {
                                 Some(p) => cmds.push(("material.set", json!({ "name": m.name, "texture": p.display().to_string() }))),
                                 None => self.status = format!("Текстура для артикула «{}» не найдена", m.article),
                             }
@@ -1283,11 +1286,11 @@ impl App {
     }
 
     /// Сетка модели фурнитуры по файлу-источнику (читается один раз; не прочиталась — пустая, рисуется рамкой).
-    fn furniture_mesh(&mut self, source: &str) -> std::sync::Arc<Vec<basis::panel::Tri>> {
+    fn furniture_mesh(&mut self, source: &str) -> std::sync::Arc<Vec<dowel::panel::Tri>> {
         if let Some(m) = self.meshes.get(source) {
             return m.clone();
         }
-        let mesh = match basis::library::read(std::path::Path::new(source)) {
+        let mesh = match dowel::library::read(std::path::Path::new(source)) {
             Ok(m) => m.mesh,
             Err(e) => {
                 eprintln!("[фурнитура] {e}");
@@ -1573,7 +1576,7 @@ impl App {
         let mut cmds: Cmds = Vec::new();
         ui.heading(crate::i18n::t(format!("Фурнитура «{}»", f.name)));
         editors::props(ui, "furn", |ui| {
-            editors::caption(ui, "Вид");
+            editors::caption(ui, "Тип");
             editors::value_box(ui, if f.kind.is_empty() { "—".to_string() } else { f.kind.clone() });
             ui.end_row();
             editors::caption(ui, "Файл");
@@ -1650,10 +1653,10 @@ impl App {
         // Шапка как в cadcraft: заголовок и что выделено.
         let n = self.selected_all().len();
         let what = match (self.furniture_sel, self.selected(), &self.parts) {
-            (Some(_), _, _) => "Фурнитура".to_string(),
+            (Some(_), _, _) => crate::i18n::t("Фурнитура"),
             (None, Some(i), Ok(parts)) if n == 1 => format!("{} {}", parts[i].panel.pos, parts[i].panel.name).trim().to_string(),
-            (None, Some(_), _) => format!("Выделено деталей: {n}"),
-            _ => "Ничего не выделено".to_string(),
+            (None, Some(_), _) => crate::i18n::t(format!("Выделено деталей: {n}")),
+            _ => crate::i18n::t("Ничего не выделено"),
         };
         editors::value_box(ui, what);
         ui.add_space(6.0);
@@ -1939,7 +1942,7 @@ impl App {
         let target = (selected.len() == 1).then(|| selected[0]).filter(|&i| parts[i].id != 0 && parts[i].panel.is_rect() && self.session.is_some());
         if let Some(i) = target {
             let p = &parts[i];
-            let f = p.panel.frame.unwrap_or(basis::geom::Frame::IDENTITY);
+            let f = p.panel.frame.unwrap_or(dowel::geom::Frame::IDENTITY);
             let locked = |k: usize| f.z[k].abs() > 0.5;
             let (lo, hi) = ([p.origin[0], p.origin[1]], [p.origin[0] + p.size[0], p.origin[1] + p.size[1]]);
             let tol = 10.0 / k;
@@ -2246,7 +2249,7 @@ impl App {
             if f.w.min(f.h) >= 200.0 && f.w.max(f.h) >= 300.0 {
                 let r = Rect::from_min_size(to(f.x, f.y), Vec2::new(f.w as f32 * kx, f.h as f32 * kx));
                 painter.rect(r, 0.0, Color32::from_rgb(215, 220, 250), Stroke::new(0.5, Color32::GRAY), StrokeKind::Inside);
-                painter.text(r.center(), egui::Align2::CENTER_CENTER, format!("Обрезок {:.0}×{:.0}", f.w, f.h), egui::FontId::proportional(11.0), Color32::from_rgb(40, 40, 140));
+                painter.text(r.center(), egui::Align2::CENTER_CENTER, crate::i18n::t(format!("Обрезок {:.0}×{:.0}", f.w, f.h)), egui::FontId::proportional(11.0), Color32::from_rgb(40, 40, 140));
             }
         }
         for d in &sheet.parts {

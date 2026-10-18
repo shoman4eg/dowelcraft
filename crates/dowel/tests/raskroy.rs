@@ -46,9 +46,9 @@ fn reference(name: &str) -> Option<String> {
 
 fn ours() -> Option<String> {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/обшивка.b3d");
-    let file = basis::b3d::parse(&std::fs::read(p).ok()?).unwrap();
-    let ex = basis::panel::panels(&file);
-    let bytes = basis::raskroy::project_xml("тест", &ex.panels, |_| (2800.0, 2070.0));
+    let file = dowel::b3d::parse(&std::fs::read(p).ok()?).unwrap();
+    let ex = dowel::panel::panels(&file);
+    let bytes = dowel::raskroy::project_xml("тест", &ex.panels, |_| (2800.0, 2070.0));
     Some(encoding_rs::WINDOWS_1251.decode(&bytes).0.into_owned())
 }
 

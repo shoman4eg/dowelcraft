@@ -1,5 +1,5 @@
 use super::*;
-use basis::design::Project;
+use dowel::design::Project;
 
 fn session() -> Session {
     let mut s = Session::new(Project::new("Скрипт"));
@@ -9,7 +9,7 @@ fn session() -> Session {
 }
 
 fn opts() -> Options {
-    let dir = std::env::temp_dir().join(format!("basis-craft-script-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("dowel-craft-script-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     Options { sandbox: dir.clone(), script_dir: dir, ..Options::default() }
 }

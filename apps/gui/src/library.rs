@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
-use basis::library::ModelInfo;
+use dowel::library::ModelInfo;
 use eframe::egui::{self, Color32, Vec2};
 
 /// Превью моделей: путь → текстура egui.

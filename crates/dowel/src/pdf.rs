@@ -412,8 +412,8 @@ pub fn from_svg_pages(pages: &[String]) -> Result<Vec<u8>, String> {
         write_stream_obj(&mut pdf, &mut offsets, touni_id, "", &ttf.build_tounicode_cmap());
         write_stream_obj(&mut pdf, &mut offsets, file_id, &format!("/Length1 {}", ttf.raw_bytes.len()), &ttf.raw_bytes);
     };
-    write_font_family(3, "BasisCraftRegular", &reg);
-    write_font_family(8, "BasisCraftBold", &bold);
+    write_font_family(3, "DowelCraftRegular", &reg);
+    write_font_family(8, "DowelCraftBold", &bold);
     for (i, data) in streams.iter().enumerate() {
         let page_obj_id = first_page_obj_id + i * 2;
         write_obj(&mut pdf, &mut offsets, page_obj_id, format!("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W:.2} {PAGE_H:.2}] /Resources << /Font << /F1 3 0 R /F2 8 0 R >> >> /Contents {} 0 R >>", page_obj_id + 1).as_bytes());

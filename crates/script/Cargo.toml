@@ -8,7 +8,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-basis = { workspace = true }
+dowel = { workspace = true }
 serde_json = { workspace = true }
 boa_engine = "0.22"
 encoding_rs = { workspace = true }

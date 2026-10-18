@@ -9,7 +9,7 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.95"
 
 [workspace.dependencies]
-basis = { path = "crates/basis" }
+dowel = { path = "crates/dowel" }
 flate2 = "1.1"
 encoding_rs = "0.8.35"
 serde = { version = "1", features = ["derive"] }
@@ -23,5 +23,5 @@ unsafe_code = "forbid"
 opt-level = 3
 [profile.dev.package.flate2]
 opt-level = 3
-[profile.dev.package.basis]
+[profile.dev.package.dowel]
 opt-level = 2

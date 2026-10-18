@@ -2,8 +2,8 @@
 //! «Каркас», «Прозрачность»; виды спереди, слева, сверху, аксонометрия; ЛКМ вращает, ПКМ сдвигает,
 //! колесо масштабирует. Рисуется в свою текстуру (со сглаживанием и глубиной) и показывается картинкой.
 
-use basis::design::{Kind, Part};
-use basis::mesh::{self, Mesh};
+use dowel::design::{Kind, Part};
+use dowel::mesh::{self, Mesh};
 use eframe::egui::{self, Color32, Vec2};
 use eframe::egui_wgpu::{self, wgpu};
 use wgpu::util::DeviceExt;
@@ -67,11 +67,11 @@ fn resized(parts: &[Part], i: usize, axes: [usize; 2], h: [i8; 2], d: [f64; 2], 
 #[derive(Clone, Debug)]
 pub struct FurnView {
     pub id: u32,
-    pub frame: basis::geom::Frame,
+    pub frame: dowel::geom::Frame,
     pub lo: [f64; 3],
     pub hi: [f64; 3],
     pub selected: bool,
-    pub mesh: std::sync::Arc<Vec<basis::panel::Tri>>,
+    pub mesh: std::sync::Arc<Vec<dowel::panel::Tri>>,
 }
 
 impl PartialEq for FurnView {
@@ -314,7 +314,7 @@ struct Scene {
     lo: [f32; 3],
     hi: [f32; 3],
     /// Треугольники фурнитуры в координатах проекта — для выбора щелчком: (треугольник, номер объекта).
-    furniture: Vec<(basis::panel::Tri, u32)>,
+    furniture: Vec<(dowel::panel::Tri, u32)>,
 }
 
 struct Target {
@@ -416,7 +416,7 @@ fn push_vertex_uv(out: &mut Vec<u8>, pos: [f32; 3], normal: [f32; 3], rgba: [f32
 fn pipeline(device: &wgpu::Device, layout: &wgpu::PipelineLayout, module: &wgpu::ShaderModule, lines: bool, depth: (bool, wgpu::CompareFunction), blend: bool) -> wgpu::RenderPipeline {
     let attributes = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x4, 3 => Float32x2];
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("basis-craft 3d"),
+        label: Some("dowel-craft 3d"),
         layout: Some(layout),
         vertex: wgpu::VertexState {
             module,
@@ -487,7 +487,7 @@ fn grid_pipeline(device: &wgpu::Device) -> (wgpu::RenderPipeline, wgpu::Buffer, 
 
 impl Gpu {
     fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Gpu {
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("basis-craft 3d"), source: wgpu::ShaderSource::Wgsl(SHADER.into()) });
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("dowel-craft 3d"), source: wgpu::ShaderSource::Wgsl(SHADER.into()) });
         let uniforms = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("uniforms"),
             size: 96,
@@ -653,7 +653,7 @@ impl Scene {
             let uv = match (tex, textures) {
                 (Some(i), Some(t)) => {
                     let tile = t[i].2;
-                    let vertical = parts[part].panel.texture == basis::panel::Texture::Vertical;
+                    let vertical = parts[part].panel.texture == dowel::panel::Texture::Vertical;
                     let (a, b) = if vertical { (v.uv[1], v.uv[0]) } else { (v.uv[0], v.uv[1]) };
                     [a / tile[0] as f32, b / tile[1] as f32]
                 }
@@ -746,7 +746,7 @@ impl Scene {
         for f in furniture.iter().filter(|f| !f.mesh.is_empty()) {
             let c = if f.selected { [SELECTED[0], SELECTED[1], SELECTED[2], 1.0] } else { [0.62, 0.64, 0.68, 1.0] };
             for t in f.mesh.iter() {
-                let w: basis::panel::Tri = t.map(|p| f.frame.apply(p.map(f64::from)).map(|v| v as f32));
+                let w: dowel::panel::Tri = t.map(|p| f.frame.apply(p.map(f64::from)).map(|v| v as f32));
                 let (a, b) = (std::array::from_fn::<f32, 3, _>(|k| w[1][k] - w[0][k]), std::array::from_fn::<f32, 3, _>(|k| w[2][k] - w[0][k]));
                 let n = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
                 let l = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt().max(1e-12);
@@ -973,7 +973,7 @@ impl Viewport {
         };
         let mut markers = Vec::new();
         if let Some((i, axes)) = sized {
-            let f = parts[i].panel.frame.unwrap_or(basis::geom::Frame::IDENTITY);
+            let f = parts[i].panel.frame.unwrap_or(dowel::geom::Frame::IDENTITY);
             let d = self.resize.map_or([0.0; 2], |(_, m)| self.screen_mm(axes, m));
             let (lo, hi) = resized(parts, i, axes, self.resize.map_or([0; 2], |(h, _)| h), d, 10.0 * f64::from(self.camera.mm_per_px));
             for hx in [-1i8, 0, 1] {
@@ -1195,7 +1195,7 @@ impl Viewport {
             ui.painter().rect(hr, 1.0, Color32::WHITE, egui::Stroke::new(1.2, Color32::from_rgb(220, 110, 0)), egui::StrokeKind::Inside);
         }
         if let Some(l) = self.label {
-            ui.painter().text(rect.left_top() + Vec2::new(6.0, 4.0), egui::Align2::LEFT_TOP, l, egui::FontId::proportional(13.0), Color32::from_gray(90));
+            ui.painter().text(rect.left_top() + Vec2::new(6.0, 4.0), egui::Align2::LEFT_TOP, crate::i18n::t(l), egui::FontId::proportional(13.0), Color32::from_gray(90));
             ui.painter().rect_stroke(rect, 0.0, egui::Stroke::new(1.0, Color32::from_gray(150)), egui::StrokeKind::Inside);
         }
         if !self.errors.is_empty() {
@@ -1231,11 +1231,11 @@ mod tests {
     /// Маркер размера: край тянется на сдвиг мыши и прилипает к краю соседней детали.
     #[test]
     fn marker_resizes_and_snaps() {
-        let mut s = basis::design::Session::new(basis::design::Project::new("т"));
+        let mut s = dowel::design::Session::new(dowel::design::Project::new("т"));
         s.execute("material.add", &serde_json::json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
         s.execute("panel.add", &serde_json::json!({"material": "ЛДСП 16", "plane": "front", "size": [400, 600], "position": [0, 0, 0]})).unwrap();
         s.execute("panel.add", &serde_json::json!({"material": "ЛДСП 16", "plane": "vertical", "size": [300, 700], "position": [500, 0, 0]})).unwrap();
-        let parts = basis::design::build(&s.project).unwrap();
+        let parts = dowel::design::build(&s.project).unwrap();
         // Правый край первой панели (X) на +93 мм: 493 прилипает к 500 (ближе 10 мм).
         let (lo, hi) = resized(&parts, 0, [0, 1], [1, 0], [93.0, 0.0], 10.0);
         assert_eq!((lo, hi), ([0.0, 0.0, 0.0], [500.0, 600.0, 16.0]));

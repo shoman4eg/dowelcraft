@@ -1,6 +1,6 @@
-# How to use basis-craft
+# How to use dowel-craft
 
-basis-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, shelving. From the model it computes the parts, the sheet cutting, the specification and the drawings. Bazis-Mebelshchik files (.b3d, .fr3d) can be opened and saved.
+dowel-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, shelving. From the model it computes the parts, the sheet cutting, the specification and the drawings. Bazis-Mebelshchik files (.b3d, .fr3d) can be opened and saved.
 
 ## The window
 
@@ -62,7 +62,7 @@ A free panel (the “Free panel” icon) can be placed in any of three planes, m
 
 ## Edits by an AI assistant (MCP)
 
-While the window is open, an AI assistant can connect to it (the `window_connect` tool of the basis-craft MCP server) and edit the project in the active tab: changes appear at once, Ctrl+Z undoes them, “*” reminds you to save. No need to save and reopen the file. Works on Linux and macOS.
+While the window is open, an AI assistant can connect to it (the `window_connect` tool of the dowel-craft MCP server) and edit the project in the active tab: changes appear at once, Ctrl+Z undoes them, “*” reminds you to save. No need to save and reopen the file. Works on Linux and macOS.
 
 ## If something does not work
 

@@ -1,4 +1,4 @@
-//! Окно слушает сокет (`basis::live`): команды MCP идут в открытую вкладку так же, как кнопки, —
+//! Окно слушает сокет (`dowel::live`): команды MCP идут в открытую вкладку так же, как кнопки, —
 //! с отменой (Ctrl+Z), пометкой «*» и перерисовкой. Запрос ждёт ответа от кадра окна.
 
 use std::io::{BufRead, BufReader, Write};
@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
 
-use basis::design::Project;
+use dowel::design::Project;
 use eframe::egui;
 use serde_json::{Value, json};
 
@@ -28,7 +28,7 @@ pub fn listen(path: &Path, ctx: egui::Context) -> Option<Receiver<Request>> {
             let _ = std::fs::remove_file(path);
         }
         _ => {
-            eprintln!("[связь] {} занят другим окном basis-craft", path.display());
+            eprintln!("[связь] {} занят другим окном dowel-craft", path.display());
             return None;
         }
     }
@@ -121,9 +121,9 @@ impl App {
             }
             "save" => {
                 let path = match params.get("path").and_then(Value::as_str) {
-                    Some(p) if p.ends_with(".bcraft") => PathBuf::from(p),
-                    Some(_) => return Err("проект сохраняется в файл .bcraft".into()),
-                    None => self.path.clone().filter(|p| p.extension().is_some_and(|e| e == "bcraft")).ok_or("у проекта ещё нет файла: укажите path или сохраните в окне (Ctrl+S)")?,
+                    Some(p) if dowel::design::is_project_file(Path::new(p)) => PathBuf::from(p),
+                    Some(_) => return Err("проект сохраняется в файл .dcraft".into()),
+                    None => self.path.clone().filter(|p| dowel::design::is_project_file(p)).ok_or("у проекта ещё нет файла: укажите path или сохраните в окне (Ctrl+S)")?,
                 };
                 self.save_to(path.clone())?;
                 Ok(json!(path))
@@ -140,7 +140,7 @@ mod tests {
     /// MCP-клиент шлёт команды в окно: материал появляется в открытом проекте, отменяется Ctrl+Z окна.
     #[test]
     fn commands_reach_the_open_window() {
-        let dir = std::env::temp_dir().join(format!("basis-craft-live-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("dowel-craft-live-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("test.sock");
         let mut app = App { live: listen(&path, egui::Context::default()), ..Default::default() };
@@ -150,7 +150,7 @@ mod tests {
         let client = std::thread::spawn({
             let path = path.clone();
             move || {
-                let mut c = basis::live::Client::connect(&path).unwrap();
+                let mut c = dowel::live::Client::connect(&path).unwrap();
                 c.call("material.add", &json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
                 let bad = c.call("material.add", &json!({"name": "ЛДСП 16", "thickness": 16})).unwrap_err();
                 let p = c.call("project.get", &json!({})).unwrap();

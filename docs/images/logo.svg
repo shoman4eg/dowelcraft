@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <rect width="256" height="256" rx="48" fill="#1f2733"/>
+  <!-- Two boards in a corner joint, a dowel between them -->
+  <rect x="52" y="60" width="40" height="150" rx="4" fill="#e9d5b0"/>
+  <rect x="52" y="60" width="40" height="150" rx="4" fill="none" stroke="#b89a66" stroke-width="4"/>
+  <rect x="100" y="170" width="110" height="40" rx="4" fill="#d9bf8f"/>
+  <rect x="100" y="170" width="110" height="40" rx="4" fill="none" stroke="#b89a66" stroke-width="4"/>
+  <rect x="66" y="181" width="72" height="18" rx="9" fill="#5b9bd5"/>
+  <path d="M78 181v18M88 181v18M98 181v18M108 181v18M118 181v18M128 181v18" stroke="#2f6aa3" stroke-width="2.5"/>
+  <rect x="100" y="60" width="110" height="94" rx="6" fill="none" stroke="#5b9bd5" stroke-width="4" stroke-dasharray="10 8"/>
+</svg>

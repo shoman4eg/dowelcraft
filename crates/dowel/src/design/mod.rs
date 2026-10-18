@@ -23,8 +23,15 @@ pub mod fronts;
 pub mod analysis;
 pub use commands::{COMMANDS, Session};
 
-/// Метка формата в файле проекта `.bcraft`.
-pub const FORMAT: &str = "basis-craft/2";
+/// Файл своего проекта `.dcraft`.
+pub fn is_project_file(path: &std::path::Path) -> bool {
+    path.extension().is_some_and(|e| e.eq_ignore_ascii_case("dcraft"))
+}
+
+/// Метка формата в файле проекта `.dcraft`.
+pub const FORMAT: &str = "dowel-craft/2";
+/// Тот же формат под прежним именем программы (basis-craft).
+const FORMAT_OLD_NAME: &str = "basis-craft/2";
 /// Прежний формат: без дерева объектов (свободные детали — габаритом). Читается, если в нём нет свободных деталей.
 const FORMAT_V1: &str = "basis-craft/1";
 
@@ -400,7 +407,7 @@ impl Project {
         if format == FORMAT_V1 && v.get("panels").and_then(Value::as_array).is_some_and(|a| !a.is_empty()) {
             return Err("проект старого формата с деталями из модели Базиса: импортируйте модель заново".into());
         }
-        if format != FORMAT && format != FORMAT_V1 {
+        if format != FORMAT && format != FORMAT_OLD_NAME && format != FORMAT_V1 {
             return Err(format!("проект: неизвестный формат «{format}»"));
         }
         let mut p: Project = serde_json::from_value(v).map_err(|e| format!("проект: {e}"))?;

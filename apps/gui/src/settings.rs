@@ -1,5 +1,5 @@
 //! Настройки окна между запусками: папки библиотеки фурнитуры, язык.
-//! Файл — `~/.config/basis-craft/settings.json` (или `$XDG_CONFIG_HOME/basis-craft`).
+//! Файл — `~/.config/dowel-craft/settings.json` (или `$XDG_CONFIG_HOME/dowel-craft`, в Windows — `%APPDATA%\dowel-craft`).
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -37,8 +37,15 @@ impl Default for GridSettings {
 
 /// Папка настроек программы.
 pub fn config_dir() -> Option<PathBuf> {
-    let base = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
-    Some(base.join("basis-craft"))
+    // В Windows нет HOME — настройки в %APPDATA%.
+    let base = std::env::var_os("XDG_CONFIG_HOME").or_else(|| std::env::var_os("APPDATA")).map(PathBuf::from).or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
+    let dir = base.join("dowel-craft");
+    // Настройки, недавние файлы и т. п. от прежнего имени программы — переезжают один раз.
+    let old = base.join("basis-craft");
+    if !dir.exists() && old.is_dir() {
+        let _ = std::fs::rename(&old, &dir);
+    }
+    Some(dir)
 }
 
 fn file() -> Option<PathBuf> {

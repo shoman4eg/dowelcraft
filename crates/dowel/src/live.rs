@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 /// Сокет окна: в личной папке сеанса (`XDG_RUNTIME_DIR`), иначе в домашней — не в общей `/tmp`,
 /// где чужой пользователь мог бы занять имя первым.
 pub fn socket_path() -> PathBuf {
-    std::env::var_os("XDG_RUNTIME_DIR").or_else(|| std::env::var_os("HOME")).map(PathBuf::from).unwrap_or_default().join(".basis-craft.sock")
+    std::env::var_os("XDG_RUNTIME_DIR").or_else(|| std::env::var_os("HOME")).map(PathBuf::from).unwrap_or_default().join(".dowel-craft.sock")
 }
 
 /// Подключение к окну.
@@ -21,7 +21,7 @@ pub struct Client {
 
 impl Client {
     pub fn connect(path: &Path) -> Result<Self, String> {
-        let s = UnixStream::connect(path).map_err(|e| format!("окно basis-craft не запущено или недоступно ({}: {e})", path.display()))?;
+        let s = UnixStream::connect(path).map_err(|e| format!("окно dowel-craft не запущено или недоступно ({}: {e})", path.display()))?;
         let read = BufReader::new(s.try_clone().map_err(|e| e.to_string())?);
         Ok(Client { read, write: s })
     }

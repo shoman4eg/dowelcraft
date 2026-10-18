@@ -1,7 +1,7 @@
 //! Палитра «Инструменты» (как Tool Sets в cadcraft): иконки по группам, под ними — параметры
 //! включённого инструмента. Подсказка, что делать дальше, — в строке состояния (`App::hint`).
 
-use basis::design;
+use dowel::design;
 use eframe::egui::{self, Color32};
 use serde_json::{Value, json};
 
@@ -364,7 +364,7 @@ impl App {
         ui.strong(crate::i18n::t("Крепёж"));
         let names = crate::editors::fastener_names(&project);
         crate::editors::props(ui, "fastener_params", |ui| {
-            crate::editors::caption(ui, "Вид");
+            crate::editors::caption(ui, "Тип");
             if let Some(Some(v)) = crate::editors::choose(ui, "fast_tool_kind", Some(&self.fastener_kind), &names, false) {
                 self.fastener_kind = v;
             }

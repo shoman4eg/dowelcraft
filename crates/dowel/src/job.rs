@@ -1,4 +1,4 @@
-//! Общий сценарий для CLI и окна: открыть модель (`.b3d` Базиса или свой `.bcraft`),
+//! Общий сценарий для CLI и окна: открыть модель (`.b3d` Базиса или свой `.dcraft`),
 //! раскроить по материалам и собрать документы.
 
 use std::collections::BTreeMap;
@@ -20,7 +20,7 @@ pub struct Job {
     pub hardware: Vec<(String, usize)>,
     /// Отверстия крепежа модели Базиса, не попавшие ни в одну плиту.
     pub holes_lost: usize,
-    /// Свой проект, если открыт `.bcraft`: из него берутся форматы листов и коэффициенты.
+    /// Свой проект, если открыт `.dcraft`: из него берутся форматы листов и коэффициенты.
     pub project: Option<Project>,
     /// Блоки модели Базиса и блок каждой плиты (по порядку `panels`) — для импорта в свой проект.
     pub blocks: Vec<panel::BlockInfo>,
@@ -31,7 +31,7 @@ impl Job {
     pub fn open(path: &Path) -> Result<Job, String> {
         let data = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let name = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-        if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("bcraft")) {
+        if crate::design::is_project_file(path) {
             let text = String::from_utf8(data).map_err(|_| format!("{}: не UTF-8", path.display()))?;
             Ok(Job::from_project(Project::load(&text)?))
         } else {

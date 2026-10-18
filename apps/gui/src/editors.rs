@@ -1,7 +1,7 @@
 //! Редакторы объектов проекта: каждое изменение — команда (`cabinet.set` и т.п.), применяется по отпусканию.
 
-use basis::design::{self, Project};
-use basis::panel::Texture;
+use dowel::design::{self, Project};
+use dowel::panel::Texture;
 use eframe::egui;
 use serde_json::{Value, json};
 
@@ -285,7 +285,7 @@ pub fn panel_editor(ui: &mut egui::Ui, project: &Project, fp: &design::FreePanel
         ui.end_row();
         caption(ui, "Начало осей панели").on_hover_text(crate::i18n::t("Угол контура (0, 0) на тыльной пласти; толщина идёт вдоль оси Z панели"));
         if let Some(origin) = position_editor(ui, fp.frame.origin) {
-            set("frame", json!(basis::geom::Frame { origin, ..fp.frame }));
+            set("frame", json!(dowel::geom::Frame { origin, ..fp.frame }));
         }
         ui.end_row();
     });
@@ -479,8 +479,8 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
 }
 
 /// Точки сегмента для рисования (дуги — ломаной).
-fn seg_points(s: &basis::contour::Seg) -> Vec<[f64; 2]> {
-    use basis::contour::Seg;
+fn seg_points(s: &dowel::contour::Seg) -> Vec<[f64; 2]> {
+    use dowel::contour::Seg;
     match *s {
         Seg::Line { a, b } => vec![a, b],
         Seg::Arc { a, b, c, ccw } => {
@@ -512,10 +512,10 @@ pub struct ContourClick {
 
 /// Схема контура панели (как в Базисе при облицовке: панель параллельно экрану). Торцы с кромкой —
 /// толстой линией с подписью толщины, торец под курсором — оранжевым, вершины — кружками.
-pub fn contour_view(ui: &mut egui::Ui, segs: &[basis::contour::Seg], edges: &[basis::panel::Edge], height: f32) -> Option<ContourClick> {
+pub fn contour_view(ui: &mut egui::Ui, segs: &[dowel::contour::Seg], edges: &[dowel::panel::Edge], height: f32) -> Option<ContourClick> {
     use egui::{Color32, Pos2, Stroke};
     let (resp, painter) = ui.allocate_painter(egui::vec2(ui.available_width(), height), egui::Sense::click());
-    let (lo, hi) = basis::contour::bounds(segs)?;
+    let (lo, hi) = dowel::contour::bounds(segs)?;
     let area = resp.rect.shrink(18.0);
     let k = (area.width() as f64 / (hi[0] - lo[0]).max(1.0)).min(area.height() as f64 / (hi[1] - lo[1]).max(1.0));
     let off = egui::vec2((area.width() - ((hi[0] - lo[0]) * k) as f32) / 2.0, -(area.height() - ((hi[1] - lo[1]) * k) as f32) / 2.0);
@@ -551,7 +551,7 @@ pub fn contour_view(ui: &mut egui::Ui, segs: &[basis::contour::Seg], edges: &[ba
         painter.text(mid, egui::Align2::CENTER_CENTER, label, egui::FontId::proportional(11.0), Color32::from_rgb(20, 60, 160));
     }
     // Вершины: концы отрезков и дуг.
-    let vertices: Vec<[f64; 2]> = segs.iter().filter(|s| !matches!(s, basis::contour::Seg::Circle { .. })).map(|s| basis::contour::ends(s).0).collect();
+    let vertices: Vec<[f64; 2]> = segs.iter().filter(|s| !matches!(s, dowel::contour::Seg::Circle { .. })).map(|s| dowel::contour::ends(s).0).collect();
     let vertex = mouse.and_then(|m| vertices.iter().copied().filter(|&v| (to(v) - m).length() < 9.0).min_by(|a, b| (to(*a) - m).length().total_cmp(&(to(*b) - m).length())));
     for &v in &vertices {
         let hot = Some(v) == vertex;
@@ -560,7 +560,7 @@ pub fn contour_view(ui: &mut egui::Ui, segs: &[basis::contour::Seg], edges: &[ba
     if let Some(v) = vertex {
         resp.clone().on_hover_text(crate::i18n::t(format!("Вершина ({}, {})", v[0], v[1])));
     } else if let Some(i) = hovered {
-        let len = basis::contour::length(&segs[i]);
+        let len = dowel::contour::length(&segs[i]);
         resp.clone().on_hover_text(crate::i18n::t(format!("Торец {i}: {len:.1} мм")));
     }
     let point = mouse.map(from)?;

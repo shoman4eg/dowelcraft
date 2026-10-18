@@ -1,17 +1,17 @@
 [package]
-name = "basis-craft-cli"
+name = "dowel-craft-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "basis-craft"
+name = "dowel-craft"
 path = "src/main.rs"
 
 [lints]
 workspace = true
 
 [dependencies]
-basis = { workspace = true }
+dowel = { workspace = true }
 script = { path = "../../crates/script" }
 serde_json = { workspace = true }

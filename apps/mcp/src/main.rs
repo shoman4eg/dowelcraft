@@ -1,13 +1,13 @@
-//! MCP-сервер basis-craft: JSON-RPC 2.0 через stdio, одно сообщение на строку.
+//! MCP-сервер dowel-craft: JSON-RPC 2.0 через stdio, одно сообщение на строку.
 //! ИИ-агент проектирует мебель теми же командами, что окно и CLI (`Session::execute`).
 
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
-use basis::design::{self, Kind, Project, Session};
-use basis::job::{self, Job};
-use basis::nest::Params;
-use basis::panel;
+use dowel::design::{self, Kind, Project, Session};
+use dowel::job::{self, Job};
+use dowel::nest::Params;
+use dowel::panel;
 use serde_json::{Value, json};
 
 const PROTOCOL: &str = "2025-06-18";
@@ -41,7 +41,7 @@ struct Server {
     path: Option<PathBuf>,
     /// Подключено к открытому окну: команды идут в его вкладку, чтение — с её копии.
     #[cfg(unix)]
-    live: Option<basis::live::Client>,
+    live: Option<dowel::live::Client>,
 }
 
 impl Default for Server {
@@ -67,17 +67,17 @@ fn text(s: impl Into<String>) -> Vec<Value> {
 fn tools() -> Value {
     let commands: String = design::COMMANDS.iter().map(|(n, h)| format!("\n- {n}: {h}")).collect();
     json!([
-        {"name": "window_connect", "description": "Подключиться к открытому окну basis-craft: дальше command, run_script и project_save меняют проект в активной вкладке окна (пользователь видит сразу, Ctrl+Z в окне отменяет), а parts, cut, render_*, export читают его. project_new/open/import недоступны до window_disconnect.",
+        {"name": "window_connect", "description": "Подключиться к открытому окну dowel-craft: дальше command, run_script и project_save меняют проект в активной вкладке окна (пользователь видит сразу, Ctrl+Z в окне отменяет), а parts, cut, render_*, export читают его. project_new/open/import недоступны до window_disconnect.",
          "inputSchema": {"type": "object", "properties": {}}},
         {"name": "window_disconnect", "description": "Отключиться от окна и снова работать со своей копией проекта.",
          "inputSchema": {"type": "object", "properties": {}}},
         {"name": "project_new", "description": "Создать пустой проект мебели.",
          "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
-        {"name": "project_open", "description": "Открыть свой проект .bcraft (можно править) или модель Базиса .b3d/.fr3d (только чтение).",
+        {"name": "project_open", "description": "Открыть свой проект .dcraft (можно править) или модель Базиса .b3d/.fr3d (только чтение).",
          "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}},
         {"name": "project_import", "description": "Открыть модель Базиса .b3d как свой проект: плиты станут свободными деталями, которые можно править (panel.set, panel.remove) и дополнять корпусами.",
          "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}},
-        {"name": "project_save", "description": "Сохранить проект в .bcraft. Без path — в файл, из которого открыт.",
+        {"name": "project_save", "description": "Сохранить проект в .dcraft. Без path — в файл, из которого открыт.",
          "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}}},
         {"name": "command", "description": format!(
             "Выполнить команду над проектом. Размеры в мм. Оси корпуса: X вправо, Y вверх, Z к фасаду. \
@@ -122,7 +122,7 @@ impl Server {
             "initialize" => Ok(json!({
                 "protocolVersion": params.get("protocolVersion").and_then(Value::as_str).unwrap_or(PROTOCOL),
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "basis-craft", "version": env!("CARGO_PKG_VERSION")},
+                "serverInfo": {"name": "dowel-craft", "version": env!("CARGO_PKG_VERSION")},
                 "instructions": "Проектирование корпусной мебели и раскрой. Сначала добавьте материал (material.add) и кромку (edge.add), \
                                  затем корпус (cabinet.add), полки и перегородки. Смотрите результат через render_front, parts, cut."
             })),
@@ -202,7 +202,7 @@ impl Server {
         match name {
             #[cfg(unix)]
             "window_connect" => {
-                let mut c = basis::live::Client::connect(&basis::live::socket_path())?;
+                let mut c = dowel::live::Client::connect(&dowel::live::socket_path())?;
                 let info = c.call("window.info", &json!({}))?;
                 self.live = Some(c);
                 Ok(text(format!(
@@ -242,7 +242,7 @@ impl Server {
                 let path = PathBuf::from(str_arg("path")?);
                 let job = Job::open(&path)?;
                 let p = job.import();
-                let msg = format!("Импортировано деталей: {}, материалов: {}. Сохраните project_save с путём .bcraft.", p.panels().len(), p.materials.len());
+                let msg = format!("Импортировано деталей: {}, материалов: {}. Сохраните project_save с путём .dcraft.", p.panels().len(), p.materials.len());
                 self.session = Some(Session::new(p));
                 self.path = None;
                 self.refresh();
@@ -252,7 +252,7 @@ impl Server {
                 let s = self.session.as_ref().ok_or("открыта модель Базиса — сохранять нечего")?;
                 let path = match a.get("path").and_then(Value::as_str) {
                     Some(p) => PathBuf::from(p),
-                    None => self.path.clone().filter(|p| p.extension().is_some_and(|e| e == "bcraft")).ok_or("укажите path")?,
+                    None => self.path.clone().filter(|p| dowel::design::is_project_file(p)).ok_or("укажите path")?,
                 };
                 std::fs::write(&path, s.project.save()).map_err(|e| format!("{}: {e}", path.display()))?;
                 self.path = Some(path.clone());
@@ -299,11 +299,11 @@ impl Server {
                         let cuts = job::cut(job, |m| job.params(m, p));
                         job::document(job, &cuts).into_bytes()
                     }
-                    "raskroy_xml" => basis::raskroy::project_xml(&job.name, &job.panels, |m| job.sheet(m, p.sheet)),
-                    "spec_csv" => basis::report::spec_csv(&panel::spec(&job.panels)).into_bytes(),
-                    "smeta_csv" => basis::report::materials_csv(&job.estimate(1.2)).into_bytes(),
-                    "drawings_html" => basis::report::document_html(&job.name, &basis::drawing::drawings(&job::parts(job)?, &job.name), "").into_bytes(),
-                    "b3d" => basis::export::b3d(job.project.as_ref().ok_or("b3d пишется из своего проекта: откройте или импортируйте его")?)?,
+                    "raskroy_xml" => dowel::raskroy::project_xml(&job.name, &job.panels, |m| job.sheet(m, p.sheet)),
+                    "spec_csv" => dowel::report::spec_csv(&panel::spec(&job.panels)).into_bytes(),
+                    "smeta_csv" => dowel::report::materials_csv(&job.estimate(1.2)).into_bytes(),
+                    "drawings_html" => dowel::report::document_html(&job.name, &dowel::drawing::drawings(&job::parts(job)?, &job.name), "").into_bytes(),
+                    "b3d" => dowel::export::b3d(job.project.as_ref().ok_or("b3d пишется из своего проекта: откройте или импортируйте его")?)?,
                     k => return Err(format!("неизвестный вид документа «{k}»")),
                 };
                 std::fs::write(&path, bytes).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -312,7 +312,7 @@ impl Server {
             "run_script" => {
                 let s = self.session.as_mut().ok_or("открыта модель Базиса — сначала project_import")?;
                 let (source, dir) = match (a.get("source").and_then(Value::as_str), a.get("path").and_then(Value::as_str)) {
-                    (Some(src), _) => (src.to_string(), std::env::temp_dir().join("basis-craft-mcp-script")),
+                    (Some(src), _) => (src.to_string(), std::env::temp_dir().join("dowel-craft-mcp-script")),
                     (None, Some(p)) => {
                         let p = PathBuf::from(p);
                         (script::read_script(&p)?, p.parent().map(PathBuf::from).unwrap_or_default())
@@ -448,7 +448,7 @@ mod tests {
     #[test]
     fn window_mode_forwards_commands() {
         use std::io::{BufRead, BufReader};
-        let dir = std::env::temp_dir().join(format!("basis-craft-mcp-live-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("dowel-craft-mcp-live-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let sock = dir.join("w.sock");
         let listener = std::os::unix::net::UnixListener::bind(&sock).unwrap();
@@ -470,7 +470,7 @@ mod tests {
             }
             (seen, s.project.materials.len())
         });
-        let mut server = Server { live: Some(basis::live::Client::connect(&sock).unwrap()), ..Default::default() };
+        let mut server = Server { live: Some(dowel::live::Client::connect(&sock).unwrap()), ..Default::default() };
         server.call("command", &json!({"command": "material.add", "params": {"name": "ЛДСП 16", "thickness": 16}})).unwrap();
         assert!(server.call("project_new", &json!({"name": "x"})).is_err());
         // Чтение — с проекта окна: материал есть, деталей нет.

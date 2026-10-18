@@ -314,7 +314,7 @@ impl App {
         let left = egui::Rect::from_min_size(r.min, egui::vec2(300.0, r.height()));
         p.rect_filled(left, 0.0, t.chrome_dark);
         p.rect_filled(egui::Rect::from_min_max(egui::pos2(left.right(), r.top()), r.max), 0.0, t.chrome);
-        p.text(egui::pos2(left.left() + 34.0, left.top() + 70.0), egui::Align2::LEFT_CENTER, "basis-craft", egui::FontId::proportional(28.0), t.text);
+        p.text(egui::pos2(left.left() + 34.0, left.top() + 70.0), egui::Align2::LEFT_CENTER, "dowel-craft", egui::FontId::proportional(28.0), t.text);
         p.text(egui::pos2(left.left() + 34.0, left.top() + 98.0), egui::Align2::LEFT_CENTER, crate::i18n::t(format!("Версия {}", env!("CARGO_PKG_VERSION"))), egui::FontId::proportional(12.0), t.text_faint);
         let sample = SAMPLES.iter().map(Path::new).find(|p| p.exists());
         let mut y = left.top() + 140.0;
@@ -481,11 +481,11 @@ impl App {
         if self.settings.grid != before {
             self.settings.save();
         }
-        egui::Window::new(crate::i18n::t("Как пользоваться basis-craft")).open(&mut self.help).default_size([620.0, 640.0]).vscroll(true).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::t("Как пользоваться dowel-craft")).open(&mut self.help).default_size([620.0, 640.0]).vscroll(true).show(ctx, |ui| {
             markdown(ui, if crate::i18n::english() { HELP_EN } else { HELP });
         });
         egui::Window::new(crate::i18n::t("О программе")).open(&mut self.about).resizable(false).collapsible(false).show(ctx, |ui| {
-            ui.heading("basis-craft");
+            ui.heading("dowel-craft");
             ui.label(crate::i18n::t(format!("Версия {}", env!("CARGO_PKG_VERSION"))));
             ui.label(crate::i18n::t("Проектирование корпусной мебели, совместимое с Базис-Мебельщиком: .b3d, XML для БАЗИС-Раскроя, карты раскроя, спецификация."));
             ui.weak(crate::i18n::t("Иконки и оболочка — по образцу cadcraft (storytold), см. NOTICE.md."));

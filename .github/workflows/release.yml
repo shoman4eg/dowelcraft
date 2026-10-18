@@ -1,0 +1,75 @@
+# A v* tag (e.g. v0.2.0) builds Linux, macOS (Apple Silicon and Intel) and Windows
+# and attaches the archives to the GitHub Release of that tag.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, name: linux-x86_64 }
+          - { os: macos-latest, target: aarch64-apple-darwin, name: macos-arm64 }
+          - { os: macos-latest, target: x86_64-apple-darwin, name: macos-x86_64 }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, name: windows-x86_64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev
+      - run: cargo build --release --locked --target ${{ matrix.target }} --bin dowel-craft-gui --bin dowel-craft --bin dowel-craft-mcp
+
+      - name: Archive (Linux, macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          dir=dowel-craft-${{ matrix.name }}
+          mkdir "$dir"
+          cp target/${{ matrix.target }}/release/{dowel-craft-gui,dowel-craft,dowel-craft-mcp} README.md NOTICE.md "$dir"/
+          tar czf "$dir.tar.gz" "$dir"
+          echo "ASSET=$dir.tar.gz" >> "$GITHUB_ENV"
+      - name: Archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dir = "dowel-craft-${{ matrix.name }}"
+          New-Item -ItemType Directory $dir | Out-Null
+          foreach ($b in "dowel-craft-gui", "dowel-craft", "dowel-craft-mcp") { Copy-Item "target/${{ matrix.target }}/release/$b.exe" $dir }
+          Copy-Item README.md, NOTICE.md $dir
+          Compress-Archive $dir "$dir.zip"
+          "ASSET=$dir.zip" | Out-File -Append $env:GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ env.ASSET }}
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" --repo "${{ github.repository }}" --title "${{ github.ref_name }}" --generate-notes dowel-craft-*

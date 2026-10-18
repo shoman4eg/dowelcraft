@@ -234,6 +234,11 @@ fn old_format_loads_without_free_panels() {
     assert_eq!(Project::load(v1).unwrap().format, FORMAT);
     let v1_panels = r#"{"format":"basis-craft/1","name":"Старый","panels":[{"id":1}]}"#;
     assert!(Project::load(v1_panels).unwrap_err().contains("импортируйте"));
+    // Проект, сохранённый ещё под именем basis-craft.
+    let old_name = r#"{"format":"basis-craft/2","name":"Старый","materials":[]}"#;
+    assert_eq!(Project::load(old_name).unwrap().format, FORMAT);
+    assert!(is_project_file(std::path::Path::new("шкаф.DCRAFT")));
+    assert!(!is_project_file(std::path::Path::new("шкаф.b3d")));
 }
 
 #[test]
