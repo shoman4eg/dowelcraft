@@ -65,11 +65,26 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    env:
+      # Fine-grained token with Contents: write on shoman4eg/homebrew-tap; without it the formula step is skipped.
+      TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
+          path: dist
           merge-multiple: true
       - name: GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" --repo "${{ github.repository }}" --title "${{ github.ref_name }}" --generate-notes dowel-craft-*
+        run: gh release create "${{ github.ref_name }}" --repo "${{ github.repository }}" --title "${{ github.ref_name }}" --generate-notes dist/dowel-craft-*
+      - name: Homebrew formula
+        if: env.TAP_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ env.TAP_TOKEN }}
+        run: |
+          scripts/homebrew-formula.sh "$GITHUB_REF_NAME" dist > dowel-craft.rb
+          path=repos/shoman4eg/homebrew-tap/contents/Formula/dowel-craft.rb
+          sha=$(gh api "$path" --jq .sha 2>/dev/null || true)
+          # Committed through the API, so GitHub signs it.
+          gh api -X PUT "$path" -f message="dowel-craft ${GITHUB_REF_NAME#v}" -f content="$(base64 -w0 dowel-craft.rb)" ${sha:+-f sha="$sha"}

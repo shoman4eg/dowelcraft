@@ -30,7 +30,17 @@ Runs on Linux, macOS and Windows. It has a desktop window, a command line and an
 
 ## Install
 
-Download a build from [Releases](https://github.com/shoman4eg/dowelcraft/releases):
+**Homebrew** (macOS, Linux):
+
+```sh
+brew tap shoman4eg/tap
+brew trust shoman4eg/tap
+brew install dowel-craft
+```
+
+This installs `dowel-craft-gui`, `dowel-craft` and `dowel-craft-mcp`; macOS does not block Homebrew installs, so no quarantine step is needed.
+
+**Or** download a build from [Releases](https://github.com/shoman4eg/dowelcraft/releases):
 
 | System | File |
 |---|---|
@@ -247,7 +257,7 @@ Most of the code comments and internal docs are in Russian.
 
 GitHub Actions does the builds:
 - **CI** (`.github/workflows/ci.yml`) — on every push to `main` and every PR: clippy and tests on Linux, builds on macOS and Windows.
-- **Release** (`.github/workflows/release.yml`) — on a `v*` tag: builds for Linux, macOS (Apple Silicon and Intel), Windows, and archives in a GitHub Release.
+- **Release** (`.github/workflows/release.yml`) — on a `v*` tag: builds for Linux, macOS (Apple Silicon and Intel), Windows, archives in a GitHub Release, and the Homebrew formula in [shoman4eg/homebrew-tap](https://github.com/shoman4eg/homebrew-tap) (needs the `HOMEBREW_TAP_TOKEN` secret).
 
 ```sh
 git tag v0.1.0
