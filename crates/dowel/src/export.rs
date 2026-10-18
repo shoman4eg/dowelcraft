@@ -52,7 +52,7 @@ fn trans(fr: &Frame) -> Node {
     obj("Trans", vec![f("X", fr.origin[0]), f("Y", fr.origin[1]), f("Z", fr.origin[2]), f("Rx", q[0]), f("Ry", q[1]), f("Rz", q[2]), f("Rw", q[3])])
 }
 
-/// Контур в blob Базиса: u32 n, затем сегменты (см. `docs/formats/b3d.md`).
+/// Контур в blob Базиса: u32 n, затем сегменты.
 pub fn contour_blob(segs: &[Seg]) -> Vec<u8> {
     let mut out = (segs.len() as u32).to_le_bytes().to_vec();
     let mut kinds = Vec::new();

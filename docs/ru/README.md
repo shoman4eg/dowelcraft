@@ -239,7 +239,7 @@ cargo test --workspace
 - `apps/gui` — окно (egui 0.36, 3D на wgpu).
 - `apps/cli` — командная строка.
 - `apps/mcp` — MCP-сервер.
-- `docs/` — справка, форматы (`formats/b3d.md`, `formats/raskroy-xml.md`), скрипты, план.
+- `docs/` — справка, формат XML БАЗИС-Раскроя (`formats/raskroy-xml.md`), скрипты.
 
 ## Выпуск версии
 

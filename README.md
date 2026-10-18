@@ -239,7 +239,7 @@ Some tests compare results with Bazis sample files kept in local `reference/` an
 - `apps/gui` — the window (egui 0.36, 3D on wgpu).
 - `apps/cli` — the command line.
 - `apps/mcp` — the MCP server.
-- `docs/` — user guide, formats (`formats/b3d.md`, `formats/raskroy-xml.md`), scripts, plan.
+- `docs/` — user guide, the BAZIS-Raskroy XML format (`formats/raskroy-xml.md`), scripts.
 
 Most of the code comments and internal docs are in Russian.
 
