@@ -5,25 +5,25 @@ use eframe::egui::{Key, KeyboardShortcut, Modifiers};
 
 /// (action, label, default shortcut).
 pub const ACTIONS: &[(&str, &str, &str)] = &[
-    ("save", "Сохранить", "Ctrl+S"),
-    ("undo", "Отменить", "Ctrl+Z"),
-    ("redo", "Вернуть", "Ctrl+Y"),
-    ("delete", "Удалить выделенное", "Delete"),
-    ("grid", "Сетка: показать или скрыть", "F7"),
-    ("cam.front", "Камера: спереди", "1"),
-    ("cam.left", "Камера: слева", "2"),
-    ("cam.top", "Камера: сверху", "3"),
-    ("cam.iso", "Камера: аксонометрия", "4"),
-    ("cam.fit", "Показать всё", "5"),
-    ("view.3d", "Вкладка: 3D", "Ctrl+1"),
-    ("view.front", "Вкладка: спереди", "Ctrl+2"),
-    ("view.parts", "Вкладка: детали", "Ctrl+3"),
-    ("view.cut", "Вкладка: раскрой", "Ctrl+4"),
-    ("mode.solid", "Показ: без невидимых", "Alt+1"),
-    ("mode.hidden", "Показ: невидимые тонкие", "Alt+2"),
-    ("mode.wire", "Показ: каркас", "Alt+3"),
-    ("mode.xray", "Показ: прозрачность", "Alt+4"),
-    ("mode.textured", "Показ: в текстурах", "Alt+5"),
+    ("save", "Save", "Ctrl+S"),
+    ("undo", "Undo", "Ctrl+Z"),
+    ("redo", "Redo", "Ctrl+Y"),
+    ("delete", "Delete selection", "Delete"),
+    ("grid", "Grid: show or hide", "F7"),
+    ("cam.front", "Camera: front", "1"),
+    ("cam.left", "Camera: left", "2"),
+    ("cam.top", "Camera: top", "3"),
+    ("cam.iso", "Camera: axonometric", "4"),
+    ("cam.fit", "Zoom to fit", "5"),
+    ("view.3d", "Tab: 3D", "Ctrl+1"),
+    ("view.front", "Tab: front", "Ctrl+2"),
+    ("view.parts", "Tab: parts", "Ctrl+3"),
+    ("view.cut", "Tab: cutting", "Ctrl+4"),
+    ("mode.solid", "Display: hidden lines removed", "Alt+1"),
+    ("mode.hidden", "Display: hidden thin", "Alt+2"),
+    ("mode.wire", "Display: wireframe", "Alt+3"),
+    ("mode.xray", "Display: transparent", "Alt+4"),
+    ("mode.textured", "Display: textured", "Alt+5"),
 ];
 
 /// "Ctrl+Shift+Z" → shortcut; `None` means empty (key unbound) or unparseable.
@@ -68,7 +68,7 @@ mod tests {
             assert_eq!(format(sc.modifiers, sc.logical_key), s);
         }
         assert!(parse("").is_none());
-        assert!(parse("Ctrl+Непонятно").is_none());
+        assert!(parse("Ctrl+Nonsense").is_none());
         // All default shortcuts parse and are unique.
         let all: Vec<String> = ACTIONS.iter().map(|(_, _, k)| format(parse(k).unwrap().modifiers, parse(k).unwrap().logical_key)).collect();
         let mut uniq = all.clone();

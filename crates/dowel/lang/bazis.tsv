@@ -1,0 +1,11 @@
+# Bazis compatibility: Russian names Bazis users type or Bazis files carry. key<TAB>value.
+# Formula variables: Russian aliases of W, H, D, P, T, L, WZ.
+alias.W	Ш
+alias.H	В
+alias.D	Г
+alias.P	Ц
+alias.T	Т
+alias.L	Д
+alias.WZ	ШZ
+# Unit accepted in number fields.
+unit.mm	мм

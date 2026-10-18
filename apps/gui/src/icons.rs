@@ -446,28 +446,28 @@ fn style() -> IconButtonStyle {
 pub fn caption(icon: Icon) -> &'static str {
     use Icon::*;
     match icon {
-        Cabinet => "Корпус",
-        WallCabinet => "Навесной",
-        Corner => "Угловой",
-        Countertop => "Столешница",
-        PanelFree => "Панель",
-        PanelH => "Полка",
-        PanelV => "Перегородка",
-        PanelF => "Задняя стенка",
-        Door => "Дверь",
-        Drawers => "Ящики",
-        Furniture => "Библиотека",
-        Fastener => "Крепёж",
-        Move => "Сдвинуть",
-        Copy => "Копия",
-        Rotate => "Повернуть",
-        Mirror => "Отразить",
-        MirrorCopy => "Зеркально",
-        Block => "В блок",
-        Explode => "Разрушить",
-        Erase => "Удалить",
-        Analyze => "Анализ",
-        Script => "Скрипт",
+        Cabinet => "Cabinet",
+        WallCabinet => "Wall",
+        Corner => "Corner",
+        Countertop => "Countertop",
+        PanelFree => "Panel",
+        PanelH => "Shelf",
+        PanelV => "Partition",
+        PanelF => "Back panel",
+        Door => "Door",
+        Drawers => "Drawers",
+        Furniture => "Library",
+        Fastener => "Fasteners",
+        Move => "Move",
+        Copy => "Duplicate",
+        Rotate => "Rotate",
+        Mirror => "Mirror",
+        MirrorCopy => "Mirrored",
+        Block => "Block",
+        Explode => "Explode",
+        Erase => "Delete",
+        Analyze => "Analyze",
+        Script => "Script",
         _ => "",
     }
 }
@@ -491,7 +491,7 @@ pub fn tool(ui: &mut egui::Ui, enabled: bool, icon: Icon, tooltip: &str, selecte
     let color = if enabled { Color32::from_rgb(0xd7, 0xdb, 0xe0) } else { Color32::from_rgb(0x87, 0x8d, 0x96).gamma_multiply(0.7) };
     let galley = ui.painter().layout(text, egui::FontId::proportional(11.0), color, rect.width());
     ui.painter().galley(egui::pos2(rect.center().x - galley.size().x / 2.0, rect.top() + 37.0), galley, color);
-    remember_hover(&resp, &if enabled { tooltip.clone() } else { crate::i18n::t(format!("{tooltip} (сейчас недоступно)")) });
+    remember_hover(&resp, &if enabled { tooltip.clone() } else { crate::i18n::t(format!("{tooltip} (not available now)")) });
     resp.on_hover_text(tooltip)
 }
 
@@ -517,7 +517,7 @@ pub fn labeled_if(ui: &mut egui::Ui, enabled: bool, icon: Icon, text: &str, tool
     ui.painter().rect_filled(rect, 3.0, fill);
     paint(ui.painter(), egui::Rect::from_min_size(rect.min + egui::vec2(4.0, 3.0), egui::vec2(20.0, 20.0)), icon, !enabled);
     ui.painter().galley(egui::pos2(rect.left() + 28.0, rect.center().y - galley.size().y / 2.0), galley, color);
-    let tooltip = if enabled { crate::i18n::t(tooltip) } else { crate::i18n::t(format!("{tooltip} (сейчас недоступно)")) };
+    let tooltip = if enabled { crate::i18n::t(tooltip) } else { crate::i18n::t(format!("{tooltip} (not available now)")) };
     remember_hover(&resp, &tooltip);
     resp.on_hover_text(tooltip)
 }
@@ -565,7 +565,7 @@ mod tests {
             let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 300.0))), events, time: Some(time), ..Default::default() };
             let mut out = ctx.run_ui(input, |ui| {
                 egui::CentralPanel::default().show(ui, |ui| {
-                    let r = super::button(ui, super::Icon::Cabinet, 36.0, "Напольный корпус", false);
+                    let r = super::button(ui, super::Icon::Cabinet, 36.0, "Floor cabinet", false);
                     *rect = r.rect;
                     *open = r.is_tooltip_open();
                 });
@@ -578,7 +578,7 @@ mod tests {
             time += 0.1;
             frame(vec![], time, &mut rect, &mut open);
         }
-        assert!(open, "подсказка не открылась");
+        assert!(open, "tooltip did not open");
     }
 
     /// Same inside a craft-ui palette (stack with a header), as in the app window.
@@ -596,8 +596,8 @@ mod tests {
             let mut out = ctx.run_ui(input, |ui| {
                 egui::CentralPanel::default().show(ui, |ui| {
                     let style = DockStyle::from_ui(ui);
-                    let _ = DockArea::new(egui::Id::new("dock")).show(ui, &layout, &style, |_| "Инструменты".to_string(), |_| Permissions::default(), |ui, _| {
-                        let r = super::button(ui, super::Icon::Cabinet, 36.0, "Напольный корпус", false);
+                    let _ = DockArea::new(egui::Id::new("dock")).show(ui, &layout, &style, |_| "Tools".to_string(), |_| Permissions::default(), |ui, _| {
+                        let r = super::button(ui, super::Icon::Cabinet, 36.0, "Floor cabinet", false);
                         *rect = r.rect;
                         *open = r.is_tooltip_open();
                     });
@@ -612,6 +612,6 @@ mod tests {
             time += 0.1;
             frame(vec![], time, &mut rect, &mut open);
         }
-        assert!(open, "подсказка в палитре не открылась, rect {rect:?}");
+        assert!(open, "palette tooltip did not open, rect {rect:?}");
     }
 }

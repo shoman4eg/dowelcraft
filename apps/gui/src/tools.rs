@@ -22,11 +22,11 @@ pub enum Modify {
 impl Modify {
     fn title(self) -> &'static str {
         match self {
-            Modify::Move => "Сдвинуть",
-            Modify::Copy => "Копировать",
-            Modify::Rotate => "Повернуть",
-            Modify::Mirror => "Отразить",
-            Modify::MirrorCopy => "Зеркальная копия",
+            Modify::Move => "Move",
+            Modify::Copy => "Copy",
+            Modify::Rotate => "Rotate",
+            Modify::Mirror => "Mirror",
+            Modify::MirrorCopy => "Mirror copy",
         }
     }
 }
@@ -62,74 +62,74 @@ impl App {
         let deletable = !self.delete_targets().is_empty();
         let explodable = self.targets().iter().any(|&id| self.explode_cmd(id).is_some());
         if !editable {
-            ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), crate::i18n::t("Модель Базиса открыта для просмотра. Нажмите замок вверху, чтобы её менять."));
+            ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), crate::i18n::t("The Bazis model is read-only. Press the lock at the top to edit it."));
         } else if !has_material {
-            ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), crate::i18n::t("Сначала добавьте материал на вкладке «Проект» — без него модули не создаются."));
+            ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), crate::i18n::t("First add a material in the “Project” panel — modules need it."));
         }
         let fill = self.fill.as_ref().map(|f| f.plane);
         let mut pick = None;
         let can_add = editable && has_material;
-        group(ui, "Модули", |ui| {
+        group(ui, "Modules", |ui| {
             for (icon, kind, tip) in [
-                (Icon::Cabinet, "cabinet", "Напольный корпус — встанет справа от модулей"),
-                (Icon::WallCabinet, "wall", "Навесной корпус — над напольными"),
-                (Icon::Corner, "corner", "Угловой модуль (Г-образный)"),
-                (Icon::Countertop, "countertop", "Столешница над напольными корпусами"),
-                (Icon::PanelFree, "panel", "Отдельная панель — размеры и положение в «Свойствах»"),
+                (Icon::Cabinet, "cabinet", "Floor cabinet — placed to the right of the modules"),
+                (Icon::WallCabinet, "wall", "Wall cabinet — above the floor ones"),
+                (Icon::Corner, "corner", "Corner unit (L-shaped)"),
+                (Icon::Countertop, "countertop", "Countertop over the floor cabinets"),
+                (Icon::PanelFree, "panel", "Free panel — size and position in “Properties”"),
             ] {
                 if tool(ui, can_add, icon, tip, false).clicked() {
                     pick = Some(Pick::Add(kind));
                 }
             }
         });
-        group(ui, "Панели и фасады в проём", |ui| {
+        group(ui, "Panels and fronts into an opening", |ui| {
             for (icon, plane, tip) in [
-                (Icon::PanelH, "horizontal", "Полка: щелчок в проём на виде спереди"),
-                (Icon::PanelV, "vertical", "Перегородка: щелчок в проём на виде спереди"),
-                (Icon::PanelF, "front", "Фронтальная панель (задняя стенка, фальшпанель) в проём"),
-                (Icon::Door, "door", "Дверь в проём, с петлями и присадкой"),
-                (Icon::Drawers, "drawers", "Ящики в проём, с направляющими"),
+                (Icon::PanelH, "horizontal", "Shelf: click into an opening in the front view"),
+                (Icon::PanelV, "vertical", "Partition: click into an opening in the front view"),
+                (Icon::PanelF, "front", "Front panel (back, false panel) into an opening"),
+                (Icon::Door, "door", "Door into an opening, with hinges and drilling"),
+                (Icon::Drawers, "drawers", "Drawers into an opening, with runners"),
             ] {
                 if tool(ui, can_add, icon, tip, fill == Some(plane)).clicked() {
                     pick = Some(Pick::Fill(plane));
                 }
             }
         });
-        group(ui, "Фурнитура", |ui| {
-            if tool(ui, true, Icon::Furniture, "Библиотека фурнитуры (.fr3d): корзины, петли, направляющие", false).clicked() {
+        group(ui, "Hardware", |ui| {
+            if tool(ui, true, Icon::Furniture, "Hardware library (.fr3d): baskets, hinges, runners", false).clicked() {
                 pick = Some(Pick::Library);
             }
-            if tool(ui, editable, Icon::Fastener, "Крепёж: выбрать вид (конфирмат, эксцентрик, шкант…) и поставить на выделенный корпус или панели", self.fastening).clicked() {
+            if tool(ui, editable, Icon::Fastener, "Fasteners: choose a type (confirmat, cam lock, dowel…) and apply to the selected cabinet or panels", self.fastening).clicked() {
                 pick = Some(Pick::Fasteners);
             }
         });
-        group(ui, "Изменить выделенное", |ui| {
+        group(ui, "Modify selection", |ui| {
             for (icon, m, tip) in [
-                (Icon::Move, Modify::Move, "Сдвинуть на dX, dY, dZ (или тащить мышью на виде спереди)"),
-                (Icon::Copy, Modify::Copy, "Копировать со сдвигом, массивом"),
-                (Icon::Rotate, Modify::Rotate, "Повернуть вокруг оси через центр выделенного"),
-                (Icon::Mirror, Modify::Mirror, "Отразить"),
-                (Icon::MirrorCopy, Modify::MirrorCopy, "Зеркальная копия"),
+                (Icon::Move, Modify::Move, "Move by dX, dY, dZ (or drag in the front view)"),
+                (Icon::Copy, Modify::Copy, "Copy with offset, as an array"),
+                (Icon::Rotate, Modify::Rotate, "Rotate about an axis through the selection centre"),
+                (Icon::Mirror, Modify::Mirror, "Mirror"),
+                (Icon::MirrorCopy, Modify::MirrorCopy, "Mirror copy"),
             ] {
                 if tool(ui, editable && selected, icon, tip, self.modify == Some(m)).clicked() {
                     pick = Some(Pick::Modify(m));
                 }
             }
-            if tool(ui, editable && selected, Icon::Block, "Собрать в блок", false).clicked() {
+            if tool(ui, editable && selected, Icon::Block, "Group into block", false).clicked() {
                 pick = Some(Pick::Menu(MenuAct::Block));
             }
-            if tool(ui, editable && explodable, Icon::Explode, "Разрушить: корпус, угловой модуль, столешницу или блок — в отдельные панели", false).clicked() {
+            if tool(ui, editable && explodable, Icon::Explode, "Explode a cabinet, corner unit, countertop or block into separate panels", false).clicked() {
                 pick = Some(Pick::Menu(MenuAct::Explode));
             }
-            if tool(ui, editable && deletable, Icon::Erase, "Удалить (Del)", false).clicked() {
+            if tool(ui, editable && deletable, Icon::Erase, "Delete (Del)", false).clicked() {
                 pick = Some(Pick::Menu(MenuAct::Delete));
             }
         });
-        group(ui, "Проверка и скрипты", |ui| {
-            if tool(ui, true, Icon::Analyze, "Анализ модели: пересечения, крепёж мимо панели, деталь больше листа", false).clicked() {
+        group(ui, "Checks and scripts", |ui| {
+            if tool(ui, true, Icon::Analyze, "Model analysis: intersections, fasteners off panels, parts larger than the sheet", false).clicked() {
                 pick = Some(Pick::Analyze);
             }
-            if tool(ui, editable, Icon::Script, "Выполнить скрипт Базиса (.js)", false).clicked() {
+            if tool(ui, editable, Icon::Script, "Run a Bazis script (.js)", false).clicked() {
                 pick = Some(Pick::Script);
             }
         });
@@ -205,7 +205,7 @@ impl App {
                 let top = project.countertops.iter().map(|c| c.position[1] + project.material(&c.material).map_or(38.0, |m| m.thickness)).chain(floor.iter().map(|c| c.height)).fold(0.0, f64::max);
                 let y = if top > 0.0 { top + 600.0 } else { 1400.0 };
                 let x = project.cabinets.iter().filter(|c| c.position[1] > 0.0).map(|c| c.position[0] + c.width).fold(0.0, f64::max);
-                ("cabinet.add", json!({ "name": "Навесной", "width": 600, "height": 720, "depth": 300, "material": material, "plinth": 0, "edge": edge, "doors": 1, "position": [x, y, 0] }))
+                ("cabinet.add", json!({ "name": "Wall", "width": 600, "height": 720, "depth": 300, "material": material, "plinth": 0, "edge": edge, "doors": 1, "position": [x, y, 0] }))
             }
             "corner" => ("corner.add", json!({ "width_x": 1000, "width_z": 1000, "height": 820, "depth": 560, "material": material, "plinth": 100, "doors": true, "edge": edge, "position": [right, 0, 0] })),
             "countertop" => {
@@ -251,45 +251,45 @@ impl App {
         let names: Vec<String> = s.project.materials.iter().map(|m| m.name.clone()).collect();
         let Some(t) = &mut self.fill else { return };
         let title = match t.plane {
-            "horizontal" => "Полка в проём",
-            "vertical" => "Перегородка в проём",
-            "front" => "Фронтальная панель в проём",
-            "door" => "Дверь в проём",
-            _ => "Ящики в проём",
+            "horizontal" => "Shelf into an opening",
+            "vertical" => "Partition into an opening",
+            "front" => "Front panel into an opening",
+            "door" => "Door into an opening",
+            _ => "Drawers into an opening",
         };
         ui.strong(crate::i18n::t(title));
         crate::editors::props(ui, "fill_params", |ui| {
-            crate::editors::caption(ui, "Материал");
+            crate::editors::caption(ui, "Material");
             if let Some(Some(m)) = crate::editors::choose(ui, "fill_mat", Some(&t.material), &names, false) {
                 t.material = m;
             }
             ui.end_row();
             if matches!(t.plane, "door" | "drawers") {
-                crate::editors::caption(ui, "Установка");
+                crate::editors::caption(ui, "Mounting");
                 ui.horizontal_wrapped(|ui| {
-                    for (m, label) in [("overlay", "накладная"), ("half", "полунакладная"), ("inset", "вкладная")] {
+                    for (m, label) in [("overlay", "overlay"), ("half", "half overlay"), ("inset", "inset")] {
                         ui.selectable_value(&mut t.mount, m, crate::i18n::t(label));
                     }
                 });
                 ui.end_row();
                 if t.plane == "door" {
-                    crate::editors::caption(ui, "Створки");
-                    ui.checkbox(&mut t.double, crate::i18n::t("двойная"));
+                    crate::editors::caption(ui, "Leaves");
+                    ui.checkbox(&mut t.double, crate::i18n::t("double"));
                 } else {
-                    crate::editors::caption(ui, "Фасады, мм");
-                    ui.add(egui::TextEdit::singleline(&mut t.heights).desired_width(120.0)).on_hover_text(crate::i18n::t("Высоты фасадов снизу вверх через пробел"));
+                    crate::editors::caption(ui, "Fronts, mm");
+                    ui.add(egui::TextEdit::singleline(&mut t.heights).desired_width(120.0)).on_hover_text(crate::i18n::t("Front heights from the bottom up, separated by spaces"));
                 }
                 ui.end_row();
                 return;
             }
             let labels = match t.plane {
-                "horizontal" => ["Отступ слева", "Отступ справа", "Отступ сзади", "Отступ спереди"],
-                "vertical" => ["Отступ сзади", "Отступ спереди", "Отступ снизу", "Отступ сверху"],
-                _ => ["Отступ слева", "Отступ справа", "Отступ снизу", "Отступ сверху"],
+                "horizontal" => ["Gap left", "Gap right", "Gap back", "Gap front"],
+                "vertical" => ["Gap back", "Gap front", "Gap bottom", "Gap top"],
+                _ => ["Gap left", "Gap right", "Gap bottom", "Gap top"],
             };
             for (g, l) in t.gaps.iter_mut().zip(labels) {
                 crate::editors::caption(ui, l);
-                crate::expr::add(ui, g, |d| d.range(-100.0..=500.0).suffix(crate::i18n::t(" мм")));
+                crate::expr::add(ui, g, |d| d.range(-100.0..=500.0).suffix(crate::i18n::t(" mm")));
                 ui.end_row();
             }
         });
@@ -301,7 +301,7 @@ impl App {
         ui.strong(crate::i18n::t(m.title()));
         let ids = self.targets();
         if ids.is_empty() {
-            ui.weak(crate::i18n::t("Выделите детали щелчком — потом «Применить»."));
+            ui.weak(crate::i18n::t("Select parts by clicking, then “Apply”."));
             return;
         }
         let Some((lo, hi)) = self.selection_bounds() else { return };
@@ -312,17 +312,17 @@ impl App {
                 Modify::Move | Modify::Copy => {
                     for (k, l) in ["dX", "dY", "dZ"].iter().enumerate() {
                         crate::editors::caption(ui, l);
-                        crate::expr::add(ui, &mut d[k], |d| d.speed(1.0).suffix(crate::i18n::t(" мм")));
+                        crate::expr::add(ui, &mut d[k], |d| d.speed(1.0).suffix(crate::i18n::t(" mm")));
                         ui.end_row();
                     }
                     if m == Modify::Copy {
-                        crate::editors::caption(ui, "Копий");
+                        crate::editors::caption(ui, "Copies");
                         crate::expr::add(ui, count, |d| d.range(1..=100));
                         ui.end_row();
                     }
                 }
                 Modify::Rotate | Modify::Mirror | Modify::MirrorCopy => {
-                    crate::editors::caption(ui, if m == Modify::Rotate { "Ось" } else { "Поперёк оси" });
+                    crate::editors::caption(ui, if m == Modify::Rotate { "Axis" } else { "Across axis" });
                     ui.horizontal(|ui| {
                         for a in ['x', 'y', 'z'] {
                             ui.selectable_value(axis, a, a.to_ascii_uppercase().to_string());
@@ -330,7 +330,7 @@ impl App {
                     });
                     ui.end_row();
                     if m == Modify::Rotate {
-                        crate::editors::caption(ui, "Угол");
+                        crate::editors::caption(ui, "Angle");
                         crate::expr::add(ui, angle, |d| d.range(-360.0..=360.0).suffix("°"));
                         ui.end_row();
                     }
@@ -342,7 +342,7 @@ impl App {
             'y' => 1,
             _ => 2,
         };
-        let apply = ui.button(crate::i18n::t("Применить (Enter)")).clicked() || (!ui.ctx().text_edit_focused() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
+        let apply = ui.button(crate::i18n::t("Apply (Enter)")).clicked() || (!ui.ctx().text_edit_focused() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
         if !apply {
             return;
         }
@@ -361,26 +361,26 @@ impl App {
     fn fastener_params(&mut self, ui: &mut egui::Ui) {
         let Some(s) = &self.session else { return };
         let project = s.project.clone();
-        ui.strong(crate::i18n::t("Крепёж"));
+        ui.strong(crate::i18n::t("Fasteners"));
         let names = crate::editors::fastener_names(&project);
         crate::editors::props(ui, "fastener_params", |ui| {
-            crate::editors::caption(ui, "Тип");
+            crate::editors::caption(ui, "Type");
             if let Some(Some(v)) = crate::editors::choose(ui, "fast_tool_kind", Some(&self.fastener_kind), &names, false) {
                 self.fastener_kind = v;
             }
             ui.end_row();
-            crate::editors::caption(ui, "Чашка эксцентрика");
+            crate::editors::caption(ui, "Cam cup");
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.fastener_outside, false, crate::i18n::t("внутри"));
-                ui.selectable_value(&mut self.fastener_outside, true, crate::i18n::t("снаружи"));
+                ui.selectable_value(&mut self.fastener_outside, false, crate::i18n::t("inside"));
+                ui.selectable_value(&mut self.fastener_outside, true, crate::i18n::t("outside"));
             })
             .response
-            .on_hover_text(crate::i18n::t("С какой стороны панели сверлится чашка ⌀15: внутри корпуса (у дна — сверху, у крыши — снизу) или снаружи. У отдельных панелей; «Поставить» меняет и уже стоящий крепёж"));
+            .on_hover_text(crate::i18n::t("Which face gets the ⌀15 cup: inside the carcass (top of the bottom, underside of the top) or outside. For free panels; “Apply” also changes fasteners already there"));
             ui.end_row();
         });
-        ui.weak(crate::i18n::t("Выделите корпус (щелчок по любой его детали) или несколько отдельных панелей (Ctrl+щелчок) и нажмите «Поставить». Отверстия с координатами появятся на обеих деталях каждого стыка."));
+        ui.weak(crate::i18n::t("Select a cabinet (click any of its parts) or several free panels (Ctrl+click) and press “Apply”. Holes with coordinates appear on both parts of every joint."));
         let ids = self.targets();
-        let go = ui.add_enabled(!ids.is_empty(), egui::Button::new(crate::i18n::t("Поставить на выделенное"))).clicked();
+        let go = ui.add_enabled(!ids.is_empty(), egui::Button::new(crate::i18n::t("Apply to selection"))).clicked();
         if !go {
             return;
         }
@@ -415,41 +415,41 @@ impl App {
         for id in stale {
             self.exec("fastener.set", json!({ "id": id, "outside": self.fastener_outside }));
         }
-        self.status = crate::i18n::t(format!("Крепёж «{kind}»: корпусов {modules}, стыков панелей {joints}"));
+        self.status = crate::i18n::t(format!("“{kind}” fasteners: cabinets {modules}, panel joints {joints}"));
         if modules == 0 && joints == 0 && self.error.is_none() {
-            self.error = Some(crate::i18n::t("Стыков не найдено: панели должны касаться — торец одной на пласти другой."));
+            self.error = Some(crate::i18n::t("No joints found: panels must touch — the edge of one on the face of the other."));
         }
     }
 
     /// Status bar hint: what to do next.
     pub(crate) fn hint(&self) -> String {
         if self.fastening {
-            return "Крепёж: выделите корпус или панели (Ctrl — несколько) и нажмите «Поставить на выделенное». Esc — выйти.".into();
+            return "Fasteners: select a cabinet or panels (Ctrl for several) and press “Apply to selection”. Esc exits.".into();
         }
         if let Some(t) = &self.fill {
             let what = match t.plane {
-                "horizontal" => "полку",
-                "vertical" => "перегородку",
-                "front" => "фронтальную панель",
-                "door" => "дверь",
-                _ => "ящики",
+                "horizontal" => "a shelf",
+                "vertical" => "a partition",
+                "front" => "a front panel",
+                "door" => "a door",
+                _ => "drawers",
             };
-            return format!("Щёлкните внутри проёма на виде спереди — поставить {what}. Esc — выйти из инструмента.");
+            return format!("Click inside an opening in the front view to place {what}. Esc exits the tool.");
         }
         if let Some(m) = self.modify {
             return if self.targets().is_empty() {
-                format!("{}: выделите детали щелчком (Ctrl — несколько). Esc — выйти.", m.title())
+                format!("{}: select parts by clicking (Ctrl for several). Esc exits.", m.title())
             } else {
-                format!("{}: задайте параметры слева и нажмите «Применить» или Enter. Esc — выйти.", m.title())
+                format!("{}: set the parameters on the left and press “Apply” or Enter. Esc exits.", m.title())
             };
         }
         match &self.session {
-            None => "Модель Базиса открыта для просмотра. Замок вверху — сделать её редактируемой.".into(),
-            Some(s) if s.project.materials.is_empty() => "Начните с материала: вкладка «Проект» → «Материалы».".into(),
+            None => "The Bazis model is read-only. The lock at the top makes it editable.".into(),
+            Some(s) if s.project.materials.is_empty() => "Start with a material: “Project” panel → “Materials”.".into(),
             Some(_) if self.selection.is_empty() && self.furniture_sel.is_none() => {
-                "Выберите инструмент слева или щёлкните деталь. ЛКМ в 3D — вращать, ПКМ — двигать вид, колесо — масштаб.".into()
+                "Pick a tool on the left or click a part. In 3D: left drag rotates, right drag pans, wheel zooms.".into()
             }
-            Some(_) => "Тяните выделенную деталь мышью — она двигается по оси. Свойства — справа. Del — удалить, ПКМ — меню, Esc — снять выделение.".into(),
+            Some(_) => "Drag the selected part with the mouse to move it along an axis. Properties are on the right. Del deletes, right click opens the menu, Esc clears the selection.".into(),
         }
     }
 }

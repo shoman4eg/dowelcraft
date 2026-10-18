@@ -22,7 +22,7 @@ pub struct Doc {
 
 impl Doc {
     pub fn empty() -> Doc {
-        Doc { session: Some(Session::new(Project::new("Новый проект"))), job: Job::from_project(Project::new("Новый проект")), path: None, selection: Vec::new(), furniture_sel: None, card: 0, dirty: false, hidden: Default::default() }
+        Doc { session: Some(Session::new(Project::new("New project"))), job: Job::from_project(Project::new("New project")), path: None, selection: Vec::new(), furniture_sel: None, card: 0, dirty: false, hidden: Default::default() }
     }
 
     /// Name for the tab.
@@ -134,16 +134,16 @@ impl App {
         let Some(ask) = &self.close_ask else { return };
         let (index, title) = (ask.index, ask.title.clone());
         let mut choice = None;
-        eframe::egui::Window::new(crate::i18n::t("Закрыть проект")).collapsible(false).resizable(false).anchor(eframe::egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
-            ui.label(crate::i18n::t(format!("Сохранить изменения в «{title}»?")));
+        eframe::egui::Window::new(crate::i18n::t("Close project")).collapsible(false).resizable(false).anchor(eframe::egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(ctx, |ui| {
+            ui.label(crate::i18n::t(format!("Save changes to “{title}”?")));
             ui.horizontal(|ui| {
-                if ui.button(crate::i18n::t("Сохранить")).clicked() {
+                if ui.button(crate::i18n::t("Save")).clicked() {
                     choice = Some(0);
                 }
-                if ui.button(crate::i18n::t("Не сохранять")).clicked() {
+                if ui.button(crate::i18n::t("Don't save")).clicked() {
                     choice = Some(1);
                 }
-                if ui.button(crate::i18n::t("Отмена")).clicked() {
+                if ui.button(crate::i18n::t("Cancel")).clicked() {
                     choice = Some(2);
                 }
             });
@@ -177,29 +177,29 @@ mod tests {
     #[test]
     fn new_project_keeps_the_open_one() {
         let mut app = App::default();
-        app.exec("project.rename", json!({ "name": "Кухня" }));
-        app.exec("material.add", json!({ "name": "ЛДСП 16", "thickness": 16, "sheet": [2800, 2070], "coef": 1.2 }));
+        app.exec("project.rename", json!({ "name": "Kitchen" }));
+        app.exec("material.add", json!({ "name": "Chipboard 16", "thickness": 16, "sheet": [2800, 2070], "coef": 1.2 }));
         assert!(app.dirty);
         app.new_project();
         assert_eq!((app.docs.len(), app.active), (2, 1));
-        assert_eq!(app.doc_title(), "Новый проект");
+        assert_eq!(app.doc_title(), "New project");
         assert!(!app.dirty);
-        assert_eq!(app.docs[0].title(), "Кухня");
+        assert_eq!(app.docs[0].title(), "Kitchen");
         app.switch_doc(0);
-        assert_eq!(app.doc_title(), "Кухня");
+        assert_eq!(app.doc_title(), "Kitchen");
         assert!(app.dirty);
         assert_eq!(app.session.as_ref().map(|s| s.project.materials.len()), Some(1));
         // Close the "Kitchen" tab; the new project remains.
         app.close_doc(0);
         assert_eq!((app.docs.len(), app.active), (1, 0));
-        assert_eq!(app.doc_title(), "Новый проект");
+        assert_eq!(app.doc_title(), "New project");
     }
 
     /// Two individual panels in a row don't overlap (previously the second one landed on top of the first).
     #[test]
     fn added_panels_do_not_overlap() {
         let mut app = App::default();
-        app.exec("material.add", json!({ "name": "ЛДСП 16", "thickness": 16, "sheet": [2800, 2070], "coef": 1.2 }));
+        app.exec("material.add", json!({ "name": "Chipboard 16", "thickness": 16, "sheet": [2800, 2070], "coef": 1.2 }));
         app.add_object("panel");
         app.add_object("panel");
         app.add_object("cabinet");
@@ -210,7 +210,7 @@ mod tests {
                     continue;
                 }
                 let apart = (0..3).any(|k| a.origin[k] + a.size[k] <= b.origin[k] + 1e-6 || b.origin[k] + b.size[k] <= a.origin[k] + 1e-6);
-                assert!(apart, "{} и {} пересекаются", a.panel.name, b.panel.name);
+                assert!(apart, "{} and {} overlap", a.panel.name, b.panel.name);
             }
         }
     }
@@ -219,7 +219,7 @@ mod tests {
     #[test]
     fn hidden_parts_belong_to_their_project() {
         let mut app = App::default();
-        app.exec("material.add", json!({ "name": "ЛДСП 16", "thickness": 16, "sheet": [2800, 2070], "coef": 1.2 }));
+        app.exec("material.add", json!({ "name": "Chipboard 16", "thickness": 16, "sheet": [2800, 2070], "coef": 1.2 }));
         app.add_object("panel");
         app.add_object("panel");
         let first = crate::Sel::of(app.parts.as_ref().unwrap(), 0);
@@ -235,10 +235,10 @@ mod tests {
     #[test]
     fn closing_dirty_project_asks() {
         let mut app = App::default();
-        app.exec("project.rename", json!({ "name": "Шкаф" }));
+        app.exec("project.rename", json!({ "name": "Wardrobe" }));
         app.request_close(0);
-        assert!(app.close_ask.as_ref().is_some_and(|a| a.title == "Шкаф"));
-        assert_eq!(app.doc_title(), "Шкаф");
+        assert!(app.close_ask.as_ref().is_some_and(|a| a.title == "Wardrobe"));
+        assert_eq!(app.doc_title(), "Wardrobe");
     }
 }
 
@@ -303,19 +303,19 @@ mod window_tests {
                 let p = egui::pos2(x as f32, y as f32);
                 run(&mut app, vec![egui::Event::PointerMoved(p)], time);
                 run(&mut app, vec![], time);
-                if crate::icons::take_hover(&ctx).is_some_and(|t| t.starts_with("Напольный корпус")) {
+                if crate::icons::take_hover(&ctx).is_some_and(|t| t.starts_with("Floor cabinet")) {
                     found = Some(p);
                     break 'scan;
                 }
             }
         }
-        let p = found.expect("иконка не найдена");
+        let p = found.expect("icon not found");
         run(&mut app, vec![egui::Event::PointerMoved(p)], time);
         for _ in 0..15 {
             time += 0.1;
             run(&mut app, vec![], time);
         }
         let tooltip = ctx.memory(|m| m.areas().visible_layer_ids().into_iter().any(|l| l.order == egui::Order::Tooltip));
-        assert!(tooltip, "подсказка не открылась");
+        assert!(tooltip, "tooltip did not open");
     }
 }

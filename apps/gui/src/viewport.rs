@@ -23,7 +23,7 @@ pub enum Mode {
 }
 
 impl Mode {
-    pub const ALL: [(Mode, &str); 5] = [(Mode::Solid, "Без невидимых"), (Mode::Hidden, "Невидимые тонкие"), (Mode::Wire, "Каркас"), (Mode::XRay, "Прозрачность"), (Mode::Textured, "В текстурах")];
+    pub const ALL: [(Mode, &str); 5] = [(Mode::Solid, "Hidden lines removed"), (Mode::Hidden, "Hidden lines thin"), (Mode::Wire, "Frame"), (Mode::XRay, "X-ray"), (Mode::Textured, "Textured")];
 }
 
 /// Result of a click in the model window.
@@ -602,7 +602,7 @@ impl Gpu {
             });
             self.images.push((path.to_string(), bg));
         }
-        let i = self.images.iter().position(|(p, _)| p == path).expect("добавлена выше");
+        let i = self.images.iter().position(|(p, _)| p == path).expect("added above");
         self.images[i].1.as_ref().unwrap_or(&self.white)
     }
 
@@ -879,26 +879,26 @@ impl Viewport {
     pub fn toolbar(&mut self, ui: &mut egui::Ui) {
         use crate::icons::{Icon, button};
         const S: f32 = 26.0;
-        let views = [(Icon::ViewFront, "Вид спереди (1)", 0.0, 0.0), (Icon::ViewLeft, "Вид слева (2)", 90.0, 0.0), (Icon::ViewTop, "Вид сверху (3)", 0.0, 89.9), (Icon::ViewIso, "Аксонометрия, объёмный вид (4)", Camera::AXON.0, Camera::AXON.1)];
-        ui.weak(crate::i18n::t("Вид"));
+        let views = [(Icon::ViewFront, "Front view (1)", 0.0, 0.0), (Icon::ViewLeft, "Left view (2)", 90.0, 0.0), (Icon::ViewTop, "Top view (3)", 0.0, 89.9), (Icon::ViewIso, "Axonometric, 3D view (4)", Camera::AXON.0, Camera::AXON.1)];
+        ui.weak(crate::i18n::t("View"));
         for (icon, tip, yaw, pitch) in views {
             let on = (self.camera.yaw - f32::to_radians(yaw)).abs() < 1e-3 && (self.camera.pitch - f32::to_radians(pitch)).abs() < 1e-3;
             if button(ui, icon, S, tip, on).clicked() {
                 (self.camera.yaw, self.camera.pitch) = (f32::to_radians(yaw), f32::to_radians(pitch));
             }
         }
-        if button(ui, Icon::Fit, S, "Показать всё (5): вписать модель в окно", false).clicked() {
+        if button(ui, Icon::Fit, S, "Zoom to fit (5): fit the model in the window", false).clicked() {
             self.fitted = false;
         }
         ui.separator();
-        ui.weak(crate::i18n::t("Показ"));
+        ui.weak(crate::i18n::t("Display"));
         let icons = [Icon::ModeSolid, Icon::ModeHidden, Icon::ModeWire, Icon::ModeXRay, Icon::ModeTextured];
         let tips = [
-            "Без невидимых (Alt+1): детали сплошные, видны только ближние рёбра",
-            "Невидимые тонкие (Alt+2): как сплошной, плюс скрытые рёбра светлыми линиями",
-            "Каркас (Alt+3): только рёбра деталей, насквозь",
-            "Прозрачность, рентген (Alt+4): детали полупрозрачные, видны оси каждой детали",
-            "В текстурах (Alt+5): материалы картинками (Балтламинат по артикулу)",
+            "Hidden lines removed (Alt+1): solid parts, only near edges visible",
+            "Hidden thin (Alt+2): like solid plus hidden edges as light lines",
+            "Wireframe (Alt+3): only part edges, see-through",
+            "Transparent, X-ray (Alt+4): parts semi-transparent, each part axes shown",
+            "Textured (Alt+5): materials as images (Baltlaminat by article)",
         ];
         for (((mode, _), icon), tip) in Mode::ALL.into_iter().zip(icons).zip(tips) {
             if button(ui, icon, S, tip, self.mode == mode).clicked() {
@@ -966,7 +966,7 @@ impl Viewport {
     /// Returns the click (on a part, on empty space, right button) and the window response — the menu attaches to it.
     pub fn show(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame, parts: &[Part], revision: u64, selected: &[usize], skip: impl Fn(&Part) -> bool) -> (Click, Option<egui::Response>) {
         let Some(rs) = frame.wgpu_render_state() else {
-            ui.label(crate::i18n::t("3D недоступно: окно запущено без видеокарты (wgpu)."));
+            ui.label(crate::i18n::t("3D is unavailable: the window started without a GPU (wgpu)."));
             return (Click::None, None);
         };
         if self.gpu.is_none() {
@@ -1243,7 +1243,7 @@ impl Viewport {
         ui.painter().image(target.id, rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
         if self.dragging.is_some() {
             let mv = self.drag_offset();
-            let text = ["X", "Y", "Z"].iter().zip(mv).find(|(_, v)| *v != 0.0).map_or_else(|| crate::i18n::t("сдвиг: 0"), |(a, v)| crate::i18n::t(format!("сдвиг по {a}: {v} мм")));
+            let text = ["X", "Y", "Z"].iter().zip(mv).find(|(_, v)| *v != 0.0).map_or_else(|| crate::i18n::t("offset: 0"), |(a, v)| crate::i18n::t(format!("offset along {a}: {v} mm")));
             ui.painter().text(rect.left_top() + Vec2::new(10.0, 28.0), egui::Align2::LEFT_TOP, text, egui::FontId::proportional(15.0), Color32::from_rgb(0xf5, 0x9e, 0x3b));
         }
         for (_, m) in &markers {
@@ -1255,7 +1255,7 @@ impl Viewport {
             ui.painter().rect_stroke(rect, 0.0, egui::Stroke::new(1.0, Color32::from_gray(150)), egui::StrokeKind::Inside);
         }
         if !self.errors.is_empty() {
-            let text = format!("Не построены контуры деталей ({}): {}", self.errors.len(), self.errors.iter().map(|(n, e)| format!("«{n}» — {e}")).collect::<Vec<_>>().join("; "));
+            let text = format!("Part contours not built ({}): {}", self.errors.len(), self.errors.iter().map(|(n, e)| format!("«{n}» — {e}")).collect::<Vec<_>>().join("; "));
             ui.painter().text(rect.left_bottom() + Vec2::new(8.0, -8.0), egui::Align2::LEFT_BOTTOM, text, egui::FontId::proportional(13.0), Color32::from_rgb(200, 40, 40));
         }
         (click, Some(resp))
@@ -1322,10 +1322,10 @@ mod tests {
     /// Size handle: the edge follows the mouse offset and snaps to a neighbouring part's edge.
     #[test]
     fn marker_resizes_and_snaps() {
-        let mut s = dowel::design::Session::new(dowel::design::Project::new("т"));
-        s.execute("material.add", &serde_json::json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
-        s.execute("panel.add", &serde_json::json!({"material": "ЛДСП 16", "plane": "front", "size": [400, 600], "position": [0, 0, 0]})).unwrap();
-        s.execute("panel.add", &serde_json::json!({"material": "ЛДСП 16", "plane": "vertical", "size": [300, 700], "position": [500, 0, 0]})).unwrap();
+        let mut s = dowel::design::Session::new(dowel::design::Project::new("t"));
+        s.execute("material.add", &serde_json::json!({"name": "Chipboard 16", "thickness": 16})).unwrap();
+        s.execute("panel.add", &serde_json::json!({"material": "Chipboard 16", "plane": "front", "size": [400, 600], "position": [0, 0, 0]})).unwrap();
+        s.execute("panel.add", &serde_json::json!({"material": "Chipboard 16", "plane": "vertical", "size": [300, 700], "position": [500, 0, 0]})).unwrap();
         let parts = dowel::design::build(&s.project).unwrap();
         // Right edge of the first panel (X) by +93 mm: 493 snaps to 500 (within 10 mm).
         let (lo, hi) = resized(&parts, 0, [0, 1], [1, 0], [93.0, 0.0], 10.0);

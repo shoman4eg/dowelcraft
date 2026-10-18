@@ -185,15 +185,15 @@ impl TextureLib {
         let mut result = None;
         let mut dirs_changed = false;
         let title = match &target {
-            Target::New => crate::i18n::t("Текстура нового материала"),
-            Target::Material(m) => crate::i18n::t(format!("Текстура материала «{m}»")),
+            Target::New => crate::i18n::t("New material texture"),
+            Target::Material(m) => crate::i18n::t(format!("Texture of material “{m}”")),
         };
         egui::Window::new(title).id(egui::Id::new("texture_picker")).open(&mut open).default_size([460.0, 560.0]).show(ctx, |ui| {
-            egui::CollapsingHeader::new(crate::i18n::t(format!("Папки текстур ({})", self.dirs.len()))).default_open(self.dirs.is_empty()).show(ui, |ui| {
+            egui::CollapsingHeader::new(crate::i18n::t(format!("Texture folders ({})", self.dirs.len()))).default_open(self.dirs.is_empty()).show(ui, |ui| {
                 let mut remove = None;
                 for (i, d) in self.dirs.iter().enumerate() {
                     ui.horizontal(|ui| {
-                        if ui.small_button("✕").on_hover_text(crate::i18n::t("Убрать папку из библиотеки (файлы не удаляются)")).clicked() {
+                        if ui.small_button("✕").on_hover_text(crate::i18n::t("Remove the folder from the library (files are not deleted)")).clicked() {
                             remove = Some(i);
                         }
                         ui.add(egui::Label::new(d.as_str()).truncate()).on_hover_text(d.as_str());
@@ -203,7 +203,7 @@ impl TextureLib {
                     self.dirs.remove(i);
                     dirs_changed = true;
                 }
-                if ui.button(crate::i18n::t("+ Добавить папку…")).clicked()
+                if ui.button(crate::i18n::t("+ Add folder…")).clicked()
                     && let Some(d) = rfd::FileDialog::new().pick_folder()
                 {
                     let d = d.display().to_string();
@@ -214,9 +214,9 @@ impl TextureLib {
                 }
             });
             ui.horizontal(|ui| {
-                ui.label(crate::i18n::t("Поиск"));
+                ui.label(crate::i18n::t("Search"));
                 ui.text_edit_singleline(&mut self.search);
-                if ui.button(crate::i18n::t("Без текстуры")).clicked() {
+                if ui.button(crate::i18n::t("No texture")).clicked() {
                     result = Some((target.clone(), None));
                 }
             });
@@ -224,7 +224,7 @@ impl TextureLib {
             if self.scanning.is_some() {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label(crate::i18n::t("Читаю папки текстур…"));
+                    ui.label(crate::i18n::t("Reading texture folders…"));
                 });
                 ctx.request_repaint_after(std::time::Duration::from_millis(100));
                 return;
@@ -235,7 +235,7 @@ impl TextureLib {
                 if !q.is_empty() {
                     let all: Vec<&PathBuf> = files.iter().filter(|p| label(p).to_lowercase().contains(&q) || p.to_string_lossy().to_lowercase().contains(&q)).collect();
                     let found = &all[..all.len().min(300)];
-                    ui.weak(if all.len() > found.len() { crate::i18n::t(format!("Найдено: {}, показаны первые {}", all.len(), found.len())) } else { crate::i18n::t(format!("Найдено: {}", all.len())) });
+                    ui.weak(if all.len() > found.len() { crate::i18n::t(format!("Found: {}, showing the first {}", all.len(), found.len())) } else { crate::i18n::t(format!("Found: {}", all.len())) });
                     for &p in found {
                         if self.row(ui, p, current) {
                             result = Some((target.clone(), Some(p.clone())));

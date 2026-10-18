@@ -8,11 +8,11 @@ use eframe::egui;
 
 thread_local! {
     /// Formula variables of the current editor: (names, value, description).
-    static VARS: RefCell<Vec<(&'static [&'static str], f64, &'static str)>> = const { RefCell::new(Vec::new()) };
+    static VARS: RefCell<Vec<([&'static str; 2], f64, &'static str)>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Formula variables for the duration of `body` (cabinet editor: width, height…).
-pub fn with_vars<R>(vars: Vec<(&'static [&'static str], f64, &'static str)>, body: impl FnOnce() -> R) -> R {
+pub fn with_vars<R>(vars: Vec<([&'static str; 2], f64, &'static str)>, body: impl FnOnce() -> R) -> R {
     VARS.with(|v| *v.borrow_mut() = vars);
     let r = body();
     VARS.with(|v| v.borrow_mut().clear());
@@ -28,7 +28,7 @@ fn substitute(input: &str) -> Option<String> {
             return Some(());
         }
         let w = word.to_lowercase();
-        if !matches!(w.as_str(), "мм" | "mm") {
+        if w != "mm" && w != dowel::i18n::bazis("unit.mm") {
             let value = VARS.with(|v| v.borrow().iter().find(|(names, _, _)| names.iter().any(|n| n.to_lowercase() == w)).map(|(_, x, _)| *x))?;
             out.push_str(&format!("({value})"));
         }
@@ -54,10 +54,10 @@ fn formula_help() -> String {
         let alias = if names.len() > 1 { format!(" ({})", names[1..].join(", ")) } else { String::new() };
         format!("{}{alias} — {} ({x})", names[0], crate::i18n::t(what))
     }).collect::<Vec<_>>());
-    let mut s = crate::i18n::t("Щёлкните, чтобы ввести число или формулу: 600-4, (800-36)/2. Тяните влево-вправо, чтобы менять.");
+    let mut s = crate::i18n::t("Click to type a number or a formula: 600-4, (800-36)/2. Drag left or right to change.");
     if !vars.is_empty() {
         s.push('\n');
-        s.push_str(&crate::i18n::t("В формуле можно: "));
+        s.push_str(&crate::i18n::t("In a formula you can use: "));
         s.push_str(&vars.join(", "));
     }
     s
@@ -230,7 +230,8 @@ mod tests {
     fn expressions() {
         assert_eq!(eval_math_expression("600+100"), Some(700.0));
         assert_eq!(eval_math_expression("600-4"), Some(596.0));
-        assert_eq!(eval_math_expression("600 мм + 100"), Some(700.0));
+        assert_eq!(eval_math_expression("600 mm + 100"), Some(700.0));
+        assert_eq!(eval_math_expression(&format!("600 {} + 100", dowel::i18n::bazis("unit.mm"))), Some(700.0));
         assert_eq!(eval_math_expression("(800 - 36) / 2"), Some(382.0));
         assert_eq!(eval_math_expression("1,5*2"), Some(3.0));
         assert_eq!(eval_math_expression("10/0"), None);
@@ -267,21 +268,21 @@ mod tests {
         }
         let end = start + egui::vec2(60.0, 0.0);
         frame(vec![egui::Event::PointerButton { pos: end, button: egui::PointerButton::Primary, pressed: false, modifiers: Default::default() }], &mut field_rect, &mut committed);
-        let v = committed.expect("перетаскивание закончено");
-        assert!((v - 70.0).abs() < 2.0, "получилось {v}, ждали около 70");
+        let v = committed.expect("drag finished");
+        assert!((v - 70.0).abs() < 2.0, "got {v}, expected about 70");
     }
 
     /// Editor variables via Russian aliases (`<ru>/2`, `<ru>-100`, lowercase too); an unknown word is an error.
     #[test]
     fn variables_in_formulas() {
-        with_vars(vec![(&["W", "Ш"][..], 800.0, "ширина"), (&["T", "Т"][..], 16.0, "толщина")], || {
-            assert_eq!(eval_math_expression("Ш/2"), Some(400.0));
-            assert_eq!(eval_math_expression("ш-2*Т"), Some(768.0));
-            assert_eq!(eval_math_expression("(W - T) / 2 мм"), Some(392.0));
-            assert_eq!(eval_math_expression("Х+1"), None);
+        let (w, t, mm) = (dowel::i18n::bazis("alias.W"), dowel::i18n::bazis("alias.T"), dowel::i18n::bazis("unit.mm"));
+        with_vars(vec![(["W", w], 800.0, "width"), (["T", t], 16.0, "thickness")], || {
+            assert_eq!(eval_math_expression(&format!("{w}/2")), Some(400.0));
+            assert_eq!(eval_math_expression(&format!("{}-2*{t}", w.to_lowercase())), Some(768.0));
+            assert_eq!(eval_math_expression(&format!("(W - T) / 2 {mm}")), Some(392.0));
+            assert_eq!(eval_math_expression("Q+1"), None);
         });
         // Outside the editor there are no letters.
-        assert_eq!(eval_math_expression("Ш/2"), None);
-        assert_eq!(eval_math_expression("600 мм + 100"), Some(700.0));
+        assert_eq!(eval_math_expression(&format!("{w}/2")), None);
     }
 }

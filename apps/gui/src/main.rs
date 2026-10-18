@@ -31,6 +31,7 @@ use dowel::job::{self, Job, MaterialCut};
 use dowel::nest::Params;
 use dowel::panel::{self, Side};
 use eframe::egui::{self, Color32, Pos2, Rect, Stroke, StrokeKind, Vec2};
+use dowel::i18n::bazis;
 use serde_json::{Value, json};
 
 fn main() -> eframe::Result {
@@ -137,15 +138,15 @@ enum Pane {
 impl Pane {
     fn label(self) -> &'static str {
         match self {
-            Pane::Tools => "Инструменты",
+            Pane::Tools => "Tools",
             Pane::Model => "3D",
-            Pane::Front => "Вид спереди",
-            Pane::Parts => "Детали",
-            Pane::Cut => "Раскрой",
-            Pane::Structure => "Структура модели",
-            Pane::Project => "Проект",
-            Pane::Properties => "Свойства",
-            Pane::Library => "Фурнитура",
+            Pane::Front => "Front view",
+            Pane::Parts => "Parts",
+            Pane::Cut => "Cutting",
+            Pane::Structure => "Model structure",
+            Pane::Project => "Project",
+            Pane::Properties => "Properties",
+            Pane::Library => "Hardware",
         }
     }
 }
@@ -219,7 +220,7 @@ fn script_control(ui: &mut egui::Ui, c: &Value, ev: &mut Vec<ScriptEvent>) {
             ui.label(if caption.is_empty() { c["Text"].as_str().unwrap_or("") } else { caption });
         }
         "Button" | "ImageButton" => {
-            if ui.button(if caption.is_empty() { "Кнопка" } else { caption }).clicked() {
+            if ui.button(if caption.is_empty() { "Button" } else { caption }).clicked() {
                 ev.push(ScriptEvent::Click(id));
             }
         }
@@ -304,7 +305,7 @@ impl Library {
             for d in &dirs {
                 let (m, e) = dowel::library::scan(std::path::Path::new(d));
                 if m.is_empty() && e.is_empty() {
-                    errors.push(format!("в «{d}» нет моделей .fr3d"));
+                    errors.push(format!("no .fr3d models in “{d}”"));
                 }
                 models.extend(m);
                 errors.extend(e);
@@ -409,14 +410,14 @@ fn num(v: f64) -> String {
 
 /// Export kinds: (what, menu item).
 const EXPORTS: [(&str, &str); 8] = [
-    ("html", "Карты раскроя и «Панели в производство» (HTML)…"),
-    ("xml", "Проект для БАЗИС-Раскроя (XML)…"),
-    ("spec", "Спецификация (CSV)…"),
-    ("smeta", "Смета материалов (CSV)…"),
-    ("b3d", "Модель Базис-Мебельщика (.b3d)…"),
-    ("drawings", "Чертежи: сборочный и детали (HTML для печати)…"),
-    ("drawings_pdf", "Чертежи (PDF)…"),
-    ("cards_pdf", "Карты раскроя (PDF)…"),
+    ("html", "Cutting maps and production list (HTML)…"),
+    ("xml", "BAZIS-Cutting project (XML)…"),
+    ("spec", "Specification (CSV)…"),
+    ("smeta", "Material estimate (CSV)…"),
+    ("b3d", "Bazis-Mebelshchik model (.b3d)…"),
+    ("drawings", "Drawings: assembly and parts (printable HTML)…"),
+    ("drawings_pdf", "Drawings (PDF)…"),
+    ("cards_pdf", "Cutting maps (PDF)…"),
 ];
 
 /// Side panel: margin from the edges and scrolling.
@@ -552,8 +553,8 @@ impl Default for App {
         i18n::set_language(&settings.language);
         let textures = textures::TextureLib::new(settings.texture_dirs.clone());
         let mut app = App {
-            session: Some(Session::new(Project::new("Новый проект"))),
-            job: Job::from_project(Project::new("Новый проект")),
+            session: Some(Session::new(Project::new("New project"))),
+            job: Job::from_project(Project::new("New project")),
             path: None,
             layout: default_layout(),
             selection: Vec::new(),
@@ -567,8 +568,8 @@ impl Default for App {
             show_doors: true,
             error: None,
             status: String::new(),
-            new_material: NewMaterial { name: "ЛДСП 16".into(), thickness: 16.0, sheet: (2800.0, 2070.0), coef: 1.2, texture: None },
-            new_edge: ("ПВХ 0,4".into(), 0.4, 19.0),
+            new_material: NewMaterial { name: crate::i18n::t("Chipboard 16"), thickness: 16.0, sheet: (2800.0, 2070.0), coef: 1.2, texture: None },
+            new_edge: (crate::i18n::t("PVC 0.4"), 0.4, 19.0),
             adding: (false, false),
             new_panel: ("vertical", 560.0, 720.0),
             fill: None,
@@ -586,7 +587,7 @@ impl Default for App {
             about: false,
             edging: (None, true, 0.0),
             contour_tool: (ContourTool::Edge, 50.0),
-            fastener_kind: "Конфирмат 7х50".into(),
+            fastener_kind: dowel::fasteners::library().first().map(|d| d.name.clone()).unwrap_or_default(),
             fastener_outside: false,
             library: Library::new(settings.library_dirs.clone()),
             script: None,
@@ -605,7 +606,7 @@ impl Default for App {
             quad: false,
             quad_max: None,
             key_capture: None,
-            views: [viewport::Viewport::with_view(0.0, 0.0, "Спереди"), viewport::Viewport::with_view(90.0, 0.0, "Слева"), viewport::Viewport::with_view(0.0, 89.9, "Сверху")],
+            views: [viewport::Viewport::with_view(0.0, 0.0, "Front"), viewport::Viewport::with_view(90.0, 0.0, "Left"), viewport::Viewport::with_view(0.0, 89.9, "Top")],
         };
         app.refresh();
         app
@@ -625,7 +626,7 @@ impl App {
                 self.dirty = false;
                 self.selection.clear();
                 self.furniture_sel = None;
-                self.status = format!("Открыт {}", path.display());
+                self.status = format!("Opened {}", path.display());
                 chrome::remember(&path);
                 self.start = false;
                 self.show_pane(Pane::Model);
@@ -657,12 +658,12 @@ impl App {
     /// Same, returning the command's response (e.g. `{id}` of the new object); `None` on error.
     fn exec_ret(&mut self, cmd: &str, p: Value) -> Option<Value> {
         let Some(s) = &mut self.session else {
-            eprintln!("[команда] {cmd}: нет своего проекта (открыт файл Базиса только для просмотра)");
+            eprintln!("[command] {cmd}: no own project (a Bazis file is open read-only)");
             return None;
         };
         match s.execute(cmd, &p) {
             Ok(r) => {
-                eprintln!("[команда] {cmd} {p} → {}", if r.is_null() { "ok".into() } else { r.to_string() });
+                eprintln!("[command] {cmd} {p} → {}", if r.is_null() { "ok".into() } else { r.to_string() });
                 if !matches!(cmd, "parts" | "check" | "project.get") {
                     self.dirty = true;
                 }
@@ -671,7 +672,7 @@ impl App {
                 Some(r)
             }
             Err(e) => {
-                eprintln!("[ошибка] {cmd} {p}: {e}");
+                eprintln!("[error] {cmd} {p}: {e}");
                 self.error = Some(e);
                 None
             }
@@ -732,7 +733,7 @@ impl App {
     }
 
     fn open_dialog(&mut self) {
-        if let Some(p) = rfd::FileDialog::new().add_filter("Модели", &["dcraft", "b3d", "fr3d"]).pick_file() {
+        if let Some(p) = rfd::FileDialog::new().add_filter("Models", &["dcraft", "b3d", "fr3d"]).pick_file() {
             self.open(p);
         }
     }
@@ -740,7 +741,7 @@ impl App {
     /// Bazis model (read-only) → our own project.
     fn make_editable(&mut self) {
         let p = self.job.import();
-        self.status = format!("Импортировано деталей: {}", p.panels().len());
+        self.status = format!("Parts imported: {}", p.panels().len());
         self.session = Some(Session::new(p));
         self.path = None;
         self.refresh();
@@ -748,12 +749,12 @@ impl App {
 
     fn save(&mut self, ask: bool) {
         let Some(s) = &self.session else {
-            self.error = Some("Модель Базиса открыта только для просмотра".into());
+            self.error = Some("The Bazis model is open read-only".into());
             return;
         };
         let path = match (&self.path, ask) {
             (Some(p), false) if dowel::design::is_project_file(p) => Some(p.clone()),
-            _ => rfd::FileDialog::new().add_filter("Проект dowel-craft", &["dcraft"]).set_file_name(format!("{}.dcraft", s.project.name)).save_file(),
+            _ => rfd::FileDialog::new().add_filter("dowel-craft project", &["dcraft"]).set_file_name(format!("{}.dcraft", s.project.name)).save_file(),
         };
         if let Some(p) = path
             && let Err(e) = self.save_to(p)
@@ -764,9 +765,9 @@ impl App {
 
     /// Write our project to a file; it becomes the tab's file.
     fn save_to(&mut self, p: PathBuf) -> Result<(), String> {
-        let s = self.session.as_ref().ok_or("Модель Базиса открыта только для просмотра")?;
+        let s = self.session.as_ref().ok_or("The Bazis model is open read-only")?;
         std::fs::write(&p, s.project.save()).map_err(|e| format!("{}: {e}", p.display()))?;
-        self.status = format!("Сохранено: {}", p.display());
+        self.status = format!("Saved: {}", p.display());
         self.dirty = false;
         chrome::remember(&p);
         self.path = Some(p);
@@ -775,22 +776,22 @@ impl App {
 
     fn export(&mut self, what: &str) {
         let (ext, filter) = match what {
-            "html" => ("html", "Карты раскроя"),
-            "xml" => ("xml", "Проект БАЗИС-Раскроя"),
-            "spec" | "smeta" => ("csv", "Таблица CSV"),
-            "b3d" => ("b3d", "Модель Базис-Мебельщика"),
-            "drawings" => ("html", "Чертежи"),
+            "html" => ("html", "Cutting maps"),
+            "xml" => ("xml", "BAZIS-Cutting project"),
+            "spec" | "smeta" => ("csv", "CSV table"),
+            "b3d" => ("b3d", "Bazis-Mebelshchik model"),
+            "drawings" => ("html", "Drawings"),
             "drawings_pdf" | "cards_pdf" => ("pdf", "PDF"),
             _ => return,
         };
         let suffix = match what {
-            "spec" => " спецификация",
-            "drawings" | "drawings_pdf" => " чертежи",
-            "cards_pdf" => " карты раскроя",
-            "smeta" => " смета",
+            "spec" => " specification",
+            "drawings" | "drawings_pdf" => " drawings",
+            "cards_pdf" => " cutting maps",
+            "smeta" => " estimate",
             _ => "",
         };
-        let Some(p) = rfd::FileDialog::new().add_filter(filter, &[ext]).set_file_name(format!("{}{suffix}.{ext}", self.job.name)).save_file() else {
+        let Some(p) = rfd::FileDialog::new().add_filter(filter, &[ext]).set_file_name(format!("{}{}.{ext}", self.job.name, crate::i18n::t(suffix))).save_file() else {
             return;
         };
         let job = &self.job;
@@ -814,12 +815,12 @@ impl App {
             "b3d" => match job.project.as_ref().map(dowel::export::b3d) {
                 Some(Ok(b)) => b,
                 Some(Err(e)) => return self.error = Some(e),
-                None => return self.error = Some("Модель Базиса открыта для просмотра: «Сделать редактируемой», затем экспорт".into()),
+                None => return self.error = Some("The Bazis model is read-only: use “Make editable”, then export".into()),
             },
             _ => dowel::report::materials_csv(&job.estimate(1.2)).into_bytes(),
         };
         match std::fs::write(&p, bytes) {
-            Ok(()) => self.status = format!("Сохранено: {}", p.display()),
+            Ok(()) => self.status = format!("Saved: {}", p.display()),
             Err(e) => self.error = Some(format!("{}: {e}", p.display())),
         }
     }
@@ -869,10 +870,10 @@ impl eframe::App for App {
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // Like cadcraft's status bar toggles: grid (F7) and drafting settings.
-                    if icons::button(ui, icons::Icon::Gear, 20.0, "Настройки: язык, сетка", self.drafting).clicked() {
+                    if icons::button(ui, icons::Icon::Gear, 20.0, "Settings: language, grid", self.drafting).clicked() {
                         self.drafting = !self.drafting;
                     }
-                    if icons::button(ui, icons::Icon::Grid, 20.0, "Сетка (F7)", self.settings.grid.on).clicked() {
+                    if icons::button(ui, icons::Icon::Grid, 20.0, "Grid (F7)", self.settings.grid.on).clicked() {
                         self.settings.grid.on = !self.settings.grid.on;
                         self.settings.save();
                     }
@@ -910,7 +911,7 @@ impl eframe::App for App {
             });
             for a in out.actions {
                 if let Err(e) = self.layout.apply_with_permissions(a, permissions) {
-                    self.status = format!("Раскладка: {e:?}");
+                    self.status = format!("Layout: {e:?}");
                 }
             }
         });
@@ -936,28 +937,28 @@ impl App {
         egui::Panel::top("toolbar").exact_size(34.0).frame(egui::Frame::NONE.fill(theme::T.chrome).inner_margin(egui::Margin::symmetric(10, 0))).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
-                if labeled(ui, Icon::New, "Новый", "Новый проект", false).clicked() {
+                if labeled(ui, Icon::New, "New", "New project", false).clicked() {
                     self.new_project();
                 }
-                if labeled(ui, Icon::Open, "Открыть", "Открыть… (.dcraft, .b3d, .fr3d)", false).clicked() {
+                if labeled(ui, Icon::Open, "Open", "Open… (.dcraft, .b3d, .fr3d)", false).clicked() {
                     self.open_dialog();
                 }
-                if labeled(ui, Icon::Save, "Сохранить", "Сохранить (Ctrl+S)", false).clicked() {
+                if labeled(ui, Icon::Save, "Save", "Save (Ctrl+S)", false).clicked() {
                     self.save(false);
                 }
-                if labeled(ui, Icon::SaveAs, "Сохранить как", "Сохранить как…", false).clicked() {
+                if labeled(ui, Icon::SaveAs, "Save as", "Save as…", false).clicked() {
                     self.save(true);
                 }
                 ui.separator();
                 let (undo, redo) = self.session.as_ref().map_or((false, false), |s| (s.can_undo(), s.can_redo()));
-                if labeled_if(ui, undo, Icon::Undo, "Отменить", "Отменить (Ctrl+Z)", false).clicked() {
+                if labeled_if(ui, undo, Icon::Undo, "Undo", "Undo (Ctrl+Z)", false).clicked() {
                     self.exec("undo", json!({}));
                 }
-                if labeled_if(ui, redo, Icon::Redo, "Вернуть", "Вернуть (Ctrl+Y)", false).clicked() {
+                if labeled_if(ui, redo, Icon::Redo, "Redo", "Redo (Ctrl+Y)", false).clicked() {
                     self.exec("redo", json!({}));
                 }
                 ui.separator();
-                let export = labeled(ui, Icon::Export, "Экспорт", "Экспорт: раскрой, Базис-Раскрой, спецификация, смета, .b3d, чертежи", false);
+                let export = labeled(ui, Icon::Export, "Export", "Export: cutting, BAZIS-Cutting, specification, estimate, .b3d, drawings", false);
                 egui::Popup::menu(&export).show(|ui| {
                     for (what, label) in EXPORTS {
                         if ui.button(crate::i18n::t(label)).clicked() {
@@ -965,33 +966,33 @@ impl App {
                         }
                     }
                 });
-                if labeled(ui, Icon::Analyze, "Анализ", "Анализ модели", false).clicked() {
+                if labeled(ui, Icon::Analyze, "Analyze", "Model analysis", false).clicked() {
                     self.analyze();
                 }
-                if labeled_if(ui, self.session.is_some(), Icon::Script, "Скрипт", "Выполнить скрипт Базиса (.js)", false).clicked() {
+                if labeled_if(ui, self.session.is_some(), Icon::Script, "Script", "Run a Bazis script (.js)", false).clicked() {
                     self.pick_script();
                 }
                 ui.separator();
                 // Canvas view: like tabs, but in the icon bar.
                 for (pane, icon, text, tip) in [
-                    (Pane::Model, Icon::ViewIso, "3D", "Модель в 3D (Ctrl+1); на панели вида — «4 окна»: спереди, слева, сверху и 3D"),
-                    (Pane::Front, Icon::ViewFront, "Спереди", "Вид спереди (Ctrl+2): ставить полки, двери и ящики в проём, двигать мышью"),
-                    (Pane::Parts, Icon::Table, "Детали", "Таблица деталей (Ctrl+3): размеры, материал, кромка"),
-                    (Pane::Cut, Icon::CutSheet, "Раскрой", "Карты раскроя листов (Ctrl+4)"),
+                    (Pane::Model, Icon::ViewIso, "3D", "Model in 3D (Ctrl+1); the view bar has “4 windows”: front, left, top and 3D"),
+                    (Pane::Front, Icon::ViewFront, "Front", "Front view (Ctrl+2): put shelves, doors and drawers into an opening, drag with the mouse"),
+                    (Pane::Parts, Icon::Table, "Parts", "Parts table (Ctrl+3): sizes, material, edge banding"),
+                    (Pane::Cut, Icon::CutSheet, "Cutting", "Sheet cutting maps (Ctrl+4)"),
                 ] {
                     if icons::labeled(ui, icon, text, tip, !self.start && self.view == pane).clicked() {
                         self.start = false;
                         self.view = pane;
                     }
                 }
-                if self.session.is_none() && labeled(ui, Icon::Unlock, "Редактировать", "Сделать редактируемой: импорт модели Базиса в свой проект", false).clicked() {
+                if self.session.is_none() && labeled(ui, Icon::Unlock, "Edit model", "Make editable: import the Bazis model into your own project", false).clicked() {
                     self.make_editable();
                 }
                 ui.separator();
-                let title = format!("{} — деталей: {}", self.job.name, self.job.panels.len());
+                let title = format!("{} — parts: {}", self.job.name, self.job.panels.len());
                 ui.label(egui::RichText::new(crate::i18n::t(title)).strong());
                 if self.session.is_none() {
-                    ui.weak(crate::i18n::t("(модель Базиса, только просмотр)"));
+                    ui.weak(crate::i18n::t("(Bazis model, read-only)"));
                 }
             });
         });
@@ -1053,34 +1054,34 @@ impl App {
             cmds.push(("project.rename", json!({ "name": name })));
         }
 
-        egui::CollapsingHeader::new(crate::i18n::t(format!("Материалы ({})", project.materials.len()))).default_open(true).show(ui, |ui| {
+        egui::CollapsingHeader::new(crate::i18n::t(format!("Materials ({})", project.materials.len()))).default_open(true).show(ui, |ui| {
             for m in &project.materials {
                 // Each material in its own frame so it doesn't blend with the new-material form.
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
                         ui.strong(&m.name);
-                        if ui.small_button(crate::i18n::t("Удалить")).on_hover_text(crate::i18n::t("Удалить материал из проекта (если он нигде не используется)")).clicked() {
+                        if ui.small_button(crate::i18n::t("Delete")).on_hover_text(crate::i18n::t("Remove the material from the project (if it is not used anywhere)")).clicked() {
                             cmds.push(("material.remove", json!({ "name": m.name })));
                         }
                     });
-                    ui.label(crate::i18n::t(format!("{} мм, лист {}×{}, коэф. {}", m.thickness, m.sheet.0, m.sheet.1, m.coef)));
+                    ui.label(crate::i18n::t(format!("{} mm, sheet {}×{}, factor {}", m.thickness, m.sheet.0, m.sheet.1, m.coef)));
                     ui.horizontal_wrapped(|ui| {
-                        let shown = m.texture.as_deref().map_or_else(|| crate::i18n::t("нет"), |t| textures::label(std::path::Path::new(t)));
-                        ui.label(crate::i18n::t(format!("текстура: {shown}")));
-                        if ui.small_button(crate::i18n::t("Выбрать…")).on_hover_text(crate::i18n::t("Библиотека текстур: папки, превью, поиск")).clicked() {
+                        let shown = m.texture.as_deref().map_or_else(|| crate::i18n::t("none"), |t| textures::label(std::path::Path::new(t)));
+                        ui.label(crate::i18n::t(format!("texture: {shown}")));
+                        if ui.small_button(crate::i18n::t("Choose…")).on_hover_text(crate::i18n::t("Texture library: folders, previews, search")).clicked() {
                             self.textures.open_for = Some(textures::Target::Material(m.name.clone()));
                         }
-                        if ui.small_button(crate::i18n::t("по артикулу")).on_hover_text(crate::i18n::t("Найти d(<артикул>)1.jpg в папках текстур (Балтламинат)")).clicked() {
+                        if ui.small_button(crate::i18n::t("by article")).on_hover_text(crate::i18n::t("Find d(<article>)1.jpg in the texture folders (Baltlaminat)")).clicked() {
                             match self.textures.dirs().iter().find_map(|d| dowel::library::find_texture(std::path::Path::new(d), &m.article)) {
                                 Some(p) => cmds.push(("material.set", json!({ "name": m.name, "texture": p.display().to_string() }))),
-                                None => self.status = format!("Текстура для артикула «{}» не найдена", m.article),
+                                None => self.status = format!("No texture for article “{}”", m.article),
                             }
                         }
                         let mut tile = m.texture_size.unwrap_or([1000.0, 1000.0]);
-                        ui.label(crate::i18n::t("плитка")).on_hover_text(crate::i18n::t("Размер картинки текстуры на детали, мм: вдоль волокон × поперёк"));
-                        let r1 = crate::expr::add(ui, &mut tile[0], |d| d.range(10.0..=5000.0).suffix(crate::i18n::t(" мм")));
-                        let r2 = crate::expr::add(ui, &mut tile[1], |d| d.range(10.0..=5000.0).suffix(crate::i18n::t(" мм"))).on_hover_text(crate::i18n::t("Плитка текстуры: вдоль волокон × поперёк"));
+                        ui.label(crate::i18n::t("tile")).on_hover_text(crate::i18n::t("Texture image size on the part, mm: along the grain × across"));
+                        let r1 = crate::expr::add(ui, &mut tile[0], |d| d.range(10.0..=5000.0).suffix(crate::i18n::t(" mm")));
+                        let r2 = crate::expr::add(ui, &mut tile[1], |d| d.range(10.0..=5000.0).suffix(crate::i18n::t(" mm"))).on_hover_text(crate::i18n::t("Texture tile: along the grain × across"));
                         let done = |r: &egui::Response| r.drag_stopped() || (r.changed() && !r.dragged());
                         if (done(&r1) || done(&r2)) && Some(tile) != m.texture_size {
                             cmds.push(("material.set", json!({ "name": m.name, "texture_size": tile })));
@@ -1088,10 +1089,10 @@ impl App {
                     });
                     ui.horizontal(|ui| {
                         // Empty means the general cutting parameters from the "Cutting" tab.
-                        for (key, label, value, general) in [("trim", "обрезка", m.trim, self.params.trim), ("kerf", "пропил", m.kerf, self.params.kerf)] {
+                        for (key, label, value, general) in [("trim", "trim", m.trim, self.params.trim), ("kerf", "kerf", m.kerf, self.params.kerf)] {
                             let mut v = value.unwrap_or(general);
                             ui.label(crate::i18n::t(label));
-                            let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=50.0).speed(0.1).suffix(crate::i18n::t(" мм")));
+                            let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=50.0).speed(0.1).suffix(crate::i18n::t(" mm")));
                             if (r.drag_stopped() || (r.changed() && !r.dragged())) && Some(v) != value {
                                 cmds.push(("material.set", json!({ "name": m.name, key: v })));
                             }
@@ -1109,69 +1110,69 @@ impl App {
             let taken = names.contains(&nm.name.trim());
             ui.add_space(6.0);
             if !self.adding.0 {
-                if ui.button(crate::i18n::t("➕ Новый материал")).clicked() {
+                if ui.button(crate::i18n::t("➕ New material")).clicked() {
                     self.adding.0 = true;
                 }
                 return;
             }
             egui::Frame::group(ui.style()).fill(Color32::from_rgb(0x1f, 0x2d, 0x40)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                ui.strong(crate::i18n::t("➕ Новый материал"));
+                ui.strong(crate::i18n::t("➕ New material"));
                 editors::props(ui, "new_mat", |ui| {
-                    editors::caption(ui, "Название");
+                    editors::caption(ui, "Name");
                     ui.add(egui::TextEdit::singleline(&mut nm.name).id(name_id).desired_width(ui.available_width()));
                     ui.end_row();
                     if taken {
                         editors::caption(ui, "");
-                        ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), crate::i18n::t("такой уже есть — введите другое название"));
+                        ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), crate::i18n::t("already exists — enter another name"));
                         ui.end_row();
                     }
-                    editors::caption(ui, "Толщина, мм");
+                    editors::caption(ui, "Thickness, mm");
                     crate::expr::add(ui, &mut nm.thickness, |d| d.range(0.1..=100.0));
                     ui.end_row();
-                    editors::caption(ui, "Лист, мм");
+                    editors::caption(ui, "Sheet, mm");
                     ui.horizontal(|ui| {
                         crate::expr::add(ui, &mut nm.sheet.0, |d| d.range(100.0..=6000.0));
                         ui.label("×");
                         crate::expr::add(ui, &mut nm.sheet.1, |d| d.range(100.0..=6000.0));
                     });
                     ui.end_row();
-                    editors::caption(ui, "Текстура");
+                    editors::caption(ui, "Texture");
                     ui.horizontal(|ui| {
-                        let shown = nm.texture.as_deref().map_or_else(|| crate::i18n::t("нет"), |t| textures::label(std::path::Path::new(t)));
+                        let shown = nm.texture.as_deref().map_or_else(|| crate::i18n::t("none"), |t| textures::label(std::path::Path::new(t)));
                         ui.label(shown);
-                        if ui.small_button(crate::i18n::t("Выбрать…")).clicked() {
+                        if ui.small_button(crate::i18n::t("Choose…")).clicked() {
                             self.textures.open_for = Some(textures::Target::New);
                         }
                     });
                     ui.end_row();
-                    editors::caption(ui, "Коэффициент");
+                    editors::caption(ui, "Factor");
                     crate::expr::add(ui, &mut nm.coef, |d| d.range(1.0..=3.0).speed(0.01));
                     ui.end_row();
                 });
                 let ok = !taken && !nm.name.trim().is_empty();
                 ui.horizontal(|ui| {
-                    if ui.add_enabled(ok, egui::Button::new(crate::i18n::t("Добавить материал"))).clicked() {
+                    if ui.add_enabled(ok, egui::Button::new(crate::i18n::t("Add material"))).clicked() {
                         cmds.push(("material.add", json!({ "name": nm.name.trim(), "thickness": nm.thickness, "sheet": [nm.sheet.0, nm.sheet.1], "coef": nm.coef, "texture": nm.texture })));
                     }
-                    if ui.button(crate::i18n::t("Отмена")).clicked() {
+                    if ui.button(crate::i18n::t("Cancel")).clicked() {
                         self.adding.0 = false;
                     }
                 });
             });
         });
 
-        egui::CollapsingHeader::new(crate::i18n::t(format!("Кромка ({})", project.edges.len()))).show(ui, |ui| {
+        egui::CollapsingHeader::new(crate::i18n::t(format!("Edge banding ({})", project.edges.len()))).show(ui, |ui| {
             for e in &project.edges {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
                         ui.strong(&e.name);
-                        if ui.small_button(crate::i18n::t("Удалить")).on_hover_text(crate::i18n::t("Удалить кромку из проекта (если она не стоит на деталях)")).clicked() {
+                        if ui.small_button(crate::i18n::t("Delete")).on_hover_text(crate::i18n::t("Remove the edge banding from the project (if no part uses it)")).clicked() {
                             cmds.push(("edge.remove", json!({ "name": e.name })));
                         }
                     });
-                    ui.label(crate::i18n::t(format!("{} мм × {} мм", e.thickness, e.width)));
+                    ui.label(crate::i18n::t(format!("{} mm × {} mm", e.thickness, e.width)));
                 });
             }
             let (n, t, w) = &mut self.new_edge;
@@ -1183,35 +1184,35 @@ impl App {
             let taken = names.contains(&n.trim());
             ui.add_space(6.0);
             if !self.adding.1 {
-                if ui.button(crate::i18n::t("➕ Новая кромка")).clicked() {
+                if ui.button(crate::i18n::t("➕ New edge banding")).clicked() {
                     self.adding.1 = true;
                 }
                 return;
             }
             egui::Frame::group(ui.style()).fill(Color32::from_rgb(0x1f, 0x2d, 0x40)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                ui.strong(crate::i18n::t("➕ Новая кромка"));
+                ui.strong(crate::i18n::t("➕ New edge banding"));
                 editors::props(ui, "new_edge", |ui| {
-                    editors::caption(ui, "Название");
+                    editors::caption(ui, "Name");
                     ui.add(egui::TextEdit::singleline(n).id(name_id).desired_width(ui.available_width()));
                     ui.end_row();
                     if taken {
                         editors::caption(ui, "");
-                        ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), crate::i18n::t("такая уже есть — введите другое название"));
+                        ui.colored_label(Color32::from_rgb(0xf5, 0x9e, 0x3b), crate::i18n::t("already exists — please enter another name"));
                         ui.end_row();
                     }
-                    editors::caption(ui, "Толщина");
-                    crate::expr::add(ui, t, |d| d.range(0.1..=5.0).speed(0.1).suffix(crate::i18n::t(" мм")));
+                    editors::caption(ui, "Thickness");
+                    crate::expr::add(ui, t, |d| d.range(0.1..=5.0).speed(0.1).suffix(crate::i18n::t(" mm")));
                     ui.end_row();
-                    editors::caption(ui, "Ширина");
-                    crate::expr::add(ui, w, |d| d.range(1.0..=100.0).suffix(crate::i18n::t(" мм")));
+                    editors::caption(ui, "Width");
+                    crate::expr::add(ui, w, |d| d.range(1.0..=100.0).suffix(crate::i18n::t(" mm")));
                     ui.end_row();
                 });
                 ui.horizontal(|ui| {
-                    if ui.add_enabled(!taken && !n.trim().is_empty(), egui::Button::new(crate::i18n::t("Добавить кромку"))).clicked() {
+                    if ui.add_enabled(!taken && !n.trim().is_empty(), egui::Button::new(crate::i18n::t("Add edge banding"))).clicked() {
                         cmds.push(("edge.add", json!({ "name": n.trim(), "thickness": t, "width": w })));
                     }
-                    if ui.button(crate::i18n::t("Отмена")).clicked() {
+                    if ui.button(crate::i18n::t("Cancel")).clicked() {
                         self.adding.1 = false;
                     }
                 });
@@ -1299,7 +1300,7 @@ impl App {
         let mesh = match dowel::library::read(std::path::Path::new(source)) {
             Ok(m) => m.mesh,
             Err(e) => {
-                eprintln!("[фурнитура] {e}");
+                eprintln!("[hardware] {e}");
                 Vec::new()
             }
         };
@@ -1335,21 +1336,21 @@ impl App {
         let ids = self.targets();
         let mut act = None;
         if del.is_empty() {
-            ui.label(crate::i18n::t("Ничего не выделено"));
+            ui.label(crate::i18n::t("Nothing selected"));
             return None;
         }
-        if ui.add_enabled(editable && !del.is_empty(), egui::Button::new(crate::i18n::t(format!("Удалить ({})", del.len()))).shortcut_text("Del")).clicked() {
+        if ui.add_enabled(editable && !del.is_empty(), egui::Button::new(crate::i18n::t(format!("Delete ({})", del.len()))).shortcut_text("Del")).clicked() {
             act = Some(MenuAct::Delete);
         }
-        if ui.add_enabled(editable && !ids.is_empty(), egui::Button::new(crate::i18n::t("Собрать в блок"))).clicked() {
+        if ui.add_enabled(editable && !ids.is_empty(), egui::Button::new(crate::i18n::t("Group into block"))).clicked() {
             act = Some(MenuAct::Block);
         }
         let explodable = ids.iter().any(|&id| self.explode_cmd(id).is_some());
-        if ui.add_enabled(editable && explodable, egui::Button::new(crate::i18n::t("Разрушить"))).on_hover_text(crate::i18n::t("Блок — содержимое в корень проекта; корпус, угловой модуль, столешница — в отдельные панели")).clicked() {
+        if ui.add_enabled(editable && explodable, egui::Button::new(crate::i18n::t("Explode"))).on_hover_text(crate::i18n::t("Block — contents to the project root; cabinet, corner unit, countertop — into separate panels")).clicked() {
             act = Some(MenuAct::Explode);
         }
         ui.separator();
-        if ui.button(crate::i18n::t("Снять выделение")).clicked() {
+        if ui.button(crate::i18n::t("Clear selection")).clicked() {
             act = Some(MenuAct::Deselect);
         }
         if act.is_some() {
@@ -1406,9 +1407,9 @@ impl App {
         let Some(list) = &self.problems else { return };
         let mut open = true;
         let mut pick: Option<Vec<usize>> = None;
-        egui::Window::new(crate::i18n::t(format!("Анализ модели — проблем: {}", list.len()))).open(&mut open).default_width(460.0).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::t(format!("Model analysis — problems: {}", list.len()))).open(&mut open).default_width(460.0).show(ctx, |ui| {
             if list.is_empty() {
-                ui.label(crate::i18n::t("Проблем не найдено: пересечений нет, крепёж и фурнитура на месте, детали помещаются на лист."));
+                ui.label(crate::i18n::t("No problems: no intersections, fasteners and hardware in place, parts fit the sheet."));
             }
             egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
                 for p in list {
@@ -1457,10 +1458,10 @@ impl App {
         let mut open = true;
         let (mut apply, mut cancel) = (false, false);
         let mut events = Vec::new();
-        egui::Window::new(crate::i18n::t(format!("Скрипт: {}", win.name))).open(&mut open).default_width(420.0).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::t(format!("Script: {}", win.name))).open(&mut open).default_width(420.0).show(ctx, |ui| {
             if let Some(rt) = &mut win.rt {
                 for f in rt.forms() {
-                    ui.heading(f["Caption"].as_str().unwrap_or("Окно скрипта"));
+                    ui.heading(f["Caption"].as_str().unwrap_or("Script window"));
                     script_control(ui, &f, &mut events);
                     ui.separator();
                 }
@@ -1471,16 +1472,16 @@ impl App {
                     ui.colored_label(Color32::from_rgb(200, 40, 40), e);
                 }
                 ui.horizontal(|ui| {
-                    apply = ui.button(crate::i18n::t("Применить")).on_hover_text(crate::i18n::t("Изменения скрипта — в модель (одна отмена)")).clicked();
-                    cancel = ui.button(crate::i18n::t("Отменить")).clicked();
+                    apply = ui.button(crate::i18n::t("Apply")).on_hover_text(crate::i18n::t("Script changes into the model (one undo step)")).clicked();
+                    cancel = ui.button(crate::i18n::t("Undo")).clicked();
                 });
             } else if let Some(r) = &win.done {
                 for l in &r.log {
                     ui.label(crate::i18n::t(l));
                 }
                 match &r.error {
-                    Some(e) => ui.colored_label(Color32::from_rgb(200, 40, 40), crate::i18n::t(format!("Ошибка: {e}\nМодель не изменена."))),
-                    None => ui.label(crate::i18n::t(format!("Готово. Изменений: {}.", r.changes))),
+                    Some(e) => ui.colored_label(Color32::from_rgb(200, 40, 40), format!("{}\n{}", crate::i18n::t(format!("Error: {e}")), crate::i18n::t("The model was not changed."))),
+                    None => ui.label(crate::i18n::t(format!("Done. Changes: {}.", r.changes))),
                 };
             }
         });
@@ -1513,11 +1514,11 @@ impl App {
         }
         let loading = self.library.poll();
         let mut changed = false;
-        egui::CollapsingHeader::new(crate::i18n::t(format!("Папки фурнитуры ({})", self.library.dirs.len()))).default_open(self.library.dirs.is_empty()).show(ui, |ui| {
+        egui::CollapsingHeader::new(crate::i18n::t(format!("Hardware folders ({})", self.library.dirs.len()))).default_open(self.library.dirs.is_empty()).show(ui, |ui| {
             let mut remove = None;
             for (i, d) in self.library.dirs.iter().enumerate() {
                 ui.horizontal(|ui| {
-                    if ui.small_button("✕").on_hover_text(crate::i18n::t("Убрать папку из библиотеки (файлы не удаляются)")).clicked() {
+                    if ui.small_button("✕").on_hover_text(crate::i18n::t("Remove the folder from the library (files are not deleted)")).clicked() {
                         remove = Some(i);
                     }
                     ui.add(egui::Label::new(d.as_str()).truncate()).on_hover_text(d.as_str());
@@ -1528,7 +1529,7 @@ impl App {
                 changed = true;
             }
             ui.horizontal(|ui| {
-                if ui.button(crate::i18n::t("+ Добавить папку…")).clicked()
+                if ui.button(crate::i18n::t("+ Add folder…")).clicked()
                     && let Some(d) = rfd::FileDialog::new().pick_folder()
                 {
                     let d = d.display().to_string();
@@ -1537,7 +1538,7 @@ impl App {
                         changed = true;
                     }
                 }
-                if ui.button(crate::i18n::t("Обновить")).on_hover_text(crate::i18n::t("Просмотреть папки заново (если добавили файлы)")).clicked() {
+                if ui.button(crate::i18n::t("Refresh")).on_hover_text(crate::i18n::t("Rescan the folders (after adding files)")).clicked() {
                     self.library.scan();
                 }
             });
@@ -1548,7 +1549,7 @@ impl App {
             self.library.scan();
         }
         ui.horizontal(|ui| {
-            ui.label(crate::i18n::t("Поиск"));
+            ui.label(crate::i18n::t("Search"));
             ui.text_edit_singleline(&mut self.library.search);
         });
         for e in &self.library.errors {
@@ -1559,7 +1560,7 @@ impl App {
         if loading {
             ui.horizontal(|ui| {
                 ui.spinner();
-                ui.label(crate::i18n::t("Читаю папки фурнитуры…"));
+                ui.label(crate::i18n::t("Reading hardware folders…"));
             });
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
             return;
@@ -1580,21 +1581,21 @@ impl App {
         };
         let lost = design::furniture_lost_holes(&s.project).into_iter().find(|(n, _)| *n == f.name).map_or(0, |x| x.1);
         let mut cmds: Cmds = Vec::new();
-        ui.heading(crate::i18n::t(format!("Фурнитура «{}»", f.name)));
+        ui.heading(crate::i18n::t(format!("Hardware “{}”", f.name)));
         editors::props(ui, "furn", |ui| {
-            editors::caption(ui, "Тип");
+            editors::caption(ui, "Type");
             editors::value_box(ui, if f.kind.is_empty() { "—".to_string() } else { f.kind.clone() });
             ui.end_row();
-            editors::caption(ui, "Файл");
+            editors::caption(ui, "File");
             editors::value_box(ui, f.source.clone());
             ui.end_row();
-            editors::caption(ui, "Габарит");
-            editors::value_box(ui, format!("{:.0} × {:.0} × {:.0} мм", f.hi[0] - f.lo[0], f.hi[1] - f.lo[1], f.hi[2] - f.lo[2]));
+            editors::caption(ui, "Size");
+            editors::value_box(ui, format!("{:.0} × {:.0} × {:.0} mm", f.hi[0] - f.lo[0], f.hi[1] - f.lo[1], f.hi[2] - f.lo[2]));
             ui.end_row();
-            editors::caption(ui, "Отверстий");
-            editors::value_box(ui, format!("{} (не попали в панели: {lost})", f.holes.len()));
+            editors::caption(ui, "Holes");
+            editors::value_box(ui, format!("{} (missed panels: {lost})", f.holes.len()));
             ui.end_row();
-            editors::caption(ui, "Начало осей X, Y, Z");
+            editors::caption(ui, "Origin X, Y, Z");
             if let Some(o) = editors::position_editor(ui, fr.origin) {
                 let d: [f64; 3] = std::array::from_fn(|k| o[k] - fr.origin[k]);
                 cmds.push(("object.move", json!({ "ids": [id], "d": d })));
@@ -1602,7 +1603,7 @@ impl App {
             ui.end_row();
         });
         if lost > 0 {
-            ui.colored_label(Color32::from_rgb(200, 40, 40), crate::i18n::t("Часть отверстий висит в воздухе: прижмите модель к панели."));
+            ui.colored_label(Color32::from_rgb(200, 40, 40), crate::i18n::t("Some holes hang in the air: push the model against a panel."));
         }
         let (_, axis, angle, _) = &mut self.actions;
         ui.horizontal(|ui| {
@@ -1610,11 +1611,11 @@ impl App {
                 ui.selectable_value(axis, a, a.to_ascii_uppercase().to_string());
             }
             crate::expr::add(ui, angle, |d| d.range(-360.0..=360.0).suffix("°"));
-            if ui.button(crate::i18n::t("Повернуть")).clicked() {
+            if ui.button(crate::i18n::t("Rotate")).clicked() {
                 cmds.push(("object.rotate", json!({ "ids": [id], "axis": axis.to_string(), "angle": *angle, "center": fr.origin })));
             }
         });
-        if ui.button(crate::i18n::t("Удалить фурнитуру")).clicked() {
+        if ui.button(crate::i18n::t("Delete hardware")).clicked() {
             cmds.push(("object.remove", json!({ "ids": [id] })));
             self.furniture_sel = None;
         }
@@ -1626,24 +1627,24 @@ impl App {
     /// "Fasteners": between two selected panels, on all joints of the selected ones; this panel's fasteners.
     fn fastener_panel(&mut self, ui: &mut egui::Ui, project: &Project, panel: u32, cmds: &mut Cmds) {
         let panels: Vec<u32> = self.targets().into_iter().filter(|id| project.panels().iter().any(|p| p.id == *id)).collect();
-        egui::CollapsingHeader::new(crate::i18n::t("Крепёж")).default_open(panels.len() >= 2).show(ui, |ui| {
+        egui::CollapsingHeader::new(crate::i18n::t("Fasteners")).default_open(panels.len() >= 2).show(ui, |ui| {
             let names = editors::fastener_names(project);
             if let Some(Some(v)) = editors::choose(ui, "fast_kind", Some(&self.fastener_kind), &names, false) {
                 self.fastener_kind = v;
             }
             ui.horizontal(|ui| {
                 let two = panels.len() == 2;
-                if ui.add_enabled(two, egui::Button::new(crate::i18n::t("Между выделенными"))).on_disabled_hover_text(crate::i18n::t("Выделите две панели (Ctrl+щелчок): торец одной на пласти другой")).clicked() {
+                if ui.add_enabled(two, egui::Button::new(crate::i18n::t("Between selected"))).on_disabled_hover_text(crate::i18n::t("Select two panels (Ctrl+click): the edge of one on the face of the other")).clicked() {
                     cmds.push(("fastener.add", json!({ "kind": self.fastener_kind, "a": panels[0], "b": panels[1] })));
                 }
-                if ui.button(crate::i18n::t("На все стыки выделенных")).clicked() {
+                if ui.button(crate::i18n::t("On all joints of the selection")).clicked() {
                     cmds.push(("fastener.auto", json!({ "kind": self.fastener_kind, "ids": panels })));
                 }
             });
             for f in project.fasteners.iter().filter(|f| f.a == panel || f.b == panel) {
                 ui.horizontal(|ui| {
-                    ui.label(crate::i18n::t(format!("{} — панели {} и {}", f.kind, f.a, f.b)));
-                    if ui.small_button(crate::i18n::t("удалить")).clicked() {
+                    ui.label(crate::i18n::t(format!("{} — panels {} and {}", f.kind, f.a, f.b)));
+                    if ui.small_button(crate::i18n::t("delete")).clicked() {
                         cmds.push(("fastener.remove", json!({ "id": f.id })));
                     }
                 });
@@ -1659,10 +1660,10 @@ impl App {
         // Header as in cadcraft: title and what is selected.
         let n = self.selected_all().len();
         let what = match (self.furniture_sel, self.selected(), &self.parts) {
-            (Some(_), _, _) => crate::i18n::t("Фурнитура"),
+            (Some(_), _, _) => crate::i18n::t("Hardware"),
             (None, Some(i), Ok(parts)) if n == 1 => format!("{} {}", parts[i].panel.pos, parts[i].panel.name).trim().to_string(),
-            (None, Some(_), _) => crate::i18n::t(format!("Выделено деталей: {n}")),
-            _ => crate::i18n::t("Ничего не выделено"),
+            (None, Some(_), _) => crate::i18n::t(format!("Parts selected: {n}")),
+            _ => crate::i18n::t("Nothing selected"),
         };
         editors::value_box(ui, what);
         ui.add_space(6.0);
@@ -1671,29 +1672,29 @@ impl App {
             return;
         }
         let (Ok(parts), Some(i)) = (&self.parts, self.selected()) else {
-            ui.weak(crate::i18n::t("Выделите деталь щелчком в 3D, на виде спереди или в структуре модели. Ctrl+щелчок — добавить к выделению."));
+            ui.weak(crate::i18n::t("Select a part by clicking it in 3D, in the front view or in the model structure. Ctrl+click adds to the selection."));
             return;
         };
         let part = parts[i].clone();
         let p = &part.panel;
         let (l, w) = p.cut_size();
         editors::props(ui, "part_info", |ui| {
-            editors::caption(ui, "Деталь");
+            editors::caption(ui, "Part");
             editors::value_box(ui, format!("{} {}", p.pos, p.name).trim().to_string());
             ui.end_row();
-            editors::caption(ui, "Материал");
+            editors::caption(ui, "Material");
             editors::value_box(ui, panel::material_name(&p.material).to_string());
             ui.end_row();
-            editors::caption(ui, "Пильный размер");
-            editors::value_box(ui, format!("{} × {} × {} мм", num(l), num(w), num(p.thickness)));
+            editors::caption(ui, "Cut size");
+            editors::value_box(ui, format!("{} × {} × {} mm", num(l), num(w), num(p.thickness)));
             ui.end_row();
-            editors::caption(ui, "Габарит в проекте");
-            editors::value_box(ui, format!("{} × {} × {} мм", num(part.size[0]), num(part.size[1]), num(part.size[2])));
+            editors::caption(ui, "Size in project");
+            editors::value_box(ui, format!("{} × {} × {} mm", num(part.size[0]), num(part.size[1]), num(part.size[2])));
             ui.end_row();
-            editors::caption(ui, "Начало габарита");
+            editors::caption(ui, "Bounding box origin");
             editors::value_box(ui, format!("X {} Y {} Z {}", num(part.origin[0]), num(part.origin[1]), num(part.origin[2])));
             ui.end_row();
-            editors::caption(ui, "Кромка");
+            editors::caption(ui, "Edge banding");
             let edges: Vec<String> = [Side::L1, Side::L2, Side::W1, Side::W2]
                 .iter()
                 .filter_map(|&sd| {
@@ -1701,46 +1702,46 @@ impl App {
                     (t > 0.0).then(|| format!("{sd:?} {}", num(t)))
                 })
                 .collect();
-            editors::value_box(ui, if edges.is_empty() { i18n::t("нет") } else { edges.join(", ") });
+            editors::value_box(ui, if edges.is_empty() { i18n::t("none") } else { edges.join(", ") });
             ui.end_row();
-            editors::caption(ui, "Отверстий");
+            editors::caption(ui, "Holes");
             editors::value_box(ui, p.holes.len().to_string());
             ui.end_row();
         });
         ui.separator();
         let Some(s) = &self.session else {
-            ui.weak(crate::i18n::t("Модель Базиса открыта для просмотра. «Сделать редактируемой» — в верхней строке."));
+            ui.weak(crate::i18n::t("The Bazis model is read-only. “Make editable” is in the top bar."));
             return;
         };
         let project = s.project.clone();
         let mut cmds: Cmds = Vec::new();
         if let Some(c) = project.cabinets.iter().find(|c| c.id == part.owner) {
-            ui.heading(crate::i18n::t(format!("Корпус «{}»", c.name)));
+            ui.heading(crate::i18n::t(format!("Cabinet “{}”", c.name)));
             // Formulas in cabinet fields: W/2, H-100, D-T… (English letters; their Russian equivalents are aliases).
             let t = project.material(&c.material).map_or(16.0, |m| m.thickness);
-            let vars = vec![(&["W", "Ш"][..], c.width, "ширина"), (&["H", "В"][..], c.height, "высота"), (&["D", "Г"][..], c.depth, "глубина"), (&["P", "Ц"][..], c.plinth, "цоколь"), (&["T", "Т"][..], t, "толщина материала")];
+            let vars = vec![(["W", bazis("alias.W")], c.width, "width"), (["H", bazis("alias.H")], c.height, "height"), (["D", bazis("alias.D")], c.depth, "depth"), (["P", bazis("alias.P")], c.plinth, "plinth"), (["T", bazis("alias.T")], t, "material thickness")];
             expr::with_vars(vars, || editors::cabinet_editor(ui, &project, c, &mut cmds));
-            if ui.button(crate::i18n::t("Разрушить в панели")).on_hover_text(crate::i18n::t("Детали станут отдельными панелями блока; параметры корпуса больше не действуют")).clicked() {
+            if ui.button(crate::i18n::t("Explode into panels")).on_hover_text(crate::i18n::t("Parts become separate panels of a block; cabinet parameters stop applying")).clicked() {
                 cmds.push(("cabinet.explode", json!({ "id": c.id })));
             }
         } else if let Some(c) = project.corners.iter().find(|c| c.id == part.owner) {
-            ui.heading(crate::i18n::t(format!("Угловой модуль «{}»", c.name)));
+            ui.heading(crate::i18n::t(format!("Corner unit “{}”", c.name)));
             let t = project.material(&c.material).map_or(16.0, |m| m.thickness);
-            let vars = vec![(&["W", "Ш"][..], c.width_x, "крыло X"), (&["WZ", "ШZ"][..], c.width_z, "крыло Z"), (&["H", "В"][..], c.height, "высота"), (&["D", "Г"][..], c.depth, "глубина"), (&["P", "Ц"][..], c.plinth, "цоколь"), (&["T", "Т"][..], t, "толщина материала")];
+            let vars = vec![(["W", bazis("alias.W")], c.width_x, "wing X"), (["WZ", bazis("alias.WZ")], c.width_z, "wing Z"), (["H", bazis("alias.H")], c.height, "height"), (["D", bazis("alias.D")], c.depth, "depth"), (["P", bazis("alias.P")], c.plinth, "plinth"), (["T", bazis("alias.T")], t, "material thickness")];
             expr::with_vars(vars, || editors::corner_editor(ui, &project, c, &mut cmds));
         } else if let Some(c) = project.countertops.iter().find(|c| c.id == part.owner) {
-            ui.heading(crate::i18n::t(format!("Столешница «{}»", c.name)));
+            ui.heading(crate::i18n::t(format!("Countertop “{}”", c.name)));
             editors::countertop_editor(ui, &project, c, &mut cmds);
         } else if let Some(fp) = project.panels().into_iter().find(|f| f.id == part.id) {
             self.fastener_panel(ui, &project, fp.id, &mut cmds);
-            ui.heading(crate::i18n::t("Панель"));
-            let vars = vec![(&["L", "Д"][..], p.size.0, "длина"), (&["W", "Ш"][..], p.size.1, "ширина"), (&["T", "Т"][..], p.thickness, "толщина")];
+            ui.heading(crate::i18n::t("Panel"));
+            let vars = vec![(["L", bazis("alias.L")], p.size.0, "length"), (["W", bazis("alias.W")], p.size.1, "width"), (["T", bazis("alias.T")], p.thickness, "thickness")];
             expr::with_vars(vars, || editors::panel_editor(ui, &project, fp, (p.size.0, p.size.1, p.thickness), &mut cmds));
             ui.separator();
-            ui.heading(crate::i18n::t("Облицовка кромки"));
+            ui.heading(crate::i18n::t("Edge facing"));
             let names: Vec<String> = project.edges.iter().map(|e| e.name.clone()).collect();
             if names.is_empty() {
-                ui.weak(crate::i18n::t("Добавьте кромку на вкладке «Проект»."));
+                ui.weak(crate::i18n::t("Add edge banding in the “Project” panel."));
             }
             let (edge, clip, allowance) = &mut self.edging;
             if edge.is_none() {
@@ -1750,33 +1751,33 @@ impl App {
                 if let Some(Some(v)) = editors::choose(ui, "edging", edge.as_deref(), &names, false) {
                     *edge = Some(v);
                 }
-                ui.checkbox(clip, crate::i18n::t("Подрезать")).on_hover_text(crate::i18n::t("Заготовка меньше на толщину кромки: размер детали — чистовой"));
-                crate::expr::add(ui, allowance, |d| d.range(0.0..=10.0).speed(0.1).prefix("припуск ").suffix(crate::i18n::t(" мм")));
+                ui.checkbox(clip, crate::i18n::t("Trim")).on_hover_text(crate::i18n::t("Blank reduced by the banding thickness: the part size is finished size"));
+                crate::expr::add(ui, allowance, |d| d.range(0.0..=10.0).speed(0.1).prefix("allowance").suffix(crate::i18n::t(" mm")));
             });
             ui.separator();
-            ui.heading(crate::i18n::t("Контур"));
+            ui.heading(crate::i18n::t("Contour"));
             let (tool, size) = &mut self.contour_tool;
             ui.horizontal(|ui| {
-                for (t, label) in [(ContourTool::Edge, "Кромка"), (ContourTool::Round, "Скругление"), (ContourTool::Chamfer, "Фаска"), (ContourTool::Hole, "Вырез")] {
+                for (t, label) in [(ContourTool::Edge, "Edge banding"), (ContourTool::Round, "Fillet"), (ContourTool::Chamfer, "Chamfer"), (ContourTool::Hole, "Cut-out")] {
                     ui.selectable_value(tool, t, crate::i18n::t(label));
                 }
                 if *tool != ContourTool::Edge {
-                    let label = match tool { ContourTool::Round => "R ", ContourTool::Chamfer => "катет ", _ => "радиус " };
-                    crate::expr::add(ui, size, |d| d.range(1.0..=2000.0).prefix(label).suffix(crate::i18n::t(" мм")));
+                    let label = match tool { ContourTool::Round => "R ", ContourTool::Chamfer => "leg", _ => "radius" };
+                    crate::expr::add(ui, size, |d| d.range(1.0..=2000.0).prefix(label).suffix(crate::i18n::t(" mm")));
                 }
             });
             ui.weak(match tool {
-                ContourTool::Edge => "Щелчок по торцу — нанести или снять выбранную кромку.",
-                ContourTool::Round | ContourTool::Chamfer => "Щелчок по вершине — скруглить или срезать угол.",
-                ContourTool::Hole => "Щелчок внутри панели — круглый вырез с центром в этой точке.",
+                ContourTool::Edge => "Click an edge to apply or remove the chosen banding.",
+                ContourTool::Round | ContourTool::Chamfer => "Click a vertex to fillet or chamfer the corner.",
+                ContourTool::Hole => "Click inside the panel for a round cut-out centred there.",
             });
             if fp.segs.len() == 4 {
                 ui.horizontal(|ui| {
-                    ui.label(crate::i18n::t("Размеры:"));
+                    ui.label(crate::i18n::t("Size:"));
                     let (mut a, mut b) = (p.size.0, p.size.1);
-                    let ra = crate::expr::add(ui, &mut a, |d| d.range(1.0..=6000.0).suffix(crate::i18n::t(" мм")));
+                    let ra = crate::expr::add(ui, &mut a, |d| d.range(1.0..=6000.0).suffix(crate::i18n::t(" mm")));
                     ui.label("×");
-                    let rb = crate::expr::add(ui, &mut b, |d| d.range(1.0..=6000.0).suffix(crate::i18n::t(" мм")));
+                    let rb = crate::expr::add(ui, &mut b, |d| d.range(1.0..=6000.0).suffix(crate::i18n::t(" mm")));
                     let done = |r: &egui::Response| r.drag_stopped() || (r.changed() && !r.dragged());
                     if (done(&ra) || done(&rb)) && (a, b) != p.size {
                         cmds.push(("panel.resize", json!({ "id": fp.id, "size": [a, b] })));
@@ -1785,10 +1786,10 @@ impl App {
             }
             let all: Vec<usize> = (0..fp.segs.len()).collect();
             ui.horizontal(|ui| {
-                if ui.button(crate::i18n::t("На все торцы")).clicked() {
+                if ui.button(crate::i18n::t("All edges")).clicked() {
                     cmds.push(("panel.edge", json!({ "id": fp.id, "segments": all, "edge": edge, "clip": clip, "allowance": allowance })));
                 }
-                if ui.button(crate::i18n::t("Снять со всех")).clicked() {
+                if ui.button(crate::i18n::t("Remove from all")).clicked() {
                     cmds.push(("panel.edge", json!({ "id": fp.id, "segments": all, "edge": null })));
                 }
             });
@@ -1827,7 +1828,7 @@ impl App {
             }
         };
         if parts.is_empty() {
-            ui.label(crate::i18n::t("Пусто. Добавьте материал и модуль или панель на вкладке «Проект»."));
+            ui.label(crate::i18n::t("Empty. Add a material, then a module or a panel."));
             return;
         }
         let hidden = self.hidden_parts();
@@ -1907,7 +1908,7 @@ impl App {
         if let (Some(t), Some(m)) = (&self.fill, ui.ctx().pointer_hover_pos().filter(|m| resp.rect.contains(*m))) {
             let at = mm_at(m);
             if matches!(t.plane, "door" | "drawers") {
-                painter.text(m + Vec2::new(12.0, 12.0), egui::Align2::LEFT_TOP, if t.plane == "door" { "щелчок — дверь в этот проём" } else { "щелчок — ящики в этот проём" }, egui::FontId::proportional(12.0), Color32::from_rgb(160, 70, 0));
+                painter.text(m + Vec2::new(12.0, 12.0), egui::Align2::LEFT_TOP, if t.plane == "door" { "click — a door in this opening" } else { "click — drawers in this opening" }, egui::FontId::proportional(12.0), Color32::from_rgb(160, 70, 0));
                 if resp.clicked() {
                     let heights: Vec<f64> = t.heights.split_whitespace().filter_map(|v| v.replace(',', ".").parse().ok()).collect();
                     let (cmd, args) = if t.plane == "door" {
@@ -2034,7 +2035,7 @@ impl App {
             d[0] += delta.x as f64 / k;
             d[1] -= delta.y as f64 / k;
             if let Some(m) = moving {
-                painter.text(resp.rect.left_top() + Vec2::new(8.0, 8.0), egui::Align2::LEFT_TOP, format!("сдвиг: X {} Y {}", m[0], m[1]), egui::FontId::proportional(14.0), Color32::from_rgb(160, 70, 0));
+                painter.text(resp.rect.left_top() + Vec2::new(8.0, 8.0), egui::Align2::LEFT_TOP, format!("offset: X {} Y {}", m[0], m[1]), egui::FontId::proportional(14.0), Color32::from_rgb(160, 70, 0));
             }
             if resp.drag_stopped() {
                 self.drag = None;
@@ -2048,13 +2049,13 @@ impl App {
         if let Some(i) = hovered {
             let p = &parts[i];
             let (l, w) = p.panel.cut_size();
-            resp.on_hover_text(crate::i18n::t(format!("{} {}: {}×{}×{} мм\n{}", p.panel.pos, p.panel.name, num(l), num(w), num(p.panel.thickness), panel::material_name(&p.panel.material))));
+            resp.on_hover_text(format!("{} {}: {}×{}×{}{}\n{}", p.panel.pos, p.panel.name, num(l), num(w), num(p.panel.thickness), crate::i18n::t(" mm"), panel::material_name(&p.panel.material)));
         }
     }
 
     /// The "Show doors and fronts" icon.
     fn doors_toggle(&mut self, ui: &mut egui::Ui) {
-        if icons::button(ui, icons::Icon::Doors, 26.0, "Двери и фасады: показать или скрыть (скрыть — заглянуть внутрь корпуса)", self.show_doors).clicked() {
+        if icons::button(ui, icons::Icon::Doors, 26.0, "Doors and fronts: show or hide (hide to look inside)", self.show_doors).clicked() {
             self.show_doors = !self.show_doors;
             self.revision += 1;
         }
@@ -2067,7 +2068,7 @@ impl App {
             ui.add_space(8.0);
             self.viewport.toolbar(ui);
             ui.separator();
-            if icons::button(ui, icons::Icon::Quad, 26.0, "4 окна: спереди, слева, сверху и аксонометрия", self.quad).clicked() {
+            if icons::button(ui, icons::Icon::Quad, 26.0, "4 views: front, left, top and axonometric", self.quad).clicked() {
                 self.quad = !self.quad;
             }
             self.doors_toggle(ui);
@@ -2133,7 +2134,7 @@ impl App {
             for (i, c) in cells.iter().enumerate() {
                 let Some(c) = c else { continue };
                 let b = egui::Rect::from_min_size(c.right_top() + Vec2::new(-28.0, 4.0), Vec2::splat(24.0));
-                let (text, tip) = if self.quad_max.is_some() { ("🗗", "Вернуть четыре окна") } else { ("🗖", "Развернуть это окно на всю область") };
+                let (text, tip) = if self.quad_max.is_some() { ("🗗", "Back to four windows") } else { ("🗖", "Maximize this window") };
                 if ui.put(b, egui::Button::new(text)).on_hover_text(crate::i18n::t(tip)).clicked() {
                     self.quad_max = if self.quad_max.is_some() { None } else { Some(i) };
                 }
@@ -2180,7 +2181,7 @@ impl App {
     fn parts_table(&mut self, ui: &mut egui::Ui) {
         egui::ScrollArea::both().show(ui, |ui| {
             egui::Grid::new("parts").striped(true).num_columns(10).show(ui, |ui| {
-                for h in ["№", "Наименование", "Материал", "Длина", "Ширина", "Толщина", "L1", "L2", "W1", "W2"] {
+                for h in ["№", "Item name", "Material", "Length", "Width", "Thickness", "L1", "L2", "W1", "W2"] {
                     ui.strong(h);
                 }
                 ui.end_row();
@@ -2207,16 +2208,16 @@ impl App {
         // In our own project, sheet, kerf and trim belong to each material; the general numbers are only needed
         // for a Bazis model whose materials have no sheet.
         if self.session.is_some() {
-            ui.weak(crate::i18n::t("Лист, пропил и обрезка задаются у каждого материала: панель «Проект» → «Материалы»."));
+            ui.weak(crate::i18n::t("Sheet, kerf and trim are set per material: “Project” panel → “Materials”."));
         } else {
         ui.horizontal(|ui| {
-            ui.label(crate::i18n::t("Лист для материалов модели Базиса"));
+            ui.label(crate::i18n::t("Sheet for the Bazis model materials"));
             crate::expr::add(ui, &mut self.params.sheet.0, |d| d.range(500.0..=6000.0));
             ui.label("×");
             crate::expr::add(ui, &mut self.params.sheet.1, |d| d.range(500.0..=6000.0));
-            ui.label(crate::i18n::t("Пропил"));
+            ui.label(crate::i18n::t("Kerf"));
             crate::expr::add(ui, &mut self.params.kerf, |d| d.range(0.0..=10.0).speed(0.1));
-            ui.label(crate::i18n::t("Обрезка"));
+            ui.label(crate::i18n::t("Sheet trim"));
             crate::expr::add(ui, &mut self.params.trim, |d| d.range(0.0..=50.0));
         });
         }
@@ -2225,7 +2226,7 @@ impl App {
         }
         let sheets: Vec<(usize, usize)> = self.cuts.iter().enumerate().flat_map(|(m, c)| (0..c.layout.sheets.len()).map(move |k| (m, k))).collect();
         if sheets.is_empty() {
-            ui.label(crate::i18n::t("Нет деталей для раскроя."));
+            ui.label(crate::i18n::t("No parts to cut."));
             return;
         }
         self.card = self.card.min(sheets.len() - 1);
@@ -2238,13 +2239,13 @@ impl App {
         });
         for c in &self.cuts {
             for &id in &c.layout.too_big {
-                ui.colored_label(Color32::RED, crate::i18n::t(format!("Не помещается на лист: № {} «{}»", self.job.number(id), self.job.panels[id].name)));
+                ui.colored_label(Color32::RED, crate::i18n::t(format!("Does not fit the sheet: No. {} “{}”", self.job.number(id), self.job.panels[id].name)));
             }
         }
         let (m, k) = sheets[self.card];
         let cut = &self.cuts[m];
         let sheet = &cut.layout.sheets[k];
-        ui.label(crate::i18n::t(format!("Деталей на листе: {}, использование {:.1}%", sheet.parts.len(), sheet.usage(&cut.params) * 100.0)));
+        ui.label(crate::i18n::t(format!("Parts on sheet: {}, usage {:.1}%", sheet.parts.len(), sheet.usage(&cut.params) * 100.0)));
         let (resp, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::hover());
         let (sw, sh) = cut.params.sheet;
         let area = resp.rect.shrink(20.0);
@@ -2255,7 +2256,7 @@ impl App {
             if f.w.min(f.h) >= 200.0 && f.w.max(f.h) >= 300.0 {
                 let r = Rect::from_min_size(to(f.x, f.y), Vec2::new(f.w as f32 * kx, f.h as f32 * kx));
                 painter.rect(r, 0.0, Color32::from_rgb(215, 220, 250), Stroke::new(0.5, Color32::GRAY), StrokeKind::Inside);
-                painter.text(r.center(), egui::Align2::CENTER_CENTER, crate::i18n::t(format!("Обрезок {:.0}×{:.0}", f.w, f.h)), egui::FontId::proportional(11.0), Color32::from_rgb(40, 40, 140));
+                painter.text(r.center(), egui::Align2::CENTER_CENTER, crate::i18n::t(format!("Offcut {:.0}×{:.0}", f.w, f.h)), egui::FontId::proportional(11.0), Color32::from_rgb(40, 40, 140));
             }
         }
         for d in &sheet.parts {
@@ -2284,7 +2285,7 @@ impl App {
         });
         if let Some(img) = image {
             if let Err(e) = save_png(&path, &img) {
-                eprintln!("снимок: {e}");
+                eprintln!("screenshot: {e}");
             }
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
@@ -2308,9 +2309,9 @@ mod tests {
 
     #[test]
     fn free_name_skips_taken() {
-        assert_eq!(free_name("МДФ 16", &["ЛДСП 16"]), "МДФ 16");
-        assert_eq!(free_name("ЛДСП 16", &["ЛДСП 16"]), "ЛДСП 16 (2)");
-        assert_eq!(free_name("ЛДСП 16 (2)", &["ЛДСП 16", "ЛДСП 16 (2)"]), "ЛДСП 16 (3)");
-        assert_eq!(free_name(" ЛДСП 16 ", &["ЛДСП 16", "ЛДСП 16 (2)"]), "ЛДСП 16 (3)");
+        assert_eq!(free_name("MDF 16", &["Chipboard 16"]), "MDF 16");
+        assert_eq!(free_name("Chipboard 16", &["Chipboard 16"]), "Chipboard 16 (2)");
+        assert_eq!(free_name("Chipboard 16 (2)", &["Chipboard 16", "Chipboard 16 (2)"]), "Chipboard 16 (3)");
+        assert_eq!(free_name(" Chipboard 16 ", &["Chipboard 16", "Chipboard 16 (2)"]), "Chipboard 16 (3)");
     }
 }

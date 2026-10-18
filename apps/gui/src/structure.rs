@@ -43,10 +43,10 @@ struct Acts {
 
 fn kind_title(k: Kind) -> &'static str {
     match k {
-        Kind::Body => "Каркас",
-        Kind::Back => "Задние стенки",
-        Kind::Door => "Двери",
-        Kind::Drawer => "Ящики",
+        Kind::Body => "Frame",
+        Kind::Back => "Back panels",
+        Kind::Door => "Doors",
+        Kind::Drawer => "Drawers",
     }
 }
 
@@ -68,10 +68,10 @@ fn object_rows(parts: &[Part], objects: &[Object]) -> Vec<Row> {
     objects
         .iter()
         .map(|o| match o {
-            Object::Block(b) => Row::Group { title: format!("Блок: {}", b.name), key: format!("b{}", b.id), block: Some(b.id), rows: object_rows(parts, &b.children) },
+            Object::Block(b) => Row::Group { title: format!("Block: {}", b.name), key: format!("b{}", b.id), block: Some(b.id), rows: object_rows(parts, &b.children) },
             Object::Panel(p) => {
                 let mine: Vec<Row> = (0..parts.len()).filter(|&i| parts[i].id == p.id).map(Row::Part).collect();
-                if mine.len() == 1 { mine.into_iter().next().unwrap_or(Row::Group { title: String::new(), key: String::new(), block: None, rows: Vec::new() }) } else { Row::Group { title: format!("Панель: {}", p.name), key: format!("p{}", p.id), block: None, rows: mine } }
+                if mine.len() == 1 { mine.into_iter().next().unwrap_or(Row::Group { title: String::new(), key: String::new(), block: None, rows: Vec::new() }) } else { Row::Group { title: format!("Panel: {}", p.name), key: format!("p{}", p.id), block: None, rows: mine } }
             }
             Object::Furniture(f) => Row::Furniture(f.id, f.name.clone()),
         })
@@ -87,17 +87,17 @@ fn tree(parts: &[Part], project: Option<&Project>) -> Vec<Row> {
                 owners.push(p.owner);
             }
         }
-        return owners.into_iter().map(|o| Row::Group { title: "Модель Базиса".into(), key: format!("o{o}"), block: None, rows: (0..parts.len()).filter(|&i| parts[i].owner == o).map(Row::Part).collect() }).collect();
+        return owners.into_iter().map(|o| Row::Group { title: "Bazis model".into(), key: format!("o{o}"), block: None, rows: (0..parts.len()).filter(|&i| parts[i].owner == o).map(Row::Part).collect() }).collect();
     };
     let mut rows = Vec::new();
     for c in &pr.cabinets {
-        rows.push(Row::Group { title: format!("Корпус: {}", c.name), key: format!("c{}", c.id), block: None, rows: template_rows(parts, c.id) });
+        rows.push(Row::Group { title: format!("Cabinet: {}", c.name), key: format!("c{}", c.id), block: None, rows: template_rows(parts, c.id) });
     }
     for c in &pr.corners {
-        rows.push(Row::Group { title: format!("Угловой модуль: {}", c.name), key: format!("c{}", c.id), block: None, rows: template_rows(parts, c.id) });
+        rows.push(Row::Group { title: format!("Corner unit: {}", c.name), key: format!("c{}", c.id), block: None, rows: template_rows(parts, c.id) });
     }
     for c in &pr.countertops {
-        rows.push(Row::Group { title: format!("Столешница: {}", c.name), key: format!("c{}", c.id), block: None, rows: template_rows(parts, c.id) });
+        rows.push(Row::Group { title: format!("Countertop: {}", c.name), key: format!("c{}", c.id), block: None, rows: template_rows(parts, c.id) });
     }
     rows.extend(object_rows(parts, &pr.objects));
     rows
@@ -107,7 +107,7 @@ impl App {
     fn eye(&self, ui: &mut egui::Ui, idx: &[usize], acts: &mut Acts) {
         let parts = self.parts.as_ref().map(Vec::as_slice).unwrap_or_default();
         let hidden = !idx.is_empty() && idx.iter().all(|&i| self.hidden.contains(&Sel::of(parts, i)));
-        let tip = if hidden { "Показать" } else { "Скрыть в 3D и на виде спереди (в деталях и раскрое остаётся)" };
+        let tip = if hidden { "Show" } else { "Hide in 3D and the front view (stays in parts and cutting)" };
         if icons::button(ui, if hidden { Icon::EyeOff } else { Icon::Eye }, 18.0, tip, false).clicked() {
             acts.toggle = Some(idx.to_vec());
         }
@@ -136,7 +136,7 @@ impl App {
                 Row::Furniture(id, name) => {
                     ui.horizontal(|ui| {
                         ui.add_space(22.0);
-                        if ui.selectable_label(self.furniture_sel == Some(*id), crate::i18n::t(format!("Фурнитура: {name}"))).clicked() {
+                        if ui.selectable_label(self.furniture_sel == Some(*id), crate::i18n::t(format!("Hardware: {name}"))).clicked() {
                             acts.furniture = Some(*id);
                         }
                     });
@@ -161,12 +161,12 @@ impl App {
                             }
                             if let Some(b) = block {
                                 r.context_menu(|ui| {
-                                    let name = title.strip_prefix("Блок: ").unwrap_or(title);
-                                    ui.label(crate::i18n::t("Название группы"));
+                                    let name = title.strip_prefix("Block: ").unwrap_or(title);
+                                    ui.label(crate::i18n::t("Group name"));
                                     if let Some(n) = crate::editors::text_field(ui, ("block_name", *b), name) {
                                         acts.rename = Some((*b, n));
                                     }
-                                    if ui.button(crate::i18n::t("Разгруппировать")).clicked() {
+                                    if ui.button(crate::i18n::t("Ungroup")).clicked() {
                                         acts.ungroup = Some(*b);
                                         ui.close();
                                     }
@@ -187,13 +187,13 @@ impl App {
         let selected_block = self.selected_block();
         let mut acts = Acts::default();
         ui.horizontal_wrapped(|ui| {
-            if ui.add_enabled(editable && !self.targets().is_empty(), egui::Button::new(crate::i18n::t("Сгруппировать"))).on_hover_text(crate::i18n::t("Собрать выделенное в группу (блок): двигается и копируется вместе")).clicked() {
+            if ui.add_enabled(editable && !self.targets().is_empty(), egui::Button::new(crate::i18n::t("Group"))).on_hover_text(crate::i18n::t("Group the selection into a block: it moves and copies together")).clicked() {
                 acts.menu = Some(MenuAct::Block);
             }
-            if ui.add_enabled(editable && selected_block.is_some(), egui::Button::new(crate::i18n::t("Разгруппировать"))).on_hover_text(crate::i18n::t("Выделите группу (щелчок по её названию) — её содержимое выйдет на уровень выше")).clicked() {
+            if ui.add_enabled(editable && selected_block.is_some(), egui::Button::new(crate::i18n::t("Ungroup"))).on_hover_text(crate::i18n::t("Select a group (click its name) — its contents move one level up")).clicked() {
                 acts.ungroup = selected_block;
             }
-            if ui.add_enabled(!self.hidden.is_empty(), egui::Button::new(crate::i18n::t("Показать скрытые"))).clicked() {
+            if ui.add_enabled(!self.hidden.is_empty(), egui::Button::new(crate::i18n::t("Show hidden"))).clicked() {
                 acts.toggle = Some(Vec::new());
             }
         });

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 pub struct Settings {
     /// Folders with fastener models (.fr3d); empty means the examples folder, if present.
     pub library_dirs: Vec<String>,
-    /// Window language: "ru" or "en".
+    /// Window language: "en" (default) or "ru".
     pub language: String,
     /// Folders with texture images (.jpg, .png); empty means the example textures, if present.
     pub texture_dirs: Vec<String>,
@@ -36,6 +36,10 @@ impl Default for GridSettings {
 }
 
 pub fn config_dir() -> Option<PathBuf> {
+    // Tests neither read the user's settings and recent files (their language would change test output) nor overwrite them.
+    if cfg!(test) {
+        return None;
+    }
     // Windows has no HOME, so settings go to %APPDATA%.
     let base = std::env::var_os("XDG_CONFIG_HOME").or_else(|| std::env::var_os("APPDATA")).map(PathBuf::from).or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
     let dir = base.join("dowel-craft");
@@ -62,7 +66,7 @@ impl Settings {
             s.texture_dirs.push("example/textures".into());
         }
         if s.language.is_empty() {
-            s.language = "ru".into();
+            s.language = "en".into();
         }
         s
     }
@@ -83,7 +87,7 @@ impl Settings {
         let Some(f) = file() else { return };
         let res = f.parent().map(std::fs::create_dir_all).transpose().and_then(|_| std::fs::write(&f, serde_json::to_string_pretty(self).unwrap_or_default()));
         if let Err(e) = res {
-            eprintln!("[настройки] {}: {e}", f.display());
+            eprintln!("[settings] {}: {e}", f.display());
         }
     }
 }

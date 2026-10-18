@@ -14,8 +14,12 @@ use crate::{App, MenuAct, Pane};
 const HELP: &str = include_str!("../../../docs/help.md");
 const HELP_EN: &str = include_str!("../../../docs/help.en.md");
 const RECENT_MAX: usize = 12;
-/// Samples offered by the start page (the first one found).
-const SAMPLES: [&str; 3] = ["example/Кухня Эл.b3d", "example/Детская кровать.b3d", "example/Витрина высокая.b3d"];
+/// A sample offered by the start page: the first Bazis model in the local `example/` folder, if there is one.
+fn sample() -> Option<PathBuf> {
+    let mut models: Vec<PathBuf> = std::fs::read_dir("example").ok()?.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|e| e == "b3d")).collect();
+    models.sort();
+    models.into_iter().next()
+}
 
 fn recent_file() -> Option<PathBuf> {
     Some(crate::settings::config_dir()?.join("recent.json"))
@@ -37,7 +41,7 @@ pub fn remember(path: &Path) {
     list.truncate(RECENT_MAX);
     let saved = file.parent().map(std::fs::create_dir_all).transpose().and_then(|_| std::fs::write(&file, serde_json::to_string_pretty(&list).unwrap_or_default()));
     if let Err(e) = saved {
-        eprintln!("[последние файлы] {}: {e}", file.display());
+        eprintln!("[recent files] {}: {e}", file.display());
     }
 }
 
@@ -100,17 +104,17 @@ impl App {
         let editable = self.session.is_some();
         let selected = !self.targets().is_empty();
         egui::MenuBar::new().ui(ui, |ui| {
-            ui.menu_button(crate::i18n::t("Файл"), |ui| {
-                if ui.button(crate::i18n::t("Новый проект")).clicked() {
+            ui.menu_button(crate::i18n::t("File"), |ui| {
+                if ui.button(crate::i18n::t("New project")).clicked() {
                     self.new_project();
                 }
-                if ui.button(crate::i18n::t("Открыть…")).clicked() {
+                if ui.button(crate::i18n::t("Open…")).clicked() {
                     self.open_dialog();
                 }
-                ui.menu_button(crate::i18n::t("Последние"), |ui| {
+                ui.menu_button(crate::i18n::t("Recent"), |ui| {
                     let list = recent();
                     if list.is_empty() {
-                        ui.weak(crate::i18n::t("пока пусто"));
+                        ui.weak(crate::i18n::t("empty so far"));
                     }
                     for p in list {
                         if ui.button(p.file_name().map_or_else(|| p.display().to_string(), |f| f.to_string_lossy().into_owned())).on_hover_text(p.display().to_string()).clicked() {
@@ -119,69 +123,69 @@ impl App {
                     }
                 });
                 ui.separator();
-                if ui.add_enabled(editable, egui::Button::new(crate::i18n::t("Сохранить")).shortcut_text(self.settings.key_label("save"))).clicked() {
+                if ui.add_enabled(editable, egui::Button::new(crate::i18n::t("Save")).shortcut_text(self.settings.key_label("save"))).clicked() {
                     self.save(false);
                 }
-                if ui.add_enabled(editable, egui::Button::new(crate::i18n::t("Сохранить как…"))).clicked() {
+                if ui.add_enabled(editable, egui::Button::new(crate::i18n::t("Save as…"))).clicked() {
                     self.save(true);
                 }
-                ui.menu_button(crate::i18n::t("Экспорт"), |ui| {
+                ui.menu_button(crate::i18n::t("Export"), |ui| {
                     for (what, label) in crate::EXPORTS {
                         if ui.button(crate::i18n::t(label)).clicked() {
                             self.export(what);
                         }
                     }
                 });
-                if !editable && ui.button(crate::i18n::t("Сделать редактируемой")).clicked() {
+                if !editable && ui.button(crate::i18n::t("Make editable")).clicked() {
                     self.make_editable();
                 }
                 ui.separator();
-                if ui.button(crate::i18n::t("Выход")).clicked() {
+                if ui.button(crate::i18n::t("Exit")).clicked() {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             });
-            ui.menu_button(crate::i18n::t("Правка"), |ui| {
+            ui.menu_button(crate::i18n::t("Edit"), |ui| {
                 let (undo, redo) = self.session.as_ref().map_or((false, false), |s| (s.can_undo(), s.can_redo()));
-                if ui.add_enabled(undo, egui::Button::new(crate::i18n::t("Отменить")).shortcut_text(self.settings.key_label("undo"))).clicked() {
+                if ui.add_enabled(undo, egui::Button::new(crate::i18n::t("Undo")).shortcut_text(self.settings.key_label("undo"))).clicked() {
                     self.exec("undo", json!({}));
                 }
-                if ui.add_enabled(redo, egui::Button::new(crate::i18n::t("Вернуть")).shortcut_text(self.settings.key_label("redo"))).clicked() {
+                if ui.add_enabled(redo, egui::Button::new(crate::i18n::t("Redo")).shortcut_text(self.settings.key_label("redo"))).clicked() {
                     self.exec("redo", json!({}));
                 }
                 ui.separator();
-                if ui.add_enabled(editable && !self.delete_targets().is_empty(), egui::Button::new(crate::i18n::t("Удалить")).shortcut_text(self.settings.key_label("delete"))).clicked() {
+                if ui.add_enabled(editable && !self.delete_targets().is_empty(), egui::Button::new(crate::i18n::t("Delete")).shortcut_text(self.settings.key_label("delete"))).clicked() {
                     self.menu_apply(MenuAct::Delete);
                 }
-                if ui.add(egui::Button::new(crate::i18n::t("Снять выделение")).shortcut_text("Esc")).clicked() {
+                if ui.add(egui::Button::new(crate::i18n::t("Clear selection")).shortcut_text("Esc")).clicked() {
                     self.menu_apply(MenuAct::Deselect);
                 }
                 ui.separator();
-                if ui.button(crate::i18n::t("Настройки…")).clicked() {
+                if ui.button(crate::i18n::t("Settings…")).clicked() {
                     self.drafting = true;
                 }
             });
-            ui.menu_button(crate::i18n::t("Вид"), |ui| {
-                for (label, pane) in [("3D", Pane::Model), ("Вид спереди", Pane::Front), ("Детали", Pane::Parts), ("Раскрой", Pane::Cut)] {
+            ui.menu_button(crate::i18n::t("View"), |ui| {
+                for (label, pane) in [("3D", Pane::Model), ("Front view", Pane::Front), ("Parts", Pane::Parts), ("Cutting", Pane::Cut)] {
                     if ui.button(crate::i18n::t(label)).clicked() {
                         self.start = false;
                         self.show_pane(pane);
                     }
                 }
-                if ui.button(crate::i18n::t("Начало")).clicked() {
+                if ui.button(crate::i18n::t("Start")).clicked() {
                     self.start = true;
                 }
                 ui.separator();
-                for (label, yaw, pitch) in [("Спереди", 0.0, 0.0), ("Слева", 90.0, 0.0), ("Сверху", 0.0, 89.9), ("Аксонометрия", crate::viewport::Camera::AXON.0, crate::viewport::Camera::AXON.1)] {
-                    if ui.button(crate::i18n::t(format!("Камера: {label}"))).clicked() {
+                for (label, yaw, pitch) in [("Front", 0.0, 0.0), ("Left", 90.0, 0.0), ("Top", 0.0, 89.9), ("Axonometric", crate::viewport::Camera::AXON.0, crate::viewport::Camera::AXON.1)] {
+                    if ui.button(crate::i18n::t(format!("Camera: {label}"))).clicked() {
                         self.viewport.set_view(yaw, pitch);
                         self.show_pane(Pane::Model);
                     }
                 }
-                if ui.button(crate::i18n::t("Показать всё")).clicked() {
+                if ui.button(crate::i18n::t("Zoom to fit")).clicked() {
                     self.viewport.refit();
                 }
-                ui.checkbox(&mut self.quad, crate::i18n::t("4 окна"));
-                if ui.checkbox(&mut self.show_doors, crate::i18n::t("Двери и фасады")).changed() {
+                ui.checkbox(&mut self.quad, crate::i18n::t("4 views"));
+                if ui.checkbox(&mut self.show_doors, crate::i18n::t("Doors and fronts")).changed() {
                     self.revision += 1;
                 }
                 ui.separator();
@@ -189,26 +193,26 @@ impl App {
                     ui.radio_value(&mut self.viewport.mode, mode, crate::i18n::t(label));
                 }
             });
-            ui.menu_button(crate::i18n::t("Вставка"), |ui| {
+            ui.menu_button(crate::i18n::t("Insert"), |ui| {
                 let can_add = editable && self.session.as_ref().is_some_and(|s| !s.project.materials.is_empty());
-                for (kind, label) in [("cabinet", "Напольный корпус"), ("wall", "Навесной корпус"), ("corner", "Угловой модуль"), ("countertop", "Столешница"), ("panel", "Отдельная панель")] {
+                for (kind, label) in [("cabinet", "Floor cabinet"), ("wall", "Wall cabinet"), ("corner", "Corner unit"), ("countertop", "Countertop"), ("panel", "Free panel")] {
                     if ui.add_enabled(can_add, egui::Button::new(crate::i18n::t(label))).clicked() {
                         self.add_object(kind);
                     }
                 }
                 ui.separator();
-                for (plane, label) in [("horizontal", "Полка в проём"), ("vertical", "Перегородка в проём"), ("front", "Фронтальная панель в проём"), ("door", "Дверь в проём"), ("drawers", "Ящики в проём")] {
+                for (plane, label) in [("horizontal", "Shelf into an opening"), ("vertical", "Partition into an opening"), ("front", "Front panel into an opening"), ("door", "Door into an opening"), ("drawers", "Drawers into an opening")] {
                     if ui.add_enabled(can_add, egui::Button::new(crate::i18n::t(label))).clicked() {
                         self.toggle_fill(plane);
                     }
                 }
                 ui.separator();
-                if ui.button(crate::i18n::t("Фурнитура из библиотеки…")).clicked() {
+                if ui.button(crate::i18n::t("Hardware from the library…")).clicked() {
                     self.show_pane(Pane::Library);
                 }
             });
-            ui.menu_button(crate::i18n::t("Изменить"), |ui| {
-                for (m, label) in [(Modify::Move, "Сдвинуть"), (Modify::Copy, "Копировать"), (Modify::Rotate, "Повернуть"), (Modify::Mirror, "Отразить"), (Modify::MirrorCopy, "Зеркальная копия")] {
+            ui.menu_button(crate::i18n::t("Modify"), |ui| {
+                for (m, label) in [(Modify::Move, "Move"), (Modify::Copy, "Copy"), (Modify::Rotate, "Rotate"), (Modify::Mirror, "Mirror"), (Modify::MirrorCopy, "Mirror copy")] {
                     if ui.add_enabled(editable && selected, egui::Button::new(crate::i18n::t(label))).clicked() {
                         self.fill = None;
                         self.modify = Some(m);
@@ -216,26 +220,26 @@ impl App {
                     }
                 }
                 ui.separator();
-                if ui.add_enabled(editable && selected, egui::Button::new(crate::i18n::t("Собрать в блок"))).clicked() {
+                if ui.add_enabled(editable && selected, egui::Button::new(crate::i18n::t("Group into block"))).clicked() {
                     self.menu_apply(MenuAct::Block);
                 }
-                if ui.add_enabled(editable && selected, egui::Button::new(crate::i18n::t("Разрушить"))).clicked() {
+                if ui.add_enabled(editable && selected, egui::Button::new(crate::i18n::t("Explode"))).clicked() {
                     self.menu_apply(MenuAct::Explode);
                 }
             });
-            ui.menu_button(crate::i18n::t("Сервис"), |ui| {
-                if ui.button(crate::i18n::t("Анализ модели")).clicked() {
+            ui.menu_button(crate::i18n::t("Utilities"), |ui| {
+                if ui.button(crate::i18n::t("Model analysis")).clicked() {
                     self.analyze();
                 }
-                if ui.add_enabled(editable, egui::Button::new(crate::i18n::t("Выполнить скрипт Базиса…"))).clicked() {
+                if ui.add_enabled(editable, egui::Button::new(crate::i18n::t("Run a Bazis script…"))).clicked() {
                     self.pick_script();
                 }
             });
-            ui.menu_button(crate::i18n::t("Справка"), |ui| {
-                if ui.button(crate::i18n::t("Как пользоваться программой")).clicked() {
+            ui.menu_button(crate::i18n::t("Help"), |ui| {
+                if ui.button(crate::i18n::t("How to use the program")).clicked() {
                     self.help = true;
                 }
-                if ui.button(crate::i18n::t("О программе")).clicked() {
+                if ui.button(crate::i18n::t("About")).clicked() {
                     self.about = true;
                 }
             });
@@ -253,12 +257,12 @@ impl App {
             ui.painter().rect_filled(plus, 2.0, t.control_hover);
         }
         ui.painter().text(plus.center(), egui::Align2::CENTER_CENTER, "+", egui::FontId::proportional(16.0), t.text);
-        if resp.on_hover_text(crate::i18n::t("Новый проект")).clicked() {
+        if resp.on_hover_text(crate::i18n::t("New project")).clicked() {
             self.new_project();
         }
         x += 26.0;
         // "Start" plus one tab per open project; "*" means unsaved changes.
-        let mut tabs: Vec<(String, Option<usize>, f32)> = vec![(crate::i18n::t("Начало"), None, 110.0)];
+        let mut tabs: Vec<(String, Option<usize>, f32)> = vec![(crate::i18n::t("Start"), None, 110.0)];
         for i in 0..self.docs.len() {
             let (title, dirty) = if i == self.active { (self.doc_title(), self.dirty) } else { (self.docs[i].title(), self.docs[i].dirty) };
             tabs.push((format!("{title}{}", if dirty { " *" } else { "" }), Some(i), 180.0));
@@ -285,7 +289,7 @@ impl App {
                     ui.painter().rect_filled(cr, 2.0, t.control_hover);
                 }
                 ui.painter().text(cr.center(), egui::Align2::CENTER_CENTER, "×", egui::FontId::proportional(14.0), t.text);
-                if cresp.on_hover_text(crate::i18n::t("Закрыть")).clicked() {
+                if cresp.on_hover_text(crate::i18n::t("Close")).clicked() {
                     close = Some(i);
                 }
             }
@@ -314,15 +318,15 @@ impl App {
         p.rect_filled(left, 0.0, t.chrome_dark);
         p.rect_filled(egui::Rect::from_min_max(egui::pos2(left.right(), r.top()), r.max), 0.0, t.chrome);
         p.text(egui::pos2(left.left() + 34.0, left.top() + 70.0), egui::Align2::LEFT_CENTER, "dowel-craft", egui::FontId::proportional(28.0), t.text);
-        p.text(egui::pos2(left.left() + 34.0, left.top() + 98.0), egui::Align2::LEFT_CENTER, crate::i18n::t(format!("Версия {}", env!("CARGO_PKG_VERSION"))), egui::FontId::proportional(12.0), t.text_faint);
-        let sample = SAMPLES.iter().map(Path::new).find(|p| p.exists());
+        p.text(egui::pos2(left.left() + 34.0, left.top() + 98.0), egui::Align2::LEFT_CENTER, crate::i18n::t(format!("Version {}", env!("CARGO_PKG_VERSION"))), egui::FontId::proportional(12.0), t.text_faint);
+        let sample = sample();
         let mut y = left.top() + 140.0;
         let mut action = None;
-        let mut buttons = vec![("Открыть…", "open"), ("Новый проект", "new")];
+        let mut buttons = vec![("Open…", "open"), ("New project", "new")];
         if sample.is_some() {
-            buttons.push(("Открыть пример", "sample"));
+            buttons.push(("Open a sample", "sample"));
         }
-        buttons.push(("Как пользоваться", "help"));
+        buttons.push(("How to use", "help"));
         for (label, cmd) in buttons {
             let br = egui::Rect::from_min_size(egui::pos2(left.left() + 34.0, y), egui::vec2(220.0, 34.0));
             let resp = ui.interact(br, ui.id().with(("start", cmd)), egui::Sense::click());
@@ -334,7 +338,7 @@ impl App {
             y += 44.0;
         }
         let main = egui::Rect::from_min_max(egui::pos2(left.right() + 36.0, r.top() + 40.0), r.max);
-        p.text(main.min, egui::Align2::LEFT_TOP, crate::i18n::t("Последние"), egui::FontId::proportional(22.0), t.text);
+        p.text(main.min, egui::Align2::LEFT_TOP, crate::i18n::t("Recent"), egui::FontId::proportional(22.0), t.text);
         let list = recent();
         let mut open = None;
         let mut y = main.top() + 44.0;
@@ -358,8 +362,8 @@ impl App {
             }
         }
         if list.is_empty() {
-            p.text(main.center(), egui::Align2::CENTER_CENTER, crate::i18n::t("Здесь пока ничего нет."), egui::FontId::proportional(18.0), t.text);
-            p.text(main.center() + egui::vec2(0.0, 26.0), egui::Align2::CENTER_CENTER, crate::i18n::t("Чтобы начать, создайте или откройте проект."), egui::FontId::proportional(14.0), t.text_dim);
+            p.text(main.center(), egui::Align2::CENTER_CENTER, crate::i18n::t("There is nothing here yet."), egui::FontId::proportional(18.0), t.text);
+            p.text(main.center() + egui::vec2(0.0, 26.0), egui::Align2::CENTER_CENTER, crate::i18n::t("To get started, create or open a project."), egui::FontId::proportional(14.0), t.text_dim);
         }
         ui.allocate_rect(r, egui::Sense::hover());
         if let Some(path) = open {
@@ -375,7 +379,7 @@ impl App {
             }
             Some("sample") => {
                 if let Some(s) = sample {
-                    self.open(s.to_path_buf());
+                    self.open(s);
                 }
             }
             Some("help") => self.help = true,
@@ -394,10 +398,11 @@ impl App {
         let before = self.settings.grid;
         let mut open = self.drafting;
         let mut language = None;
-        egui::Window::new(crate::i18n::t("Настройки")).id(egui::Id::new("settings_window")).open(&mut open).resizable(false).show(ctx, |ui| {
-            ui.heading("Язык / Language");
+        egui::Window::new(crate::i18n::t("Settings")).id(egui::Id::new("settings_window")).open(&mut open).resizable(false).show(ctx, |ui| {
+            ui.heading(crate::i18n::t("Language"));
             ui.horizontal(|ui| {
-                for (code, label) in [("ru", "Русский"), ("en", "English")] {
+                // Each language by its own name, whatever the current one.
+                for (code, label) in [("en", "English".to_string()), ("ru", dowel::i18n::ru("Russian"))] {
                     if ui.radio(self.settings.language == code, label).clicked() {
                         language = Some(code);
                     }
@@ -405,17 +410,17 @@ impl App {
             });
             ui.separator();
             let g = &mut self.settings.grid;
-            ui.heading(crate::i18n::t("Сетка"));
-            ui.checkbox(&mut g.on, crate::i18n::t("Сетка включена"));
+            ui.heading(crate::i18n::t("Grid"));
+            ui.checkbox(&mut g.on, crate::i18n::t("Grid on"));
             ui.horizontal(|ui| {
-                ui.label(crate::i18n::t("Шаг сетки"));
-                ui.add(egui::DragValue::new(&mut g.step).speed(1.0).range(1.0..=1000.0).suffix(crate::i18n::t(" мм")));
-                ui.label(crate::i18n::t("Основная линия каждые"));
+                ui.label(crate::i18n::t("Grid spacing"));
+                ui.add(egui::DragValue::new(&mut g.step).speed(1.0).range(1.0..=1000.0).suffix(crate::i18n::t(" mm")));
+                ui.label(crate::i18n::t("Major line every"));
                 ui.add(egui::DragValue::new(&mut g.major).range(1..=100));
             });
-            ui.weak(crate::i18n::t("При отдалении шаг сам укрупняется в 5 раз, чтобы линии не сливались."));
+            ui.weak(crate::i18n::t("When zoomed out the spacing grows 5× so lines do not merge."));
             ui.separator();
-            ui.heading(crate::i18n::t("Горячие клавиши"));
+            ui.heading(crate::i18n::t("Hotkeys"));
             // Waiting for a new shortcut: Esc cancels, Backspace unbinds the key.
             if let Some(id) = self.key_capture {
                 let hit = ui.input_mut(|i| {
@@ -446,24 +451,24 @@ impl App {
                     ui.label(crate::i18n::t(title));
                     let label = self.settings.key_label(id);
                     let text = if self.key_capture == Some(id) {
-                        crate::i18n::t("нажмите сочетание…")
+                        crate::i18n::t("press a combination…")
                     } else if label.is_empty() {
-                        crate::i18n::t("не назначено")
+                        crate::i18n::t("not set")
                     } else {
                         label.clone()
                     };
-                    if ui.selectable_label(self.key_capture == Some(id), text).on_hover_text(crate::i18n::t("Щёлкните и нажмите новое сочетание. Esc — отмена, Backspace — снять клавишу")).clicked() {
+                    if ui.selectable_label(self.key_capture == Some(id), text).on_hover_text(crate::i18n::t("Click and press a new combination. Esc cancels, Backspace clears")).clicked() {
                         self.key_capture = Some(id);
                     }
                     let twin = crate::keys::ACTIONS.iter().find(|(o, ..)| o != id && !label.is_empty() && self.settings.key_label(o) == label);
                     match twin {
-                        Some((_, other, _)) => ui.colored_label(egui::Color32::from_rgb(230, 90, 80), crate::i18n::t(format!("то же у «{other}»"))),
+                        Some((_, other, _)) => ui.colored_label(egui::Color32::from_rgb(230, 90, 80), crate::i18n::t(format!("same as “{other}”"))),
                         None => ui.label(""),
                     };
                     ui.end_row();
                 }
             });
-            if ui.button(crate::i18n::t("Все клавиши по умолчанию")).clicked() {
+            if ui.button(crate::i18n::t("Reset all keys")).clicked() {
                 self.settings.keys.clear();
                 self.settings.save();
             }
@@ -480,14 +485,14 @@ impl App {
         if self.settings.grid != before {
             self.settings.save();
         }
-        egui::Window::new(crate::i18n::t("Как пользоваться dowel-craft")).open(&mut self.help).default_size([620.0, 640.0]).vscroll(true).show(ctx, |ui| {
-            markdown(ui, if crate::i18n::english() { HELP_EN } else { HELP });
+        egui::Window::new(crate::i18n::t("How to use dowel-craft")).open(&mut self.help).default_size([620.0, 640.0]).vscroll(true).show(ctx, |ui| {
+            markdown(ui, if !crate::i18n::russian() { HELP_EN } else { HELP });
         });
-        egui::Window::new(crate::i18n::t("О программе")).open(&mut self.about).resizable(false).collapsible(false).show(ctx, |ui| {
+        egui::Window::new(crate::i18n::t("About")).open(&mut self.about).resizable(false).collapsible(false).show(ctx, |ui| {
             ui.heading("dowel-craft");
-            ui.label(crate::i18n::t(format!("Версия {}", env!("CARGO_PKG_VERSION"))));
-            ui.label(crate::i18n::t("Проектирование корпусной мебели, совместимое с Базис-Мебельщиком: .b3d, XML для БАЗИС-Раскроя, карты раскроя, спецификация."));
-            ui.weak(crate::i18n::t("Иконки и оболочка — по образцу cadcraft (storytold), см. NOTICE.md."));
+            ui.label(crate::i18n::t(format!("Version {}", env!("CARGO_PKG_VERSION"))));
+            ui.label(crate::i18n::t("Cabinet furniture design compatible with Bazis-Mebelshchik: .b3d, XML for BAZIS-Cutting, cutting maps, specification."));
+            ui.weak(crate::i18n::t("Icons and window shell follow cadcraft (storytold), see NOTICE.md."));
         });
     }
 }

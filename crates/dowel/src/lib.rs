@@ -9,6 +9,7 @@ pub mod fasteners;
 pub mod geom;
 pub mod job;
 pub mod library;
+pub mod i18n;
 pub mod live;
 pub mod mesh;
 pub mod nest;
