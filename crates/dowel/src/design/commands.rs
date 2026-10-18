@@ -55,7 +55,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("door.add", "{at: [x, y] a point in the opening in the front view, material, mount?: overlay|half|inset (overlay by default), double?: true, gap?: 2, edge?, hinges?: left|right|none} → {block id}. A door with hinges: a ⌀35 cup in the door, the plate in the side; the number of hinges depends on height"),
     ("drawers.add", "{at, material, heights: [fronts, bottom up], mount?: overlay|half|inset, gap?: 2, depth?: runner length, bottom?: bottom material, edge?} → {block id}. Drawers into an opening: boxes, fronts, runners with drilling in the sides"),
     ("furniture.add", "{path: a .fr3d file, position?: [x,y,z] min corner of the box, name?} → {id}. A hardware model: its holes go into the panels it touches; move it with object.move/rotate"),
-    ("fastener.def", "{name, holes: [{panel: a|b, at, at_t?, at_tb?, dir, diameter, depth, depth_t?}], offset, step, min, max} — a custom fastener for the catalogue (joint coordinates: X into panel b, Y along b's normal, Z along the joint)"),
+    ("fastener.def", "{name, holes: [{panel: a|b, at, at_t?, at_tb?, dir, diameter, depth, depth_t?}], offset, step, min, max, grid?: 32 — spacing a multiple of it, centred, rows?: [below, above] — spare holes in A} — a custom fastener for the catalogue (joint coordinates: X into panel b, Y along b's normal, Z along the joint)"),
     ("panel.set", "{id, name?, material?, frame?: {origin, x, y, z}, ...fields} — a panel of the object tree"),
     ("panel.remove", "{id}"),
     ("block.set", "{id, name?, frame?} — a block of the object tree"),
@@ -408,9 +408,15 @@ fn fastener_cmd(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String>
             if d.holes.is_empty() || !(d.step > 0.0 && d.offset >= 0.0 && d.min >= 1 && d.max >= d.min) {
                 return Err("fastener: holes, step > 0, offset ≥ 0, 1 ≤ min ≤ max are required".into());
             }
+            if !(d.grid >= 0.0 && d.grid.is_finite()) || d.rows.iter().any(|&r| r > 10) {
+                return Err("fastener: grid ≥ 0 and at most 10 spare holes each way are required".into());
+            }
+            // An existing entry is replaced where it is, so the catalogue keeps its order.
             let mut defs = pr.defs();
-            defs.retain(|x| x.name != d.name);
-            defs.push(d);
+            match defs.iter_mut().find(|x| x.name == d.name) {
+                Some(x) => *x = d,
+                None => defs.push(d),
+            }
             pr.fastener_defs = defs;
             Ok(Value::Null)
         }

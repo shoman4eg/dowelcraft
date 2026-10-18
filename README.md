@@ -88,6 +88,7 @@ The macOS archive also has `Dowel Craft.app`.
 
 ### Fasteners and hardware
 - **Fasteners** with drilling on both parts of every joint: confirmat screws, cam locks (Minifix), dowels, shelf supports, “Minifix + dowel”. The cam cup can face inside or outside the carcass.
+- **32 mm system:** spacing between fastener points is a multiple of 32 mm, centred on the joint; shelf supports get spare holes (2 below and 2 above, 32 mm apart) so a shelf can be moved.
 - **Hinges and drawer runners** come with doors and drawers, with their own drilling.
 - **Bazis hardware models** (`.fr3d`: baskets, hinges, handles, sockets) — a folder library with previews; their holes are drilled into the panels they touch.
 - **Drilling scheme** on the part drawings, with hole coordinates.

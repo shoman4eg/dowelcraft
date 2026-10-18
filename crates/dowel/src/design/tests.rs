@@ -393,17 +393,19 @@ fn cabinet_fasteners_drill_exactly() {
     let parts = build(&s.project).unwrap();
     let side = by_name(&parts, "Left side")[0];
     let bottom = by_name(&parts, "Bottom")[0];
-    // Joint of the bottom with the left side panel: length 600, points at 50 and 550 mm.
+    // Joint of the bottom with the left side panel: length 600; on the 32 mm grid 480 apart, centred: 60 and 540 mm.
     // Side panel: through ⌀8 from the outer face (z = 16 in side panel axes) at the height of the bottom's middle (88).
-    assert!(side.panel.holes.contains(&crate::panel::Hole { pos: [50.0, 88.0, 16.0], dir: [0.0, 0.0, -1.0], diameter: 8.0, depth: 16.0 }), "{:?}", side.panel.holes);
+    assert!(side.panel.holes.contains(&crate::panel::Hole { pos: [60.0, 88.0, 16.0], dir: [0.0, 0.0, -1.0], diameter: 8.0, depth: 16.0 }), "{:?}", side.panel.holes);
     // Bottom: ⌀5 × 37 into the edge, at mid-thickness.
-    assert!(bottom.panel.holes.contains(&crate::panel::Hole { pos: [0.0, 50.0, 8.0], dir: [1.0, 0.0, 0.0], diameter: 5.0, depth: 37.0 }), "{:?}", bottom.panel.holes);
+    assert!(bottom.panel.holes.contains(&crate::panel::Hole { pos: [0.0, 60.0, 8.0], dir: [1.0, 0.0, 0.0], diameter: 5.0, depth: 37.0 }), "{:?}", bottom.panel.holes);
     // Shelves sit on shelf supports, 2 on each side.
     let shelf = by_name(&parts, "Shelf")[0];
     assert!(shelf.panel.holes.is_empty(), "a shelf support is drilled only in the upright");
-    // And below the shelf, not above it: the top of the ⌀5 hole is below the shelf's bottom face.
-    let supports: Vec<f64> = side.panel.holes.iter().filter(|h| h.diameter == 5.0 && h.depth == 9.0).map(|h| side.origin[1] + h.pos[1]).collect();
-    assert!(!supports.is_empty() && supports.iter().all(|&y| y + 2.5 <= shelf.origin[1] + 1e-9), "shelf supports {supports:?}, shelf bottom {}", shelf.origin[1]);
+    // Under the shelf (the top of the ⌀5 hole touches its bottom face), plus spare holes 32 and 64 mm below and above.
+    let mut supports: Vec<f64> = side.panel.holes.iter().filter(|h| h.diameter == 5.0 && h.depth == 9.0).map(|h| side.origin[1] + h.pos[1] - (shelf.origin[1] - 2.5)).collect();
+    supports.sort_by(f64::total_cmp);
+    supports.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
+    assert_eq!(supports, [-64.0, -32.0, 0.0, 32.0, 64.0], "shelf support heights from the shelf one");
     let hw = hardware(&s.project).unwrap();
     let count = |n: &str| hw.iter().find(|(k, _)| k.starts_with(n)).map_or(0, |r| r.1);
     assert_eq!(count("Shelf support"), 2 * 2 * 2);
@@ -413,6 +415,36 @@ fn cabinet_fasteners_drill_exactly() {
     assert!(crate::raskroy::project_string("Wardrobe", &panels, |_| (2800.0, 2070.0)).contains("<DRILLING>"));
     // An unknown fastener is rejected.
     assert!(s.execute("cabinet.set", &json!({"id": 1, "fastener": "Nail"})).is_err());
+}
+
+/// The 32 mm system: spacing is a multiple of 32 and the points are centred on the joint.
+#[test]
+fn fasteners_on_the_32_mm_grid() {
+    let lib = crate::fasteners::library();
+    let confirmat = lib.iter().find(|d| d.name == "Confirmat 7x50").unwrap();
+    for len in [300.0, 560.0, 600.0, 1234.0, 2000.0] {
+        let ps = crate::fasteners::positions(confirmat, len);
+        let gaps: Vec<f64> = ps.windows(2).map(|w| w[1] - w[0]).collect();
+        assert!(gaps.iter().all(|g| (g / 32.0).fract().abs() < 1e-9 && *g > 0.0), "{len}: {ps:?}");
+        assert!((ps[0] - (len - ps[ps.len() - 1])).abs() < 1e-9, "{len}: symmetric {ps:?}");
+        assert!(ps[0] >= confirmat.offset - 1e-9, "{len}: not closer to the end than the offset {ps:?}");
+    }
+    // Two shelves 64 mm apart: their spare holes meet but are drilled once.
+    let mut s = wardrobe();
+    s.execute("cabinet.set", &json!({"id": 1, "fastener": "Confirmat 7x50"})).unwrap();
+    s.execute("shelf.add", &json!({"cabinet": 1, "height": 464, "section": 0})).unwrap();
+    let parts = build(&s.project).unwrap();
+    let side = by_name(&parts, "Left side")[0];
+    let mut seen = std::collections::HashSet::new();
+    for h in &side.panel.holes {
+        assert!(seen.insert(format!("{:?}{:?}{}", h.pos, h.dir, h.diameter)), "drilled twice: {h:?}");
+    }
+    let mut huge = serde_json::to_value(lib.iter().find(|d| d.name == "Shelf support 5").unwrap()).unwrap();
+    huge["rows"] = json!([1_000_000, 0]);
+    assert!(s.execute("fastener.def", &huge).is_err(), "a million spare holes");
+    // Without a grid (a custom catalogue from an older project): evenly between the offsets, as before.
+    let plain = crate::fasteners::Def { grid: 0.0, ..confirmat.clone() };
+    assert_eq!(crate::fasteners::positions(&plain, 600.0), vec![50.0, 550.0]);
 }
 
 /// Fasteners between separate panels: the joint is found automatically, no joint — rejected; panels moved apart — a "dangling" fastener.

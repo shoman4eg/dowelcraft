@@ -54,6 +54,8 @@ A free panel (the “Free panel” icon) can be placed in any of three planes, m
 ## Hardware and fasteners
 
 - **Fasteners** (confirmats, cam locks, dowels, shelf supports, “Minifix + dowel” — a cam lock with a dowel next to it): the “Fasteners” icon → choose the type below the palette → select a cabinet (or several free panels with Ctrl) → “Apply to selection”. Holes with coordinates appear on both parts of every joint. For cam locks choose the cup side there: “inside” the carcass (top of the bottom, underside of the top) or “outside”; applying again changes fasteners already placed. Shelf supports always go under the shelf.
+- **The 32 mm system** (on by default): spacing between fastener points is a multiple of 32 mm and the points are centred on the joint, as drilling heads need. Turn it off with “32 mm system” for the chosen fastener type.
+- **Spare shelf-support holes:** a shelf support gets 2 holes below and 2 above the shelf, 32 mm apart, so the shelf can be moved. Set the number in “Spare holes” (shown when a shelf support is chosen). Holes that would leave the upright are skipped.
 - **Hardware models** (.fr3d — baskets, hinges, locks, sockets): the “Hardware” palette, folders as on disk. “Place” puts the model to the right of the modules; then move it in “Properties”. Its holes land in the panels it touches.
 - Baltlaminat libraries and your own models are just folders with .fr3d files. Add folders with “+ Add folder…” in the “Hardware” palette; they are remembered.
 

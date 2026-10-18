@@ -793,7 +793,12 @@ fn drill(p: &Project, parts: &mut [Part]) -> Result<(), String> {
     for (def, j, at) in fastener_joints(p, parts)? {
         for s in at {
             for (i, h) in crate::fasteners::holes(&def, parts, &j, s)? {
-                parts[i].panel.holes.push(h);
+                // A spare shelf-support hole can fall on one already drilled (shelves a multiple of 32 mm apart).
+                let same = |o: &crate::panel::Hole| (0..3).all(|k| (o.pos[k] - h.pos[k]).abs() < 1e-6 && (o.dir[k] - h.dir[k]).abs() < 1e-9) && o.diameter == h.diameter;
+                match parts[i].panel.holes.iter_mut().find(|o| same(o)) {
+                    Some(o) => o.depth = o.depth.max(h.depth),
+                    None => parts[i].panel.holes.push(h),
+                }
             }
         }
     }

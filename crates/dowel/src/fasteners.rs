@@ -50,7 +50,26 @@ pub struct Def {
     /// What is bought per point if the fastener is composite (cam lock + dowel); empty — the fastener itself, 1 pc.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub items: Vec<(String, usize)>,
+    /// System pitch, mm (32): spacing between points is a multiple of it and the points are centred on the joint;
+    /// 0 — evenly between the end offsets.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub grid: f64,
+    /// Spare holes in panel A below and above each point, `grid` apart (a shelf can be moved); holes that would
+    /// leave the part are skipped.
+    #[serde(default, skip_serializing_if = "is_none2")]
+    pub rows: [usize; 2],
 }
+
+fn is_zero(v: &f64) -> bool {
+    *v == 0.0
+}
+
+fn is_none2(v: &[usize; 2]) -> bool {
+    *v == [0, 0]
+}
+
+/// The 32 mm system of drilling heads.
+pub const GRID: f64 = 32.0;
 
 fn h(panel: char, at: [f64; 3], dir: [f64; 3], diameter: f64, depth: f64) -> HoleDef {
     HoleDef { panel, at, at_t: [0.0; 3], at_tb: [0.0; 3], dir, diameter, depth, depth_t: 0.0, inward: false }
@@ -72,6 +91,8 @@ pub fn library() -> Vec<Def> {
             min: 2,
             max: 20,
             items: Vec::new(),
+            grid: GRID,
+            rows: [0, 0],
         },
         Def {
             name: "Minifix 15 cam".into(),
@@ -86,6 +107,8 @@ pub fn library() -> Vec<Def> {
             min: 2,
             max: 20,
             items: Vec::new(),
+            grid: GRID,
+            rows: [0, 0],
         },
         Def {
             name: "Dowel 8x30".into(),
@@ -95,6 +118,8 @@ pub fn library() -> Vec<Def> {
             min: 2,
             max: 30,
             items: Vec::new(),
+            grid: GRID,
+            rows: [0, 0],
         },
         Def {
             name: "Shelf support 5".into(),
@@ -105,6 +130,8 @@ pub fn library() -> Vec<Def> {
             min: 2,
             max: 2,
             items: Vec::new(),
+            grid: GRID,
+            rows: [2, 2],
         },
         Def {
             name: "Minifix 15 + dowel 8x30".into(),
@@ -121,6 +148,8 @@ pub fn library() -> Vec<Def> {
             min: 2,
             max: 20,
             items: vec![("Minifix 15 cam".into(), 1), ("Dowel 8x30".into(), 1)],
+            grid: GRID,
+            rows: [0, 0],
         },
     ]
 }
@@ -191,6 +220,12 @@ pub fn positions(def: &Def, len: f64) -> Vec<f64> {
         return vec![len / 2.0];
     }
     let n = (((span / def.step).ceil() as usize) + 1).clamp(def.min.max(2), def.max.max(2));
+    // On the system grid: the even spacing rounded down to the pitch, the whole set centred on the joint.
+    let pitch = if def.grid > 0.0 { (span / (n - 1) as f64 / def.grid + 1e-9).floor() * def.grid } else { 0.0 };
+    if pitch > 0.0 {
+        let start = (len - pitch * (n - 1) as f64) / 2.0;
+        return (0..n).map(|i| start + pitch * i as f64).collect();
+    }
     (0..n).map(|i| def.offset + span * i as f64 / (n - 1) as f64).collect()
 }
 
@@ -230,6 +265,19 @@ pub fn holes(def: &Def, parts: &[Part], jt: &Joint, s: f64) -> Result<Vec<(usize
             ));
         }
         out.push((idx, Hole { pos: local, dir: ld, diameter: hd.diameter, depth }));
+        // Spare holes in A along Y (B's normal: up for a shelf), a pitch apart; those leaving the part are skipped.
+        if hd.panel == 'a' && def.grid > 0.0 {
+            let shifts = (1..=def.rows[0]).map(|k| -(k as f64)).chain((1..=def.rows[1]).map(|k| k as f64));
+            for k in shifts {
+                let mut sa = at;
+                sa[1] += k * def.grid;
+                let local = f.local(world(sa)).map(clean);
+                let end: [f64; 3] = std::array::from_fn(|i| local[i] + ld[i] * depth);
+                if inside(local) && inside(end) {
+                    out.push((idx, Hole { pos: local, dir: ld, diameter: hd.diameter, depth }));
+                }
+            }
+        }
     }
     Ok(out)
 }

@@ -789,3 +789,10 @@ back panel groove: {} mm is narrower than the {} mm back panel	паз под з�
 Groove width	Ширина паза
 back panel + 1	стенка + 1
 groove: {} mm from edge {} goes outside the panel	паз: {} мм от торца {} выходит за панель
+32 mm system	Система 32 мм
+Spacing between points is a multiple of 32 mm and the points are centred on the joint, as drilling heads need	Шаг между точками кратен 32 мм, точки стоят по центру стыка — как нужно присадочным головкам
+Spare holes	Запасные отверстия
+below 	снизу 
+above 	сверху 
+Extra holes 32 mm apart under and over each shelf support, so the shelf can be moved	Дополнительные отверстия через 32 мм ниже и выше каждого полкодержателя — полку можно переставить
+fastener: grid ≥ 0 and at most 10 spare holes each way are required	крепёж: нужны сетка ≥ 0 и не больше 10 запасных отверстий в каждую сторону

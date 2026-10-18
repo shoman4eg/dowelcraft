@@ -363,6 +363,7 @@ impl App {
         let project = s.project.clone();
         ui.strong(crate::i18n::t("Fasteners"));
         let names = crate::editors::fastener_names(&project);
+        let mut cmds_def: Option<dowel::fasteners::Def> = None;
         crate::editors::props(ui, "fastener_params", |ui| {
             crate::editors::caption(ui, "Type");
             if let Some(Some(v)) = crate::editors::choose(ui, "fast_tool_kind", Some(&self.fastener_kind), &names, false) {
@@ -377,7 +378,38 @@ impl App {
             .response
             .on_hover_text(crate::i18n::t("Which face gets the ⌀15 cup: inside the carcass (top of the bottom, underside of the top) or outside. For free panels; “Apply” also changes fasteners already there"));
             ui.end_row();
+            // The chosen catalogue entry: the 32 mm system and spare holes (shelf supports); a change rewrites the entry in the project.
+            if let Ok(def) = project.def(&self.fastener_kind) {
+                let mut changed = def.clone();
+                crate::editors::caption(ui, "32 mm system").on_hover_text(crate::i18n::t("Spacing between points is a multiple of 32 mm and the points are centred on the joint, as drilling heads need"));
+                let mut on = def.grid > 0.0;
+                if ui.checkbox(&mut on, "").changed() {
+                    changed.grid = if on { dowel::fasteners::GRID } else { 0.0 };
+                }
+                ui.end_row();
+                // Spare holes make sense for a fastener drilled into the upright only (a shelf support).
+                let single = def.holes.len() == 1 && def.holes[0].panel == 'a';
+                if changed.grid > 0.0 && single {
+                    crate::editors::caption(ui, "Spare holes").on_hover_text(crate::i18n::t("Extra holes 32 mm apart under and over each shelf support, so the shelf can be moved"));
+                    ui.horizontal(|ui| {
+                        for k in 0..2 {
+                            let mut n = changed.rows[k];
+                            let r = crate::expr::add(ui, &mut n, |d| d.range(0..=10).fixed_decimals(0).prefix(crate::i18n::t(if k == 0 { "below " } else { "above " })));
+                            if (r.drag_stopped() || (r.changed() && !r.dragged())) && n != def.rows[k] {
+                                changed.rows[k] = n;
+                            }
+                        }
+                    });
+                    ui.end_row();
+                }
+                if changed != def {
+                    cmds_def = Some(changed);
+                }
+            }
         });
+        if let Some(d) = cmds_def.take() {
+            self.exec("fastener.def", serde_json::to_value(d).unwrap_or_default());
+        }
         ui.weak(crate::i18n::t("Select a cabinet (click any of its parts) or several free panels (Ctrl+click) and press “Apply”. Holes with coordinates appear on both parts of every joint."));
         let ids = self.targets();
         let go = ui.add_enabled(!ids.is_empty(), egui::Button::new(crate::i18n::t("Apply to selection"))).clicked();
