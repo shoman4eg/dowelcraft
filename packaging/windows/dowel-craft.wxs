@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  dowel-craft MSI (WiX Toolset v5 with the UI and Util extensions), built by the Release workflow:
+
+    wix build packaging/windows/dowel-craft.wxs -arch x64 -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext
+      -d Version=0.2.0 -d BinDir=<folder with the .exe files, LICENSE, NOTICE.md> -d IconPath=apps/gui/assets/icon.ico -o out.msi
+
+  Installs into Program Files\Dowel Craft (the folder can be changed), adds a Start menu shortcut,
+  opens .dcraft projects with a double click and puts the folder on PATH (dowel-craft, dowel-craft-mcp).
+  Adapted from SolidCraft (tangency-labs/solidcraft, MIT OR Apache-2.0).
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <!-- Never change the UpgradeCode: it lets a new MSI replace an installed older version. -->
+  <Package Name="Dowel Craft" Manufacturer="shoman4eg" Version="$(var.Version)"
+      UpgradeCode="69D890B1-80A9-4929-BBC5-98767FAAFFAA" Scope="perMachine" Compressed="yes">
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of Dowel Craft is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Advertised shortcuts to an .exe need an icon id ending in .exe (ICE50). -->
+    <Icon Id="DowelCraft.exe" SourceFile="$(var.IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="DowelCraft.exe" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/shoman4eg/dowelcraft" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Dowel Craft" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="Dowel Craft">
+      <ComponentGroupRef Id="Files" />
+    </Feature>
+
+    <!-- WixUI_InstallDir without the licence page (MIT: nothing to accept). -->
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <UI>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="2" Condition="NOT Installed" />
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApp"
+          Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+    </UI>
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Dowel Craft" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="[#GuiExe]" />
+    <!-- Runs in the unelevated wizard process, so the app starts as the user. -->
+    <CustomAction Id="LaunchApp" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixShellExec" Impersonate="yes" Return="ignore" />
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="Files" Directory="INSTALLFOLDER">
+      <Component Id="Gui">
+        <File Id="GuiExe" Source="$(var.BinDir)\dowel-craft-gui.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Dowel Craft"
+              Description="Cabinet furniture design" WorkingDirectory="INSTALLFOLDER" Advertise="yes"
+              Icon="DowelCraft.exe" IconIndex="0" />
+        </File>
+        <ProgId Id="DowelCraft.Project" Description="Dowel Craft project" Icon="GuiExe" IconIndex="0">
+          <Extension Id="dcraft" ContentType="application/x-dowel-craft">
+            <Verb Id="open" Command="Open" TargetFile="GuiExe" Argument="&quot;%1&quot;" />
+          </Extension>
+        </ProgId>
+        <Environment Id="Path" Name="PATH" Value="[INSTALLFOLDER]" Part="last" Action="set" System="yes" />
+      </Component>
+      <Component Id="Cli">
+        <File Source="$(var.BinDir)\dowel-craft.exe" KeyPath="yes" />
+      </Component>
+      <Component Id="Mcp">
+        <File Source="$(var.BinDir)\dowel-craft-mcp.exe" KeyPath="yes" />
+      </Component>
+      <!-- Several unversioned files: an explicit GUID (WIX0367). -->
+      <Component Id="Docs" Guid="3F0C9E2A-5B7D-4C1E-9A6B-2D8E4F1A7C35">
+        <File Id="License" Source="$(var.BinDir)\LICENSE" KeyPath="yes" />
+        <File Id="Notice" Source="$(var.BinDir)\NOTICE.md" />
+        <File Id="Readme" Source="$(var.BinDir)\README.md" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

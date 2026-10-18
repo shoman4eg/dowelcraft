@@ -22,3 +22,7 @@ craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "15ed713b8fc
 rfd = "0.17"
 png = "0.17"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+
+[build-dependencies]
+# Puts the icon into the Windows .exe (Explorer, taskbar, Start menu); does nothing on other systems.
+embed-resource = "3"

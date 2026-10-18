@@ -50,23 +50,24 @@ On macOS, `brew install --cask dowel-craft-app` also puts **Dowel Craft** with i
 
 **Or** download a build from [Releases](https://github.com/shoman4eg/dowelcraft/releases):
 
-| System | File |
-|---|---|
-| Linux x86_64 | `dowel-craft-linux-x86_64.tar.gz` |
-| macOS Apple Silicon (M1 and newer) | `dowel-craft-macos-arm64.tar.gz` |
-| macOS Intel | `dowel-craft-macos-x86_64.tar.gz` |
-| Windows x86_64 | `dowel-craft-windows-x86_64.zip` |
+| System | Installer | Archive |
+|---|---|---|
+| Windows x86_64 | `dowel-craft-windows-x86_64.msi` | `dowel-craft-windows-x86_64.zip` |
+| macOS Apple Silicon (M1 and newer) | `dowel-craft-macos-arm64.dmg` | `dowel-craft-macos-arm64.tar.gz` |
+| macOS Intel | `dowel-craft-macos-x86_64.dmg` | `dowel-craft-macos-x86_64.tar.gz` |
+| Linux x86_64 | — | `dowel-craft-linux-x86_64.tar.gz` |
 
-The archive contains three programs:
+- **Windows `.msi`:** installs into Program Files, adds Dowel Craft to the Start menu, opens `.dcraft` projects with a double click and puts `dowel-craft` and `dowel-craft-mcp` on `PATH`.
+- **macOS `.dmg`:** open it and drag Dowel Craft onto Applications.
+
+The archives need no installing. They contain three programs:
 - `dowel-craft-gui` — the window;
 - `dowel-craft` — the command line;
 - `dowel-craft-mcp` — the MCP server for AI.
 
-The macOS archive also has `Dowel Craft.app`: drag it to Applications.
+The macOS archive also has `Dowel Craft.app`.
 
-Nothing to install: unpack and run `dowel-craft-gui`.
-
-- **macOS:** builds are not signed, so the system blocks the first launch. Remove the quarantine flag: `xattr -dr com.apple.quarantine dowel-craft-macos-*` (or right-click → Open).
+- **macOS:** builds are not signed, so the system blocks the first launch. Right-click the app → Open, or remove the quarantine flag: `xattr -dr com.apple.quarantine "/Applications/Dowel Craft.app"` (for an archive: `xattr -dr com.apple.quarantine dowel-craft-macos-*`).
 - **Windows:** SmartScreen may warn about an unknown publisher — “More info” → “Run anyway”.
 - **Linux:** needs the usual desktop libraries (Wayland or X11, Vulkan/OpenGL), present on any graphical system.
 

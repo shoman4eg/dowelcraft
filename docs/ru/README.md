@@ -50,23 +50,24 @@ brew install dowel-craft
 
 **Или** готовые сборки — на странице [Releases](https://github.com/shoman4eg/dowelcraft/releases):
 
-| Система | Файл |
-|---|---|
-| Linux x86_64 | `dowel-craft-linux-x86_64.tar.gz` |
-| macOS Apple Silicon (M1 и новее) | `dowel-craft-macos-arm64.tar.gz` |
-| macOS Intel | `dowel-craft-macos-x86_64.tar.gz` |
-| Windows x86_64 | `dowel-craft-windows-x86_64.zip` |
+| Система | Установщик | Архив |
+|---|---|---|
+| Windows x86_64 | `dowel-craft-windows-x86_64.msi` | `dowel-craft-windows-x86_64.zip` |
+| macOS Apple Silicon (M1 и новее) | `dowel-craft-macos-arm64.dmg` | `dowel-craft-macos-arm64.tar.gz` |
+| macOS Intel | `dowel-craft-macos-x86_64.dmg` | `dowel-craft-macos-x86_64.tar.gz` |
+| Linux x86_64 | — | `dowel-craft-linux-x86_64.tar.gz` |
 
-В архиве три программы:
+- **Windows `.msi`:** ставит в Program Files, добавляет Dowel Craft в меню «Пуск», открывает проекты `.dcraft` двойным щелчком и добавляет `dowel-craft` и `dowel-craft-mcp` в `PATH`.
+- **macOS `.dmg`:** откройте и перетащите Dowel Craft в «Программы».
+
+Архивы ставить не нужно. В них три программы:
 - `dowel-craft-gui` — окно;
 - `dowel-craft` — командная строка;
 - `dowel-craft-mcp` — MCP-сервер для ИИ.
 
-В архиве для macOS есть ещё `Dowel Craft.app` — перетащите его в «Программы».
+В архиве для macOS есть ещё `Dowel Craft.app`.
 
-Ставить ничего не нужно: распакуйте и запустите `dowel-craft-gui`.
-
-- **macOS:** сборка не подписана, при первом запуске система её не пустит. Снимите карантин: `xattr -dr com.apple.quarantine dowel-craft-macos-*` (или правая кнопка → «Открыть»).
+- **macOS:** сборка не подписана, при первом запуске система её не пустит. Правая кнопка на приложении → «Открыть» или снимите карантин: `xattr -dr com.apple.quarantine "/Applications/Dowel Craft.app"` (для архива: `xattr -dr com.apple.quarantine dowel-craft-macos-*`).
 - **Windows:** SmartScreen может предупредить о неизвестном издателе — «Подробнее» → «Выполнить в любом случае».
 - **Linux:** нужны обычные библиотеки рабочего стола (Wayland или X11, Vulkan/OpenGL) — они есть в любой графической системе.
 

@@ -1,8 +1,11 @@
-# Заимствованный код
+# Borrowed code
 
-- **QuadFurn** (github.com/rbm13s/QuadFurn) — с разрешения автора. На момент заимствования у репозитория нет файла лицензии.
-  - `apps/gui/src/expr.rs` — вычисление выражений в числовых полях (`eval_math_expression`).
-  - `crates/dowel/src/pdf.rs` — шрифт TrueType для PDF (`PdfTrueTypeFont`, `ensure_ttf_bytes`) и сборка файла PDF.
-- **cadcraft / craft-libs** (github.com/storytold) — MIT OR Apache-2.0: оболочка окна `craft-ui` (git-зависимость).
-  - `apps/gui/src/icons.rs` — способ рисования иконок кодом (`Pen` на сетке 24×24) и часть рисунков (файл, отмена, сдвиг, копия, поворот, зеркало, удалить, блок, разрушить) — из `crates/ui-egui/src/icons.rs` cadcraft; мебельные иконки свои.
-  - `apps/gui/src/theme.rs` — цвета и отступы тёмной темы cadcraft (`crates/ui-egui/src/theme.rs`); `apps/gui/src/chrome.rs` — вид стартовой страницы и строки документов по образцу `crates/ui-egui/src/chrome.rs`.
+- **QuadFurn** (github.com/rbm13s/QuadFurn) — used with the author's permission. The repository had no license file at the time of borrowing.
+  - `apps/gui/src/expr.rs` — expression evaluation in number fields (`eval_math_expression`).
+  - `crates/dowel/src/pdf.rs` — TrueType font for PDF (`PdfTrueTypeFont`, `ensure_ttf_bytes`) and PDF file assembly.
+- **cadcraft / craft-libs** (github.com/storytold) — MIT OR Apache-2.0: the `craft-ui` window shell (git dependency).
+  - `apps/gui/src/icons.rs` — drawing icons in code (`Pen` on a 24×24 grid) and some of the pictures (file, undo, move, copy, rotate, mirror, delete, block, explode) from cadcraft's `crates/ui-egui/src/icons.rs`; the furniture icons are our own.
+  - `apps/gui/src/theme.rs` — colours and spacing of the cadcraft dark theme (`crates/ui-egui/src/theme.rs`); `apps/gui/src/chrome.rs` — start page and document bar modelled on `crates/ui-egui/src/chrome.rs`.
+- **SolidCraft** (github.com/tangency-labs/solidcraft) — MIT OR Apache-2.0: packaging modelled on SolidCraft's `packaging/`.
+  - `packaging/windows/dowel-craft.wxs` — MSI installer (WiX), modelled on `assets/platforms/windows/solidcraft.wxs`.
+  - `apps/gui/build.rs` — icon in the `.exe`; the `.dmg` step in `.github/workflows/release.yml` — modelled on `packaging/macos/package.sh`.

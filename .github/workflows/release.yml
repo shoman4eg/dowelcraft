@@ -45,9 +45,15 @@ jobs:
           cp target/${{ matrix.target }}/release/{dowel-craft-gui,dowel-craft,dowel-craft-mcp} README.md NOTICE.md LICENSE "$dir"/
           if [ "$RUNNER_OS" = macOS ]; then
             scripts/macos-app.sh target/${{ matrix.target }}/release/dowel-craft-gui "$(cargo pkgid -p dowel-craft-gui | sed 's/.*[#@]//')" "$dir"
+            # Disk image: the app and an Applications link to drag it onto.
+            # makehybrid + convert, not `create -srcfolder`, which is flaky on CI ("Resource busy").
+            stage=$(mktemp -d)
+            ditto "$dir/Dowel Craft.app" "$stage/Dowel Craft.app"
+            ln -s /Applications "$stage/Applications"
+            hdiutil makehybrid -hfs -hfs-volume-name "Dowel Craft" -hfs-openfolder "$stage" -o raw.dmg "$stage"
+            hdiutil convert raw.dmg -format UDZO -o "$dir.dmg"
           fi
           tar czf "$dir.tar.gz" "$dir"
-          echo "ASSET=$dir.tar.gz" >> "$GITHUB_ENV"
       - name: Archive (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -57,12 +63,26 @@ jobs:
           foreach ($b in "dowel-craft-gui", "dowel-craft", "dowel-craft-mcp") { Copy-Item "target/${{ matrix.target }}/release/$b.exe" $dir }
           Copy-Item README.md, NOTICE.md, LICENSE $dir
           Compress-Archive $dir "$dir.zip"
-          "ASSET=$dir.zip" | Out-File -Append $env:GITHUB_ENV
+      - name: Installer (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add -g WixToolset.UI.wixext/5.0.2 WixToolset.Util.wixext/5.0.2
+          $version = (cargo pkgid -p dowel-craft-gui) -replace '.*[#@]', ''
+          wix build packaging/windows/dowel-craft.wxs -arch x64 -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext `
+            -d "Version=$version" -d "BinDir=dowel-craft-${{ matrix.name }}" -d "IconPath=apps/gui/assets/icon.ico" `
+            -o "dowel-craft-${{ matrix.name }}.msi"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
-          path: ${{ env.ASSET }}
+          path: |
+            dowel-craft-*.tar.gz
+            dowel-craft-*.zip
+            dowel-craft-*.dmg
+            dowel-craft-*.msi
 
   release:
     needs: build
