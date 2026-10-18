@@ -430,6 +430,11 @@ impl Project {
         self.cabinets.iter_mut().filter_map(|c| c.fastener.as_mut()).for_each(rename);
         self.corners.iter_mut().filter_map(|c| c.fastener.as_mut()).for_each(rename);
         self.fasteners.iter_mut().for_each(|f| rename(&mut f.kind));
+        // A project that ever ran fastener.def keeps the whole catalogue, built-in names and parts of combined kinds included.
+        for d in &mut self.fastener_defs {
+            rename(&mut d.name);
+            d.items.iter_mut().for_each(|(n, _)| rename(n));
+        }
     }
 
     /// All panels of the object tree, depth-first.

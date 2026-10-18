@@ -38,11 +38,13 @@ fn main() -> eframe::Result {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
     // Language of commands and the MCP server: `--lang ru` or DOWEL_LANG=ru (the window keeps its own setting).
     dowel::i18n::from_env();
-    if let Some(i) = args.iter().position(|a| a == "--lang") {
-        if let Some(l) = args.get(i + 1) {
-            dowel::i18n::set_language(l);
-        }
-        args.drain(i..(i + 2).min(args.len()));
+    while let Some(i) = args.iter().position(|a| a == "--lang" || a.starts_with("--lang=")) {
+        let (lang, n) = match args[i].strip_prefix("--lang=") {
+            Some(l) => (l.to_string(), 1),
+            None => (args.get(i + 1).filter(|l| !l.starts_with('-')).cloned().unwrap_or_default(), 2),
+        };
+        dowel::i18n::set_language(&lang);
+        args.drain(i..(i + n).min(args.len()));
     }
     // One program: a command or `mcp` runs without a window; anything else (nothing, a file) opens the window.
     match args.first().map(String::as_str) {

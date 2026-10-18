@@ -651,3 +651,26 @@ fn panel_box_resizes_exactly() {
         assert!(s.execute("panel.box", &json!({"id": id, "lo": [0, 0, 0], "hi": [100, 100, 100]})).is_err(), "thickness does not match");
     }
 }
+
+/// A project saved with the Russian built-in catalogue (it once ran fastener.def) still opens, with shelf supports.
+#[test]
+fn legacy_fastener_catalogue_opens() {
+    let mut s = Session::new(Project::new("Legacy"));
+    s.execute("material.add", &json!({"name": "Chipboard 16", "thickness": 16})).unwrap();
+    s.execute("cabinet.add", &json!({"width": 600, "height": 720, "depth": 560, "material": "Chipboard 16", "fastener": "Confirmat 7x50"})).unwrap();
+    s.execute("shelf.add", &json!({"cabinet": 1, "height": 300})).unwrap();
+    let mut p = s.project.clone();
+    p.fastener_defs = crate::fasteners::library();
+    // Write it the way an old version did: every built-in name in Russian.
+    let old = |n: &str| crate::i18n::bazis(&format!("fastener.{n}")).to_string();
+    for d in &mut p.fastener_defs {
+        for (n, _) in &mut d.items {
+            *n = old(n);
+        }
+        d.name = old(&d.name);
+    }
+    p.cabinets[0].fastener = Some(old("Confirmat 7x50"));
+    let back = Project::load(&p.save()).expect("an old project opens");
+    assert_eq!(back.cabinets[0].fastener.as_deref(), Some("Confirmat 7x50"));
+    assert!(back.def("Shelf support 5").is_ok() && back.def("Minifix 15 + dowel 8x30").is_ok());
+}
