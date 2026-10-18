@@ -440,6 +440,8 @@ fn base64(data: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
+    // Нужно только тесту связи с окном (Unix): в Windows импорт без пользы — ошибка clippy.
+    #[cfg(unix)]
     use super::*;
 
     /// Подключение к окну: команды уходят в окно, чтение — с его проекта, project_new запрещён.
