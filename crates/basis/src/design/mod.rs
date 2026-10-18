@@ -360,6 +360,9 @@ pub struct FastenerInst {
     /// Точки вдоль стыка, мм от его начала; нет — по правилу крепежа (отступ и шаг).
     #[serde(default)]
     pub positions: Option<Vec<f64>>,
+    /// Чашка эксцентрика снаружи корпуса (по умолчанию — внутри).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub outside: bool,
 }
 
 impl Project {
@@ -713,7 +716,10 @@ pub fn fastener_joints(p: &Project, parts: &[Part]) -> Result<Vec<(crate::fasten
         let def = p.def(&f.kind)?;
         let find = |id: u32| parts.iter().position(|q| q.id == id);
         let (Some(a), Some(b)) = (find(f.a), find(f.b)) else { continue };
-        let Some(j) = crate::fasteners::joint(parts, a, b).or_else(|| crate::fasteners::joint(parts, b, a)) else { continue };
+        let Some(mut j) = crate::fasteners::joint(parts, a, b).or_else(|| crate::fasteners::joint(parts, b, a)) else { continue };
+        if f.outside {
+            j.inward = -j.inward;
+        }
         let at = f.positions.clone().unwrap_or_else(|| positions(&def, j.length));
         out.push((def, j, at));
     }

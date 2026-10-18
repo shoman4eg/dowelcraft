@@ -369,6 +369,14 @@ impl App {
                 self.fastener_kind = v;
             }
             ui.end_row();
+            crate::editors::caption(ui, "Чашка эксцентрика");
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut self.fastener_outside, false, crate::i18n::t("внутри"));
+                ui.selectable_value(&mut self.fastener_outside, true, crate::i18n::t("снаружи"));
+            })
+            .response
+            .on_hover_text(crate::i18n::t("С какой стороны панели сверлится чашка ⌀15: внутри корпуса (у дна — сверху, у крыши — снизу) или снаружи. У отдельных панелей; «Поставить» меняет и уже стоящий крепёж"));
+            ui.end_row();
         });
         ui.weak(crate::i18n::t("Выделите корпус (щелчок по любой его детали) или несколько отдельных панелей (Ctrl+щелчок) и нажмите «Поставить». Отверстия с координатами появятся на обеих деталях каждого стыка."));
         let ids = self.targets();
@@ -396,9 +404,16 @@ impl App {
         panels.dedup();
         let mut joints = 0;
         if panels.len() >= 2
-            && let Some(r) = self.exec_ret("fastener.auto", json!({ "kind": kind, "ids": panels }))
+            && let Some(r) = self.exec_ret("fastener.auto", json!({ "kind": kind, "ids": panels, "outside": self.fastener_outside }))
         {
             joints = r.get("ids").and_then(Value::as_array).map_or(0, Vec::len);
+        }
+        // Уже стоящий крепёж между выделенными панелями — на выбранную сторону.
+        let stale: Vec<u32> = self.session.as_ref().map_or(Vec::new(), |s| {
+            s.project.fasteners.iter().filter(|f| panels.contains(&f.a) && panels.contains(&f.b) && f.outside != self.fastener_outside).map(|f| f.id).collect()
+        });
+        for id in stale {
+            self.exec("fastener.set", json!({ "id": id, "outside": self.fastener_outside }));
         }
         self.status = crate::i18n::t(format!("Крепёж «{kind}»: корпусов {modules}, стыков панелей {joints}"));
         if modules == 0 && joints == 0 && self.error.is_none() {

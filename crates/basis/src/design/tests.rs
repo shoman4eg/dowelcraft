@@ -483,6 +483,36 @@ fn minifix_with_dowel() {
     assert_eq!(hardware(&s.project).unwrap(), vec![("Шкант 8х30".to_string(), 2), ("Эксцентрик Minifix 15".to_string(), 2)]);
 }
 
+/// Чашка эксцентрика — внутри корпуса: у дна сверху, у крыши снизу.
+#[test]
+fn minifix_cups_face_inside() {
+    let mut s = Session::new(Project::new("Тумба"));
+    s.execute("material.add", &json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
+    let id = |v: Value| v["id"].as_u64().unwrap() as u32;
+    let side = id(s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "vertical", "size": [500, 700], "position": [0, 0, 0]})).unwrap());
+    let top = id(s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "horizontal", "size": [600, 500], "position": [16, 684, 0]})).unwrap());
+    let bottom = id(s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "horizontal", "size": [600, 500], "position": [16, 0, 0]})).unwrap());
+    for b in [top, bottom] {
+        s.execute("fastener.add", &json!({"kind": "Эксцентрик Minifix 15", "a": side, "b": b})).unwrap();
+    }
+    let parts = build(&s.project).unwrap();
+    // Мировая высота входа чашки ⌀15.
+    let cups = |i: u32| -> Vec<f64> {
+        let p = parts.iter().find(|p| p.id == i).unwrap();
+        let f = p.panel.frame.unwrap();
+        p.panel.holes.iter().filter(|h| h.diameter == 15.0).map(|h| f.apply(h.pos)[1]).collect()
+    };
+    assert_eq!(cups(top), vec![684.0, 684.0], "крыша 684…700: чашка снизу");
+    assert_eq!(cups(bottom), vec![16.0, 16.0], "дно 0…16: чашка сверху");
+    // Настройка: у крыши чашку — наружу, наверх.
+    let f = s.project.fasteners.iter().find(|f| f.b == top).unwrap().id;
+    s.execute("fastener.set", &json!({"id": f, "outside": true})).unwrap();
+    let parts = build(&s.project).unwrap();
+    let p = parts.iter().find(|p| p.id == top).unwrap();
+    let up: Vec<f64> = p.panel.holes.iter().filter(|h| h.diameter == 15.0).map(|h| p.panel.frame.unwrap().apply(h.pos)[1]).collect();
+    assert_eq!(up, vec![700.0, 700.0], "чашка на верхней пласти крыши");
+}
+
 /// Фурнитура из библиотеки: отверстия садятся в прижатую панель; в смете — по названию; оторвали — анализ видит.
 #[test]
 fn furniture_drills_panels() {

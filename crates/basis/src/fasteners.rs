@@ -2,7 +2,7 @@
 //!
 //! Стык — торец панели B касается пласти панели A (схема «пласть – торец», табл. 28.1 руководства
 //! Базиса). У стыка своя система координат: начало — на плоскости касания, посередине толщины B;
-//! X — внутрь B, Y — по нормали B (к её лицевой пласти), Z — вдоль стыка. Отверстия крепежа заданы
+//! X — внутрь B, Y — по нормали B (к её лицевой пласти; у горизонтальной B — вверх), Z — вдоль стыка. Отверстия крепежа заданы
 //! в этой системе и зависят от толщин: координата = c + t·(коэф. толщины A) + tb·(коэф. толщины B).
 //! Размеры справочника сверены с крепежом из моделей Базиса (`Document/FurnList`).
 
@@ -28,6 +28,10 @@ pub struct HoleDef {
     /// Добавка к глубине на толщину A (сквозное через A — `depth: 0, depth_t: 1`).
     #[serde(default)]
     pub depth_t: f64,
+    /// По Y — внутрь корпуса (чашка эксцентрика): у крыши вниз, у дна вверх. Иначе Y как есть
+    /// (полкодержатель всегда под полкой).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub inward: bool,
 }
 
 /// Крепёж справочника.
@@ -49,7 +53,7 @@ pub struct Def {
 }
 
 fn h(panel: char, at: [f64; 3], dir: [f64; 3], diameter: f64, depth: f64) -> HoleDef {
-    HoleDef { panel, at, at_t: [0.0; 3], at_tb: [0.0; 3], dir, diameter, depth, depth_t: 0.0 }
+    HoleDef { panel, at, at_t: [0.0; 3], at_tb: [0.0; 3], dir, diameter, depth, depth_t: 0.0, inward: false }
 }
 
 /// Справочник по умолчанию.
@@ -73,8 +77,8 @@ pub fn library() -> Vec<Def> {
             name: "Эксцентрик Minifix 15".into(),
             holes: vec![
                 h('b', [0.0; 3], x, 8.0, 34.0),
-                // Чашка ⌀15×13 в пласти B в 34 мм от стыка, со стороны её лицевой пласти.
-                HoleDef { at_tb: [0.0, 0.5, 0.0], ..h('b', [34.0, 0.0, 0.0], ny, 15.0, 13.0) },
+                // Чашка ⌀15×13 в пласти B в 34 мм от стыка, с внутренней стороны корпуса.
+                HoleDef { at_tb: [0.0, 0.5, 0.0], inward: true, ..h('b', [34.0, 0.0, 0.0], ny, 15.0, 13.0) },
                 h('a', [0.0; 3], nx, 5.0, 13.0),
             ],
             offset: 50.0,
@@ -107,7 +111,7 @@ pub fn library() -> Vec<Def> {
             // В каждой точке — эксцентрик, рядом в 32 мм ближе к середине стыка — шкант.
             holes: vec![
                 h('b', [0.0; 3], x, 8.0, 34.0),
-                HoleDef { at_tb: [0.0, 0.5, 0.0], ..h('b', [34.0, 0.0, 0.0], ny, 15.0, 13.0) },
+                HoleDef { at_tb: [0.0, 0.5, 0.0], inward: true, ..h('b', [34.0, 0.0, 0.0], ny, 15.0, 13.0) },
                 h('a', [0.0; 3], nx, 5.0, 13.0),
                 h('b', [0.0, 0.0, 32.0], x, 8.0, 20.0),
                 h('a', [0.0, 0.0, 32.0], nx, 8.0, 13.0),
@@ -130,6 +134,8 @@ pub struct Joint {
     pub origin: [f64; 3],
     pub axes: [[f64; 3]; 3],
     pub length: f64,
+    /// Знак Y «внутрь корпуса» для `HoleDef::inward`: −1, если горизонтальная B выше середины A (крыша).
+    pub inward: f64,
 }
 
 const EPS: f64 = 1e-6;
@@ -174,7 +180,8 @@ pub fn joint(parts: &[Part], a: usize, b: usize) -> Option<Joint> {
     // Z — вдоль стыка в сторону роста координаты (точки отсчитываются от его начала); тройка может
     // быть и левой — для перевода координат это не важно.
     let (xa, ya, za) = (unit(k, sign), unit(m, ny), unit(j, 1.0));
-    Some(Joint { a, b, origin, axes: [xa, ya, za], length: j1 - j0 })
+    let inward = if m == 1 && blo[1] + bhi[1] > alo[1] + ahi[1] { -1.0 } else { 1.0 };
+    Some(Joint { a, b, origin, axes: [xa, ya, za], length: j1 - j0, inward })
 }
 
 /// Точки крепежа вдоль стыка длиной `len`: отступ от концов, шаг не больше `step`.
@@ -203,8 +210,13 @@ pub fn holes(def: &Def, parts: &[Part], jt: &Joint, s: f64) -> Result<Vec<(usize
         let f = p.panel.frame.ok_or("деталь без положения")?;
         let mut at: [f64; 3] = std::array::from_fn(|k| hd.at[k] + hd.at_t[k] * t + hd.at_tb[k] * tb);
         at[2] *= toward;
+        let mut dir = hd.dir;
+        if hd.inward {
+            at[1] *= jt.inward;
+            dir[1] *= jt.inward;
+        }
         let w = world(at);
-        let d = wdir(hd.dir);
+        let d = wdir(dir);
         let local = f.local(w).map(clean);
         let ld = [0, 1, 2].map(|i| clean(d[0] * [f.x, f.y, f.z][i][0] + d[1] * [f.x, f.y, f.z][i][1] + d[2] * [f.x, f.y, f.z][i][2]));
         let depth = hd.depth + hd.depth_t * t;

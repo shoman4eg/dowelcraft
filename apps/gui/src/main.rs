@@ -504,6 +504,8 @@ struct App {
     meshes: std::collections::HashMap<String, std::sync::Arc<Vec<basis::panel::Tri>>>,
     /// Крепёж для установки между панелями.
     fastener_kind: String,
+    /// Чашка эксцентрика снаружи корпуса (по умолчанию внутри).
+    fastener_outside: bool,
     /// Действие щелчка по схеме контура и его размер (радиус, катет фаски, радиус выреза), мм.
     contour_tool: (ContourTool, f64),
     screenshot: Option<PathBuf>,
@@ -563,6 +565,7 @@ impl Default for App {
             edging: (None, true, 0.0),
             contour_tool: (ContourTool::Edge, 50.0),
             fastener_kind: "Конфирмат 7х50".into(),
+            fastener_outside: false,
             library: Library::new(settings.library_dirs.clone()),
             script: None,
             problems: None,

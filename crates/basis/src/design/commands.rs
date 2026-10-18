@@ -44,8 +44,9 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("object.remove", "{ids} — удалить объекты"),
     ("block.create", "{ids, name?} → {id} — собрать панели и блоки в блок"),
     ("block.explode", "{id} — разрушить блок: содержимое выходит в корень проекта"),
-    ("fastener.add", "{kind: название крепежа, a, b: номера панелей со стыком (торец одной на пласти другой), positions?: [мм вдоль стыка]} → {id}. Отверстия с координатами появятся на обеих панелях; справочник по умолчанию: «Конфирмат 7х50», «Эксцентрик Minifix 15», «Шкант 8х30», «Полкодержатель 5»"),
-    ("fastener.auto", "{kind, ids?: [панели]} → {ids} — крепёж на все стыки панелей (как «Крепёж на стыки» в Базисе). У корпусов и угловых модулей — параметр fastener"),
+    ("fastener.add", "{kind: название крепежа, a, b: номера панелей со стыком (торец одной на пласти другой), positions?: [мм вдоль стыка], outside?: true — чашка эксцентрика снаружи} → {id}. Отверстия с координатами появятся на обеих панелях; справочник по умолчанию: «Конфирмат 7х50», «Эксцентрик Minifix 15», «Шкант 8х30», «Полкодержатель 5»"),
+    ("fastener.auto", "{kind, ids?: [панели], outside?: true} → {ids} — крепёж на все стыки панелей (как «Крепёж на стыки» в Базисе). У корпусов и угловых модулей — параметр fastener"),
+    ("fastener.set", "{id, outside?: true — чашка эксцентрика снаружи корпуса (по умолчанию внутри)}"),
     ("fastener.remove", "{id}"),
     ("door.add", "{at: [x, y] точка в проёме на виде спереди, material, mount?: overlay|half|inset (накладная по умолчанию), double?: true, gap?: 2, edge?, hinges?: left|right|none} → {id блока}. Дверь с петлями: чашка ⌀35 в двери, планка — в стойке; число петель по высоте"),
     ("drawers.add", "{at, material, heights: [фасады снизу вверх], mount?: overlay|half|inset, gap?: 2, depth?: длина направляющих, bottom?: материал дна, edge?} → {id блока}. Ящики в проём: короба, фасады, направляющие с присадкой в стойках"),
@@ -296,7 +297,7 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
             pr.objects.push(Object::Furniture(Furniture { id, name, kind: m.kind, source: path.to_string(), frame: Frame { origin, ..Frame::IDENTITY }, holes: m.holes, lo: m.lo, hi: m.hi }));
             return Ok(json!({ "id": id }));
         }
-        "fastener.add" | "fastener.remove" | "fastener.auto" | "fastener.def" => return fastener_cmd(pr, cmd, p),
+        "fastener.add" | "fastener.remove" | "fastener.set" | "fastener.auto" | "fastener.def" => return fastener_cmd(pr, cmd, p),
         "panel.contour" | "panel.corner" | "panel.cutout" | "panel.resize" | "panel.box" => return shape::command(pr, cmd, p),
         "object.move" | "object.rotate" | "object.mirror" | "object.copy" | "object.remove" | "block.create" | "block.explode" => return actions::command(pr, cmd, p),
         "cabinet.explode" | "corner.explode" | "countertop.explode" => return explode(pr, idx(p, "id")? as u32),
@@ -379,6 +380,14 @@ fn fastener_cmd(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String>
             pr.fastener_defs = defs;
             Ok(Value::Null)
         }
+        "fastener.set" => {
+            let id = idx(p, "id")? as u32;
+            let f = pr.fasteners.iter_mut().find(|f| f.id == id).ok_or_else(|| format!("нет крепежа {id}"))?;
+            if let Some(o) = p.get("outside") {
+                f.outside = o.as_bool().ok_or("outside: true или false")?;
+            }
+            Ok(Value::Null)
+        }
         "fastener.remove" => {
             let id = idx(p, "id")? as u32;
             let n = pr.fasteners.len();
@@ -400,12 +409,14 @@ fn fastener_cmd(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String>
                 None => None,
             };
             let id = pr.next_id();
-            pr.fasteners.push(FastenerInst { id, kind, a, b, positions });
+            let outside = p.get("outside").and_then(Value::as_bool).unwrap_or(false);
+            pr.fasteners.push(FastenerInst { id, kind, a, b, positions, outside });
             Ok(json!({ "id": id }))
         }
         _ => {
             // fastener.auto: на все стыки среди панелей `ids` (или всех панелей дерева).
             let kind = s(p, "kind")?.to_string();
+            let outside = p.get("outside").and_then(Value::as_bool).unwrap_or(false);
             pr.def(&kind)?;
             let parts = build(pr)?;
             let wanted: Option<Vec<u32>> = match p.get("ids") {
@@ -420,7 +431,7 @@ fn fastener_cmd(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String>
                     continue;
                 }
                 let id = pr.next_id();
-                pr.fasteners.push(FastenerInst { id, kind: kind.clone(), a, b, positions: None });
+                pr.fasteners.push(FastenerInst { id, kind: kind.clone(), a, b, positions: None, outside });
                 added.push(id);
             }
             Ok(json!({ "ids": added }))
