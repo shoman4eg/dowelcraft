@@ -2,8 +2,8 @@
   "mcpServers": {
     "dowel-craft": {
       "type": "stdio",
-      "command": "./target/release/dowel-craft-mcp",
-      "args": []
+      "command": "./target/release/dowel-craft",
+      "args": ["mcp"]
     }
   }
 }

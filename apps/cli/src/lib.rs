@@ -10,6 +10,10 @@ use dowel::report;
 
 const USAGE: &str = "dowel-craft — проектирование мебели и раскрой; читает модели Базис-Мебельщика
 
+  dowel-craft [файл]                                  окно (с файлом — открыть его)
+  dowel-craft mcp                                     MCP-сервер для ИИ (stdio)
+  dowel-craft --version                               версия
+
 Модель — файл Базиса .b3d или свой проект .dcraft:
   dowel-craft spec    <модель> [-o out.csv]           спецификация деталей
   dowel-craft cut     <модель> [-o карты.html] [--sheet 2800x2070] [--kerf 4] [--trim 10]
@@ -32,9 +36,18 @@ const USAGE: &str = "dowel-craft — проектирование мебели �
 
 Формат листа и коэффициент из проекта .dcraft используются, если не заданы --sheet и --coef.";
 
-fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    match run(&args) {
+/// Commands handled here (the first argument of `dowel-craft`); anything else opens the window.
+pub fn is_command(name: &str) -> bool {
+    matches!(name, "spec" | "cut" | "smeta" | "raskroy" | "dump" | "import" | "b3d" | "script" | "check" | "drawings" | "design" | "help" | "--help" | "-h")
+}
+
+/// Run a command: `args` without the program name.
+pub fn main(args: &[String]) -> ExitCode {
+    if matches!(args.first().map(String::as_str), Some("help" | "--help" | "-h")) {
+        println!("{USAGE}");
+        return ExitCode::SUCCESS;
+    }
+    match run(args) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("ошибка: {e}");

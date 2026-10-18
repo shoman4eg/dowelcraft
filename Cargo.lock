@@ -1013,20 +1013,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "dowel-craft-cli"
-version = "0.3.0"
-dependencies = [
- "dowel",
- "script",
- "serde_json",
-]
-
-[[package]]
-name = "dowel-craft-gui"
+name = "dowel-craft"
 version = "0.3.0"
 dependencies = [
  "craft-ui",
  "dowel",
+ "dowel-craft-cli",
+ "dowel-craft-mcp",
  "eframe",
  "egui",
  "embed-resource",
@@ -1039,6 +1032,19 @@ dependencies = [
  "serde_json",
  "widestring",
 ]
+
+[[package]]
+name = "dowel-craft-cli"
+version = "0.3.0"
+dependencies = [
+ "dowel",
+ "script",
+ "serde_json",
+]
+
+[[package]]
+name = "dowel-craft-console"
+version = "0.3.0"
 
 [[package]]
 name = "dowel-craft-mcp"

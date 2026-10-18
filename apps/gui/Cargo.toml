@@ -1,11 +1,11 @@
 [package]
-name = "dowel-craft-gui"
+name = "dowel-craft"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "dowel-craft-gui"
+name = "dowel-craft"
 path = "src/main.rs"
 
 [lints]
@@ -14,6 +14,8 @@ workspace = true
 [dependencies]
 dowel = { workspace = true }
 script = { path = "../../crates/script" }
+dowel-craft-cli = { path = "../cli" }
+dowel-craft-mcp = { path = "../mcp" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 eframe = "0.36"

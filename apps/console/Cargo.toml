@@ -1,0 +1,13 @@
+[package]
+name = "dowel-craft-console"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# Windows only in practice: shipped as dowel-craft.com next to dowel-craft.exe.
+[[bin]]
+name = "dowel-craft-console"
+path = "src/main.rs"
+
+[lints]
+workspace = true

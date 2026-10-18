@@ -35,6 +35,19 @@ use serde_json::{Value, json};
 
 fn main() -> eframe::Result {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // One program: a command or `mcp` runs without a window; anything else (nothing, a file) opens the window.
+    match args.first().map(String::as_str) {
+        Some("mcp") => {
+            dowel_craft_mcp::serve();
+            return Ok(());
+        }
+        Some("--version" | "-V") => {
+            println!("dowel-craft {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        Some(c) if dowel_craft_cli::is_command(c) => std::process::exit(if dowel_craft_cli::main(&args) == std::process::ExitCode::SUCCESS { 0 } else { 1 }),
+        _ => {}
+    }
     let screenshot = args.iter().position(|a| a == "--screenshot").and_then(|i| args.get(i + 1)).map(PathBuf::from);
     let tab = args.iter().position(|a| a == "--tab").and_then(|i| args.get(i + 1)).cloned();
     // 3D mode for screenshots: solid | hidden | wire | xray.

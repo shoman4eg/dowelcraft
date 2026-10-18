@@ -34,7 +34,7 @@ jobs:
           key: ${{ matrix.target }}
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev
-      - run: cargo build --release --locked --target ${{ matrix.target }} --bin dowel-craft-gui --bin dowel-craft --bin dowel-craft-mcp
+      - run: cargo build --release --locked --target ${{ matrix.target }} --bin dowel-craft --bin dowel-craft-console
 
       - name: Archive (Linux, macOS)
         if: runner.os != 'Windows'
@@ -42,9 +42,9 @@ jobs:
         run: |
           dir=dowel-craft-${{ matrix.name }}
           mkdir "$dir"
-          cp target/${{ matrix.target }}/release/{dowel-craft-gui,dowel-craft,dowel-craft-mcp} README.md NOTICE.md LICENSE "$dir"/
+          cp target/${{ matrix.target }}/release/dowel-craft README.md NOTICE.md LICENSE "$dir"/
           if [ "$RUNNER_OS" = macOS ]; then
-            scripts/macos-app.sh target/${{ matrix.target }}/release/dowel-craft-gui "$(cargo pkgid -p dowel-craft-gui | sed 's/.*[#@]//')" "$dir"
+            scripts/macos-app.sh target/${{ matrix.target }}/release/dowel-craft "$(cargo pkgid -p dowel-craft | sed 's/.*[#@]//')" "$dir"
             # Disk image: the app and an Applications link to drag it onto.
             # makehybrid + convert, not `create -srcfolder`, which is flaky on CI ("Resource busy").
             stage=$(mktemp -d)
@@ -60,7 +60,9 @@ jobs:
         run: |
           $dir = "dowel-craft-${{ matrix.name }}"
           New-Item -ItemType Directory $dir | Out-Null
-          foreach ($b in "dowel-craft-gui", "dowel-craft", "dowel-craft-mcp") { Copy-Item "target/${{ matrix.target }}/release/$b.exe" $dir }
+          Copy-Item "target/${{ matrix.target }}/release/dowel-craft.exe" $dir
+          # Console twin: in cmd/PowerShell `dowel-craft` picks the .com, so command output reaches the terminal.
+          Copy-Item "target/${{ matrix.target }}/release/dowel-craft-console.exe" "$dir/dowel-craft.com"
           Copy-Item README.md, NOTICE.md, LICENSE $dir
           Compress-Archive $dir "$dir.zip"
       - name: Installer (Windows)
@@ -69,7 +71,7 @@ jobs:
         run: |
           dotnet tool install --global wix --version 5.0.2
           wix extension add -g WixToolset.UI.wixext/5.0.2 WixToolset.Util.wixext/5.0.2
-          $version = (cargo pkgid -p dowel-craft-gui) -replace '.*[#@]', ''
+          $version = (cargo pkgid -p dowel-craft) -replace '.*[#@]', ''
           wix build packaging/windows/dowel-craft.wxs -arch x64 -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext `
             -d "Version=$version" -d "BinDir=dowel-craft-${{ matrix.name }}" -d "IconPath=apps/gui/assets/icon.ico" `
             -o "dowel-craft-${{ matrix.name }}.msi"

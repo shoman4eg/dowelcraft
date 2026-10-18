@@ -7,7 +7,8 @@ use serde_json::{Value, json};
 
 #[test]
 fn design_a_cabinet_over_mcp() {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_dowel-craft-mcp"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_dowel-craft"))
+        .arg("mcp")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()

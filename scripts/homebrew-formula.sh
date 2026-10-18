@@ -31,11 +31,11 @@ class DowelCraft < Formula
   end
 
   def install
-    bin.install "dowel-craft-gui", "dowel-craft", "dowel-craft-mcp"
+    bin.install "dowel-craft"
   end
 
   test do
-    assert_match "dowel-craft", shell_output("#{bin}/dowel-craft 2>&1", 1)
+    assert_match version.to_s, shell_output("#{bin}/dowel-craft --version")
   end
 end
 RUBY

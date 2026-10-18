@@ -12,7 +12,8 @@ use serde_json::{Value, json};
 
 const PROTOCOL: &str = "2025-06-18";
 
-fn main() {
+/// Serve MCP over stdin/stdout until the client goes away.
+pub fn serve() {
     let mut server = Server::default();
     let stdin = std::io::stdin();
     let mut out = std::io::stdout().lock();

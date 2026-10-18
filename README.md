@@ -44,7 +44,7 @@ brew trust shoman4eg/tap
 brew install dowel-craft
 ```
 
-This installs `dowel-craft-gui`, `dowel-craft` and `dowel-craft-mcp`; macOS does not block Homebrew installs, so no quarantine step is needed.
+This installs `dowel-craft`; macOS does not block Homebrew installs, so no quarantine step is needed.
 
 On macOS, `brew install --cask dowel-craft-app` also puts **Dowel Craft** with its icon into Applications and Launchpad. The app is not notarized yet; if macOS refuses to open it, run `xattr -dr com.apple.quarantine "/Applications/Dowel Craft.app"`.
 
@@ -57,14 +57,15 @@ On macOS, `brew install --cask dowel-craft-app` also puts **Dowel Craft** with i
 | macOS Intel | `dowel-craft-macos-x86_64.dmg` | `dowel-craft-macos-x86_64.tar.gz` |
 | Linux x86_64 | — | `dowel-craft-linux-x86_64.tar.gz` |
 
-- **Windows `.msi`:** installs into Program Files, adds Dowel Craft to the Start menu, opens `.dcraft` projects with a double click and puts `dowel-craft` and `dowel-craft-mcp` on `PATH`.
+- **Windows `.msi`:** installs into Program Files, adds Dowel Craft to the Start menu, opens `.dcraft` projects with a double click and puts `dowel-craft` on `PATH`.
 - **macOS `.dmg`:** open it and drag Dowel Craft onto Applications.
 
-The archives need no installing. They contain three programs:
-- `dowel-craft-gui` — the window;
-- `dowel-craft` — the command line;
-- `dowel-craft-mcp` — the MCP server for AI.
+The archives need no installing: unpack and run `dowel-craft`. It is one program:
+- `dowel-craft` or `dowel-craft project.dcraft` — the window;
+- `dowel-craft cut …`, `dowel-craft spec …` and the other commands — the command line;
+- `dowel-craft mcp` — the MCP server for AI.
 
+On Windows the archive also has `dowel-craft.com`: in a terminal `dowel-craft` runs it, so command output shows up there.
 The macOS archive also has `Dowel Craft.app`.
 
 - **macOS:** builds are not signed, so the system blocks the first launch. Right-click the app → Open, or remove the quarantine flag: `xattr -dr com.apple.quarantine "/Applications/Dowel Craft.app"` (for an archive: `xattr -dr com.apple.quarantine dowel-craft-macos-*`).
@@ -130,7 +131,7 @@ The macOS archive also has `Dowel Craft.app`.
 ## The window
 
 ```
-dowel-craft-gui [project.dcraft | model.b3d]
+dowel-craft [project.dcraft | model.b3d]
 ```
 
 - **Top** — a button bar (new, open, save, undo, export, analyze) and the menus.
@@ -193,12 +194,12 @@ dowel-craft cut wardrobe.dcraft
 
 ## MCP: design with AI
 
-`dowel-craft-mcp` is an MCP server (JSON-RPC over stdio). Claude Code picks it up automatically in this repository through `.mcp.json`.
+`dowel-craft mcp` runs an MCP server (JSON-RPC over stdio). Claude Code picks it up automatically in this repository through `.mcp.json`.
 
 Elsewhere, with Claude Code:
 
 ```sh
-claude mcp add dowel-craft -- dowel-craft-mcp
+claude mcp add dowel-craft -- dowel-craft mcp
 ```
 
 Other MCP clients take the same in their settings:
@@ -206,12 +207,14 @@ Other MCP clients take the same in their settings:
 ```json
 {
   "mcpServers": {
-    "dowel-craft": { "type": "stdio", "command": "dowel-craft-mcp", "args": [] }
+    "dowel-craft": { "type": "stdio", "command": "dowel-craft", "args": ["mcp"] }
   }
 }
 ```
 
-After a Homebrew install `dowel-craft-mcp` is on `PATH`; with a downloaded archive, use the full path to the file.
+After a Homebrew install or the Windows installer `dowel-craft` is on `PATH`; with a downloaded archive, use the full path to the file.
+
+Upgrading from 0.3 or older: the separate `dowel-craft-mcp` is gone. Re-add the server: `claude mcp remove dowel-craft`, then the command above.
 
 Tools:
 - `project_new`, `project_open`, `project_import`, `project_save`;
@@ -219,7 +222,7 @@ Tools:
 - `run_script` — a BAZIS-Script script on the project;
 - `parts`, `smeta`, `cut`, `export` (maps, Raskroy XML, CSV, drawings, `.b3d`);
 - `render_front`, `render_iso` — front view and 3D pictures (PNG);
-- `window_connect`, `window_disconnect` — work on the project open in the window: changes show up at once and Ctrl+Z in the window undoes them (Linux and macOS).
+- `window_connect`, `window_disconnect` — work on the project open in the window: changes show up at once and Ctrl+Z in the window undoes them.
 
 Example prompt: “build a kitchen: a 600 base unit with three drawers, an 800 sink unit with two doors, wall units above them and a countertop; show the view and the cutting”.
 
@@ -243,7 +246,7 @@ Requires Rust 1.95 or newer ([rustup.rs](https://rustup.rs)).
 cargo build --release
 ```
 
-The programs appear in `target/release/`: `dowel-craft-gui`, `dowel-craft`, `dowel-craft-mcp`.
+The program appears as `target/release/dowel-craft`.
 
 On Linux the window needs the `libxkbcommon` and `libwayland` headers (Debian/Ubuntu: `sudo apt install libxkbcommon-dev libwayland-dev`).
 
@@ -267,12 +270,11 @@ Some tests compare results with Bazis sample files kept in local `reference/` an
   - `job.rs` — “open → cut → documents” for the CLI and the window;
   - `live.rs` — the MCP link to the open window.
 - `crates/script` — the BAZIS-Script runtime (Boa engine).
-- `apps/gui` — the window (egui 0.36, 3D on wgpu).
-- `apps/cli` — the command line.
-- `apps/mcp` — the MCP server.
+- `apps/gui` — the `dowel-craft` program: the window (egui 0.36, 3D on wgpu); commands and `mcp` are handed to:
+  - `apps/cli` — the command line;
+  - `apps/mcp` — the MCP server.
+- `apps/console` — `dowel-craft.com` for Windows terminals.
 - `docs/` — user guide, the BAZIS-Raskroy XML format (`formats/raskroy-xml.md`), scripts.
-
-Most of the code comments and internal docs are in Russian.
 
 ## Releasing
 
@@ -281,8 +283,8 @@ GitHub Actions does the builds:
 - **Release** (`.github/workflows/release.yml`) — on a `v*` tag: builds for Linux, macOS (Apple Silicon and Intel), Windows, archives in a GitHub Release, and the Homebrew formula and cask in [shoman4eg/homebrew-tap](https://github.com/shoman4eg/homebrew-tap) (needs the `HOMEBREW_TAP_TOKEN` secret).
 
 ```sh
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 ## License

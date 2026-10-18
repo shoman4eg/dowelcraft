@@ -6,7 +6,7 @@
       -d Version=0.2.0 -d BinDir=<folder with the .exe files, LICENSE, NOTICE.md> -d IconPath=apps/gui/assets/icon.ico -o out.msi
 
   Installs into Program Files\Dowel Craft (the folder can be changed), adds a Start menu shortcut,
-  opens .dcraft projects with a double click and puts the folder on PATH (dowel-craft, dowel-craft-mcp).
+  opens .dcraft projects with a double click and puts the folder on PATH (`dowel-craft` in a terminal runs dowel-craft.com).
   Adapted from SolidCraft (tangency-labs/solidcraft, MIT OR Apache-2.0).
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
@@ -49,7 +49,7 @@
   <Fragment>
     <ComponentGroup Id="Files" Directory="INSTALLFOLDER">
       <Component Id="Gui">
-        <File Id="GuiExe" Source="$(var.BinDir)\dowel-craft-gui.exe" KeyPath="yes">
+        <File Id="GuiExe" Source="$(var.BinDir)\dowel-craft.exe" KeyPath="yes">
           <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Dowel Craft"
               Description="Cabinet furniture design" WorkingDirectory="INSTALLFOLDER" Advertise="yes"
               Icon="DowelCraft.exe" IconIndex="0" />
@@ -61,11 +61,9 @@
         </ProgId>
         <Environment Id="Path" Name="PATH" Value="[INSTALLFOLDER]" Part="last" Action="set" System="yes" />
       </Component>
-      <Component Id="Cli">
-        <File Source="$(var.BinDir)\dowel-craft.exe" KeyPath="yes" />
-      </Component>
-      <Component Id="Mcp">
-        <File Source="$(var.BinDir)\dowel-craft-mcp.exe" KeyPath="yes" />
+      <!-- Unversioned file as a key path: an explicit GUID (WIX0367). -->
+      <Component Id="Console" Guid="8C2B1F4E-6A3D-4E7B-9F10-5D2A7C9E3B61">
+        <File Id="ConsoleCom" Source="$(var.BinDir)\dowel-craft.com" KeyPath="yes" />
       </Component>
       <!-- Several unversioned files: an explicit GUID (WIX0367). -->
       <Component Id="Docs" Guid="3F0C9E2A-5B7D-4C1E-9A6B-2D8E4F1A7C35">

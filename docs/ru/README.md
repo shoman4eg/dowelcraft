@@ -44,7 +44,7 @@ brew trust shoman4eg/tap
 brew install dowel-craft
 ```
 
-Поставятся `dowel-craft-gui`, `dowel-craft` и `dowel-craft-mcp`. Программы из Homebrew macOS не блокирует, снимать карантин не нужно.
+Поставится `dowel-craft`. Программы из Homebrew macOS не блокирует, снимать карантин не нужно.
 
 На macOS команда `brew install --cask dowel-craft-app` ещё и кладёт **Dowel Craft** с иконкой в «Программы» и Launchpad. Приложение пока не заверено Apple; если macOS не даёт его открыть, выполните `xattr -dr com.apple.quarantine "/Applications/Dowel Craft.app"`.
 
@@ -57,14 +57,15 @@ brew install dowel-craft
 | macOS Intel | `dowel-craft-macos-x86_64.dmg` | `dowel-craft-macos-x86_64.tar.gz` |
 | Linux x86_64 | — | `dowel-craft-linux-x86_64.tar.gz` |
 
-- **Windows `.msi`:** ставит в Program Files, добавляет Dowel Craft в меню «Пуск», открывает проекты `.dcraft` двойным щелчком и добавляет `dowel-craft` и `dowel-craft-mcp` в `PATH`.
+- **Windows `.msi`:** ставит в Program Files, добавляет Dowel Craft в меню «Пуск», открывает проекты `.dcraft` двойным щелчком и добавляет `dowel-craft` в `PATH`.
 - **macOS `.dmg`:** откройте и перетащите Dowel Craft в «Программы».
 
-Архивы ставить не нужно. В них три программы:
-- `dowel-craft-gui` — окно;
-- `dowel-craft` — командная строка;
-- `dowel-craft-mcp` — MCP-сервер для ИИ.
+Архивы ставить не нужно: распакуйте и запустите `dowel-craft`. Это одна программа:
+- `dowel-craft` или `dowel-craft проект.dcraft` — окно;
+- `dowel-craft cut …`, `dowel-craft spec …` и другие команды — командная строка;
+- `dowel-craft mcp` — MCP-сервер для ИИ.
 
+На Windows в архиве есть ещё `dowel-craft.com`: в терминале `dowel-craft` запускает его, и вывод команд виден там.
 В архиве для macOS есть ещё `Dowel Craft.app`.
 
 - **macOS:** сборка не подписана, при первом запуске система её не пустит. Правая кнопка на приложении → «Открыть» или снимите карантин: `xattr -dr com.apple.quarantine "/Applications/Dowel Craft.app"` (для архива: `xattr -dr com.apple.quarantine dowel-craft-macos-*`).
@@ -130,7 +131,7 @@ brew install dowel-craft
 ## Окно программы
 
 ```
-dowel-craft-gui [проект.dcraft | модель.b3d]
+dowel-craft [проект.dcraft | модель.b3d]
 ```
 
 - **Вверху** — строка кнопок (новый, открыть, сохранить, отменить, экспорт, анализ) и меню.
@@ -193,12 +194,12 @@ dowel-craft cut шкаф.dcraft
 
 ## MCP — проектирование через ИИ
 
-`dowel-craft-mcp` — MCP-сервер (JSON-RPC через stdio). В Claude Code в папке этого репозитория он подключается сам файлом `.mcp.json`.
+`dowel-craft mcp` запускает MCP-сервер (JSON-RPC через stdio). В Claude Code в папке этого репозитория он подключается сам файлом `.mcp.json`.
 
 В другом месте, в Claude Code:
 
 ```sh
-claude mcp add dowel-craft -- dowel-craft-mcp
+claude mcp add dowel-craft -- dowel-craft mcp
 ```
 
 Другие MCP-клиенты — то же в настройках:
@@ -206,12 +207,14 @@ claude mcp add dowel-craft -- dowel-craft-mcp
 ```json
 {
   "mcpServers": {
-    "dowel-craft": { "type": "stdio", "command": "dowel-craft-mcp", "args": [] }
+    "dowel-craft": { "type": "stdio", "command": "dowel-craft", "args": ["mcp"] }
   }
 }
 ```
 
-После установки через Homebrew `dowel-craft-mcp` уже в `PATH`; если программа скачана архивом — укажите полный путь к файлу.
+После установки через Homebrew или установщиком Windows `dowel-craft` уже в `PATH`; если программа скачана архивом — укажите полный путь к файлу.
+
+Обновляетесь с 0.3 и старше: отдельного `dowel-craft-mcp` больше нет. Подключите сервер заново: `claude mcp remove dowel-craft`, затем команда выше.
 
 Инструменты:
 - `project_new`, `project_open`, `project_import`, `project_save`;
@@ -219,7 +222,7 @@ claude mcp add dowel-craft -- dowel-craft-mcp
 - `run_script` — скрипт BAZIS-Script над проектом;
 - `parts`, `smeta`, `cut`, `export` (карты, XML Раскроя, CSV, чертежи, `.b3d`);
 - `render_front`, `render_iso` — картинки вида спереди и 3D (PNG);
-- `window_connect`, `window_disconnect` — работать с проектом, открытым в окне: изменения видны сразу, Ctrl+Z в окне их отменяет (Linux и macOS).
+- `window_connect`, `window_disconnect` — работать с проектом, открытым в окне: изменения видны сразу, Ctrl+Z в окне их отменяет.
 
 Пример запроса: «создай кухню: нижний модуль 600 с тремя ящиками, под мойку 800 с двумя дверями, навесные над ними и столешницу; покажи вид и раскрой».
 
@@ -243,7 +246,7 @@ claude mcp add dowel-craft -- dowel-craft-mcp
 cargo build --release
 ```
 
-Программы появятся в `target/release/`: `dowel-craft-gui`, `dowel-craft`, `dowel-craft-mcp`.
+Программа появится в `target/release/dowel-craft`.
 
 В Linux для сборки окна понадобятся заголовки `libxkbcommon` и `libwayland` (Debian/Ubuntu: `sudo apt install libxkbcommon-dev libwayland-dev`).
 
@@ -267,9 +270,10 @@ cargo test --workspace
   - `job.rs` — «открыть → раскроить → документы» для CLI и окна;
   - `live.rs` — связь MCP с открытым окном.
 - `crates/script` — выполнение скриптов BAZIS-Script (движок Boa).
-- `apps/gui` — окно (egui 0.36, 3D на wgpu).
-- `apps/cli` — командная строка.
-- `apps/mcp` — MCP-сервер.
+- `apps/gui` — программа `dowel-craft`: окно (egui 0.36, 3D на wgpu); команды и `mcp` передаются в:
+  - `apps/cli` — командная строка;
+  - `apps/mcp` — MCP-сервер.
+- `apps/console` — `dowel-craft.com` для терминала Windows.
 - `docs/` — справка, формат XML БАЗИС-Раскроя (`formats/raskroy-xml.md`), скрипты.
 
 ## Выпуск версии
@@ -279,8 +283,8 @@ cargo test --workspace
 - **Release** (`.github/workflows/release.yml`) — по тегу `v*`: сборка под Linux, macOS (Apple Silicon и Intel), Windows, архивы в GitHub Release рецепт и cask Homebrew в [shoman4eg/homebrew-tap](https://github.com/shoman4eg/homebrew-tap) (нужен секрет `HOMEBREW_TAP_TOKEN`).
 
 ```sh
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 ## Лицензия

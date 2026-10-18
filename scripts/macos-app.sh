@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Builds "Dowel Craft.app" (window binary, Info.plist, icon) in DIR. macOS only: needs sips, iconutil, codesign.
-# Usage: scripts/macos-app.sh path/to/dowel-craft-gui VERSION DIR
+# Builds "Dowel Craft.app" (the program, Info.plist, icon) in DIR. macOS only: needs sips, iconutil, codesign.
+# Usage: scripts/macos-app.sh path/to/dowel-craft VERSION DIR
 set -euo pipefail
 bin=$1 version=$2 dir=$3
 app="$dir/Dowel Craft.app"
 icon="$(dirname "$0")/../apps/gui/assets/icon.png"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-cp "$bin" "$app/Contents/MacOS/dowel-craft-gui"
+cp "$bin" "$app/Contents/MacOS/dowel-craft"
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -26,7 +26,7 @@ cat > "$app/Contents/Info.plist" <<PLIST
   <key>CFBundleName</key><string>Dowel Craft</string>
   <key>CFBundleDisplayName</key><string>Dowel Craft</string>
   <key>CFBundleIdentifier</key><string>io.github.shoman4eg.dowelcraft</string>
-  <key>CFBundleExecutable</key><string>dowel-craft-gui</string>
+  <key>CFBundleExecutable</key><string>dowel-craft</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$version</string>
