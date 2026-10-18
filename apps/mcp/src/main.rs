@@ -39,12 +39,21 @@ struct Server {
     /// Открытая модель Базиса (только чтение) или собранный из проекта набор деталей.
     job: Job,
     path: Option<PathBuf>,
+    /// Подключено к открытому окну: команды идут в его вкладку, чтение — с её копии.
+    #[cfg(unix)]
+    live: Option<basis::live::Client>,
 }
 
 impl Default for Server {
     fn default() -> Self {
         let p = Project::new("Новый проект");
-        Server { job: Job::from_project(p.clone()), session: Some(Session::new(p)), path: None }
+        Server {
+            job: Job::from_project(p.clone()),
+            session: Some(Session::new(p)),
+            path: None,
+            #[cfg(unix)]
+            live: None,
+        }
     }
 }
 
@@ -58,6 +67,10 @@ fn text(s: impl Into<String>) -> Vec<Value> {
 fn tools() -> Value {
     let commands: String = design::COMMANDS.iter().map(|(n, h)| format!("\n- {n}: {h}")).collect();
     json!([
+        {"name": "window_connect", "description": "Подключиться к открытому окну basis-craft: дальше command, run_script и project_save меняют проект в активной вкладке окна (пользователь видит сразу, Ctrl+Z в окне отменяет), а parts, cut, render_*, export читают его. project_new/open/import недоступны до window_disconnect.",
+         "inputSchema": {"type": "object", "properties": {}}},
+        {"name": "window_disconnect", "description": "Отключиться от окна и снова работать со своей копией проекта.",
+         "inputSchema": {"type": "object", "properties": {}}},
         {"name": "project_new", "description": "Создать пустой проект мебели.",
          "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
         {"name": "project_open", "description": "Открыть свой проект .bcraft (можно править) или модель Базиса .b3d/.fr3d (только чтение).",
@@ -137,9 +150,73 @@ impl Server {
         }
     }
 
+    /// Работа с окном: команды и сохранение — туда, чтение — с его копии проекта.
+    #[cfg(unix)]
+    fn call_live(&mut self, name: &str, a: &Value) -> Option<ToolResult> {
+        let live = self.live.as_mut()?;
+        let r = match name {
+            "project_new" | "project_open" | "project_import" => Err("подключено к окну: сначала window_disconnect (или откройте файл в окне)".into()),
+            "command" => match a.get("command").and_then(Value::as_str) {
+                Some(cmd) => live.call(cmd, a.get("params").unwrap_or(&json!({}))).map(|out| text(if out.is_null() { "ok".into() } else { serde_json::to_string_pretty(&out).unwrap_or_default() })),
+                None => Err("нужен параметр «command»".into()),
+            },
+            "project_save" => live.call("save", &json!({ "path": a.get("path") })).map(|p| text(format!("Сохранено: {}", p.as_str().unwrap_or_default()))),
+            "window_connect" | "window_disconnect" => return None,
+            _ => {
+                // Чтение и скрипт — над свежей копией проекта окна.
+                match live.call("project.get", &json!({})).and_then(|v| Project::load(&v.to_string()).map(|p| (v, p))) {
+                    Err(e) => Err(e),
+                    Ok((base, p)) => {
+                        self.session = Some(Session::new(p));
+                        self.refresh();
+                        let r = self.call_local(name, a);
+                        // Итог скрипта — в окно, если там тот же проект, с которого начинали (`base`).
+                        match (name, &r, &self.session, &mut self.live) {
+                            ("run_script", Ok(_), Some(s), Some(live)) => live.call("project.replace", &json!({ "project": s.project.save(), "base": base })).and(r),
+                            _ => r,
+                        }
+                    }
+                }
+            }
+        };
+        // Окно закрыли — дальше работаем со своей копией.
+        if let Err(e) = &r
+            && e.starts_with("связь с окном")
+        {
+            self.live = None;
+            return Some(Err(format!("{e}. Отключено от окна, дальше — своя копия проекта.")));
+        }
+        Some(r)
+    }
+
     fn call(&mut self, name: &str, a: &Value) -> ToolResult {
+        #[cfg(unix)]
+        if let Some(r) = self.call_live(name, a) {
+            return r;
+        }
+        self.call_local(name, a)
+    }
+
+    fn call_local(&mut self, name: &str, a: &Value) -> ToolResult {
         let str_arg = |k: &str| a.get(k).and_then(Value::as_str).ok_or(format!("нужен параметр «{k}»"));
         match name {
+            #[cfg(unix)]
+            "window_connect" => {
+                let mut c = basis::live::Client::connect(&basis::live::socket_path())?;
+                let info = c.call("window.info", &json!({}))?;
+                self.live = Some(c);
+                Ok(text(format!(
+                    "Подключено к окну: вкладка «{}»{}{}. Команды идут в неё.",
+                    info["name"].as_str().unwrap_or_default(),
+                    info["path"].as_str().map(|p| format!(", файл {p}")).unwrap_or_default(),
+                    if info["editable"].as_bool() == Some(false) { " (модель Базиса только для просмотра — менять нельзя)" } else { "" }
+                )))
+            }
+            #[cfg(unix)]
+            "window_disconnect" => {
+                self.live = None;
+                Ok(text("Отключено от окна."))
+            }
             "project_new" => {
                 let p = Project::new(str_arg("name")?);
                 self.session = Some(Session::new(p));
@@ -363,6 +440,50 @@ fn base64(data: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    /// Подключение к окну: команды уходят в окно, чтение — с его проекта, project_new запрещён.
+    /// Окно изображает поток, который отвечает как `apps/gui/src/live.rs`.
+    #[cfg(unix)]
+    #[test]
+    fn window_mode_forwards_commands() {
+        use std::io::{BufRead, BufReader};
+        let dir = std::env::temp_dir().join(format!("basis-craft-mcp-live-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let sock = dir.join("w.sock");
+        let listener = std::os::unix::net::UnixListener::bind(&sock).unwrap();
+        let window = std::thread::spawn(move || {
+            let mut s = Session::new(Project::new("Окно"));
+            let (conn, _) = listener.accept().unwrap();
+            let mut out = conn.try_clone().unwrap();
+            let mut seen = Vec::new();
+            for line in BufReader::new(conn).lines() {
+                let v: Value = serde_json::from_str(&line.unwrap()).unwrap();
+                let cmd = v["command"].as_str().unwrap().to_string();
+                let r = match cmd.as_str() {
+                    "window.info" => Ok(json!({"name": "Окно", "path": null, "editable": true})),
+                    _ => s.execute(&cmd, &v["params"]),
+                };
+                seen.push(cmd);
+                let msg = match r { Ok(v) => json!({"ok": v}), Err(e) => json!({"error": e}) };
+                writeln!(out, "{msg}").unwrap();
+            }
+            (seen, s.project.materials.len())
+        });
+        let mut server = Server { live: Some(basis::live::Client::connect(&sock).unwrap()), ..Default::default() };
+        server.call("command", &json!({"command": "material.add", "params": {"name": "ЛДСП 16", "thickness": 16}})).unwrap();
+        assert!(server.call("project_new", &json!({"name": "x"})).is_err());
+        // Чтение — с проекта окна: материал есть, деталей нет.
+        let parts = server.call("parts", &json!({})).unwrap();
+        assert!(parts[0]["text"].as_str().unwrap().starts_with("№"));
+        assert_eq!(server.session.as_ref().unwrap().project.materials.len(), 1);
+        server.call("window_disconnect", &json!({})).unwrap();
+        let (seen, materials) = window.join().unwrap();
+        assert_eq!(seen, ["material.add", "project.get"]);
+        assert_eq!(materials, 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn base64_matches_rfc4648() {
         assert_eq!(super::base64(b""), "");

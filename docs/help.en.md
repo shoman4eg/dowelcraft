@@ -60,6 +60,10 @@ A free panel (the “Free panel” icon) can be placed in any of three planes, m
 - **Export .b3d** — a model for Bazis-Mebelshchik.
 - **Bazis scripts** (.js) — “Tools → Run a Bazis script”. Scripts that build and change the model work; script windows are shown.
 
+## Edits by an AI assistant (MCP)
+
+While the window is open, an AI assistant can connect to it (the `window_connect` tool of the basis-craft MCP server) and edit the project in the active tab: changes appear at once, Ctrl+Z undoes them, “*” reminds you to save. No need to save and reopen the file. Works on Linux and macOS.
+
 ## If something does not work
 
 - The reason of an error is shown in red at the bottom of the window.

@@ -10,6 +10,8 @@ mod expr;
 mod i18n;
 mod icons;
 mod library;
+#[cfg(unix)]
+mod live;
 mod settings;
 mod structure;
 mod textures;
@@ -89,9 +91,14 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "basis-craft",
         options,
-        Box::new(|cc| {
+        Box::new(move |cc| {
             // Тема cadcraft; подсказки к иконкам — почти сразу.
             theme::apply(&cc.egui_ctx);
+            // Команды MCP — в открытую вкладку (не для снимков).
+            #[cfg(unix)]
+            if app.screenshot.is_none() {
+                app.live = live::listen(&basis::live::socket_path(), cc.egui_ctx.clone());
+            }
             Ok(Box::new(app))
         }),
     )
@@ -503,6 +510,9 @@ struct App {
     frames: u32,
     /// На каком кадре снимать окно (`--frames`).
     shot_frames: u32,
+    /// Запросы MCP к открытой вкладке (`live`).
+    #[cfg(unix)]
+    live: Option<std::sync::mpsc::Receiver<live::Request>>,
     /// Детали изделия с положением (или ошибка сборки) — пересобираются в `refresh`.
     parts: Result<Vec<Part>, String>,
     /// Растёт при каждом изменении деталей или их видимости: окно модели перестраивает сетку.
@@ -563,6 +573,8 @@ impl Default for App {
             screenshot: None,
             frames: 0,
             shot_frames: 5,
+            #[cfg(unix)]
+            live: None,
             parts: Ok(Vec::new()),
             revision: 0,
             viewport: viewport::Viewport::default(),
@@ -718,17 +730,22 @@ impl App {
             (Some(p), false) if p.extension().is_some_and(|e| e == "bcraft") => Some(p.clone()),
             _ => rfd::FileDialog::new().add_filter("Проект basis-craft", &["bcraft"]).set_file_name(format!("{}.bcraft", s.project.name)).save_file(),
         };
-        if let Some(p) = path {
-            match std::fs::write(&p, s.project.save()) {
-                Ok(()) => {
-                    self.status = format!("Сохранено: {}", p.display());
-                    self.dirty = false;
-                    chrome::remember(&p);
-                    self.path = Some(p);
-                }
-                Err(e) => self.error = Some(format!("{}: {e}", p.display())),
-            }
+        if let Some(p) = path
+            && let Err(e) = self.save_to(p)
+        {
+            self.error = Some(e);
         }
+    }
+
+    /// Записать свой проект в файл; он становится файлом вкладки.
+    fn save_to(&mut self, p: PathBuf) -> Result<(), String> {
+        let s = self.session.as_ref().ok_or("Модель Базиса открыта только для просмотра")?;
+        std::fs::write(&p, s.project.save()).map_err(|e| format!("{}: {e}", p.display()))?;
+        self.status = format!("Сохранено: {}", p.display());
+        self.dirty = false;
+        chrome::remember(&p);
+        self.path = Some(p);
+        Ok(())
     }
 
     fn export(&mut self, what: &str) {
@@ -786,6 +803,8 @@ impl App {
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.ctx_ctrl = ui.input(|i| i.modifiers.command);
+        #[cfg(unix)]
+        self.serve_live();
         let ctx = ui.ctx().clone();
         self.top_bar(ui);
         // Esc — выйти из инструмента, а без инструмента — снять выделение.
