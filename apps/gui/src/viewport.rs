@@ -217,7 +217,7 @@ struct VOut { @builtin(position) clip: vec4<f32>, @location(0) color: vec4<f32>,
 "#;
 
 /// Infinite grid (like the cadcraft canvas): one full-screen triangle; for each pixel — a point
-/// on the grid plane (perpendicular to the axis closest to the view direction), lines every
+/// on the grid plane (the floor, or the wall facing an almost edge-on view: `grid_axis`), lines every
 /// `minor` and `major` mm with antialiasing, axes through the origin; depth is real, parts occlude the grid.
 const GRID_SHADER: &str = r#"
 struct G { eye: vec4<f32>, r: vec4<f32>, u: vec4<f32>, f: vec4<f32>, half: vec4<f32>, grid: vec4<f32>, minor_c: vec4<f32>, major_c: vec4<f32> };
@@ -291,16 +291,44 @@ impl Default for Grid {
     }
 }
 
-/// Grid step for the zoom, as in cadcraft: multiply by 5 until lines are no closer than `min_px`.
+/// Grid step for the zoom: `step` × 1, 2, 5, 10, 20, 50… until lines are no closer than `min_px` (as in SolidCraft).
 pub fn adaptive(step: f64, px_per_mm: f64, min_px: f64) -> f64 {
-    let mut s = step.max(1e-6);
-    for _ in 0..40 {
+    let step = step.max(1e-6);
+    let mut s = step;
+    for k in 0..60 {
         if s * px_per_mm >= min_px {
             break;
         }
-        s *= 5.0;
+        s = step * [2.0, 5.0, 10.0][k % 3] * 10f64.powi((k / 3) as i32);
     }
     s
+}
+
+/// Axis the 3D grid is perpendicular to for view direction `f`, given last frame's (`last`): the floor (1, Y up)
+/// unless it is seen almost edge-on (as in the Front or Left view) — then the wall facing the view (2 or 0).
+/// Leaving the floor at ~11.5° and returning at ~15° keeps the grid from flickering near the threshold;
+/// the wall changes only near a side view, never at 45°. After SolidCraft's `grid_plane` (MIT OR Apache-2.0).
+fn grid_axis(f: [f32; 3], last: usize) -> usize {
+    const EDGE_ON: f32 = 0.2;
+    const EDGE_LEAVE: f32 = 0.26;
+    const SIDE_VIEW: f32 = 0.966;
+    let horizontal = f[0].hypot(f[2]);
+    if horizontal.is_nan() || horizontal <= 0.0 {
+        return 1;
+    }
+    if last == 1 && f[1].abs() <= EDGE_ON {
+        return if f[2].abs() >= f[0].abs() { 2 } else { 0 };
+    }
+    if last != 1 && f[1].abs() <= EDGE_LEAVE {
+        if f[0].abs() / horizontal >= SIDE_VIEW {
+            return 0;
+        }
+        if f[2].abs() / horizontal >= SIDE_VIEW {
+            return 2;
+        }
+        return last;
+    }
+    1
 }
 
 /// Scene buffers on the GPU.
@@ -380,6 +408,8 @@ pub struct Viewport {
     offset_built: [f32; 3],
     /// A size handle is being dragged: which one (by screen axes) and the accumulated mouse offset (pixels).
     resize: Option<([i8; 2], Vec2)>,
+    /// Axis the 3D grid was perpendicular to last frame (1 — the floor), see `grid_axis`.
+    grid_axis: usize,
 }
 
 impl Default for Viewport {
@@ -398,6 +428,7 @@ impl Default for Viewport {
             selected: None,
             errors: Vec::new(),
             fitted: false,
+            grid_axis: 1,
             label: None,
             textures: Vec::new(),
             textures_built: Vec::new(),
@@ -1108,7 +1139,8 @@ impl Viewport {
         rs.queue.write_buffer(&gpu.uniforms, 0, &u);
         {
             let (f, r, up) = cam.basis();
-            let n = (0..3).max_by(|&i, &j| f[i].abs().total_cmp(&f[j].abs())).unwrap_or(1);
+            self.grid_axis = grid_axis(f, self.grid_axis);
+            let n = self.grid_axis;
             let minor = adaptive(f64::from(self.grid.step), f64::from(1.0 / self.camera.mm_per_px), 8.0) as f32;
             let major = minor * self.grid.major.max(1) as f32;
             let c = |rgb: [u8; 3]| rgb.map(|v| f32::from(v) / 255.0);
@@ -1240,6 +1272,41 @@ mod tests {
         v.camera.mm_per_px = 2.0;
         v.dragging = Some(d);
         v.drag_offset()
+    }
+
+    /// The grid lies on the floor, moves to the facing wall only for an almost edge-on view, and does not flicker
+    /// between the two near the threshold or between walls at 45°.
+    #[test]
+    fn grid_prefers_the_floor() {
+        let dir = |yaw: f32, pitch: f32| {
+            let (sy, cy, sp, cp) = (yaw.to_radians().sin(), yaw.to_radians().cos(), pitch.to_radians().sin(), pitch.to_radians().cos());
+            [sy * cp, -sp, -cy * cp]
+        };
+        // Axonometry: the floor (the old rule took the wall here, since all three axes are close).
+        assert_eq!(grid_axis(dir(-20.0, 20.0), 1), 1);
+        assert_eq!(grid_axis(dir(-45.0, 35.0), 1), 1);
+        // Front and left views: the wall facing them.
+        assert_eq!(grid_axis(dir(0.0, 0.0), 1), 2);
+        assert_eq!(grid_axis(dir(90.0, 0.0), 1), 0);
+        // Top view: the floor.
+        assert_eq!(grid_axis(dir(0.0, 89.0), 2), 1);
+        // 13° above the floor: stays on the wall if it was there, stays on the floor if it was there.
+        assert_eq!(grid_axis(dir(0.0, 13.0), 2), 2);
+        assert_eq!(grid_axis(dir(0.0, 13.0), 1), 1);
+        // Edge-on at 45° between front and left: keeps whichever wall it had.
+        assert_eq!(grid_axis(dir(45.0, 0.0), 2), 2);
+        assert_eq!(grid_axis(dir(45.0, 0.0), 0), 0);
+        assert_eq!(grid_axis([f32::NAN; 3], 2), 1);
+    }
+
+    /// Zooming out goes 1-2-5: step 10 → 20 → 50 → 100 mm.
+    #[test]
+    fn grid_step_goes_1_2_5() {
+        assert_eq!(adaptive(10.0, 1.0, 8.0), 10.0);
+        assert_eq!(adaptive(10.0, 0.5, 8.0), 20.0);
+        assert_eq!(adaptive(10.0, 0.2, 8.0), 50.0);
+        assert_eq!(adaptive(10.0, 0.1, 8.0), 100.0);
+        assert_eq!(adaptive(10.0, 0.04, 8.0), 200.0);
     }
 
     /// The grid is always behind the model: from the front — the plane through the origin (cabinet back), from behind — behind its front.

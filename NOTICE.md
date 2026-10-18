@@ -8,4 +8,5 @@
   - `apps/gui/src/theme.rs` — colours and spacing of the cadcraft dark theme (`crates/ui-egui/src/theme.rs`); `apps/gui/src/chrome.rs` — start page and document bar modelled on `crates/ui-egui/src/chrome.rs`.
 - **SolidCraft** (github.com/tangency-labs/solidcraft) — MIT OR Apache-2.0: packaging modelled on SolidCraft's `packaging/`.
   - `packaging/windows/dowel-craft.wxs` — MSI installer (WiX), modelled on `assets/platforms/windows/solidcraft.wxs`.
+  - `apps/gui/src/viewport.rs` — 3D grid plane choice (`grid_axis`: floor first, the facing wall for an edge-on view, with hysteresis) and the 1-2-5 grid step, after `grid_plane` and `grid_step` in `crates/engine/src/view.rs`.
   - `apps/gui/build.rs` — icon in the `.exe`; the `.dmg` step in `.github/workflows/release.yml` — modelled on `packaging/macos/package.sh`.
