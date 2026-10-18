@@ -930,6 +930,9 @@ impl Viewport {
                     click = Click::Move(mv);
                 }
             }
+        } else if resp.dragged_by(egui::PointerButton::Primary) && self.label.is_some() {
+            // Окна «Спереди», «Слева», «Сверху» (4 вида) не поворачиваются: тянуть — двигать вид.
+            self.camera.pan(resp.drag_delta());
         } else if resp.dragged_by(egui::PointerButton::Primary) {
             let d = resp.drag_delta();
             self.camera.yaw += d.x * 0.01;
