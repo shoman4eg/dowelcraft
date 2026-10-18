@@ -1,14 +1,14 @@
-//! Детали (плиты, Type 4002) из дерева модели и спецификация по ним.
+//! Parts (panels, Type 4002) from the model tree and their parts list.
 
 use crate::b3d::{File, Node, Value};
 use crate::contour::{self, Seg};
 use crate::geom::Frame;
 
-/// Плита в дереве `Document/Model`.
+/// Panel in the `Document/Model` tree.
 pub const TYPE_PANEL: i64 = 4002;
 
-/// Направление текстуры (`TexDir`): 1 — вдоль X контура, 2 — вдоль Y, нет — по умолчанию.
-/// Сверено с эталонными проектами Раскроя: горизонтальные детали — угол 0, стойки — π/2.
+/// Grain direction (`TexDir`): 1 — along contour X, 2 — along Y, none — default.
+/// Checked against BAZIS-Raskroy reference projects: horizontal parts — angle 0, uprights — π/2.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Texture {
     Default,
@@ -16,7 +16,7 @@ pub enum Texture {
     Vertical,
 }
 
-/// Сторона прямоугольного габарита в осях контура.
+/// Side of the bounding rectangle in contour axes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RectSide {
     Bottom,
@@ -25,60 +25,59 @@ pub enum RectSide {
     Right,
 }
 
-/// Сторона в осях спецификации.
+/// Side in parts-list axes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Side {
-    /// Стороны вдоль длины.
+    /// Sides along the length.
     L1,
     L2,
-    /// Стороны вдоль ширины.
+    /// Sides along the width.
     W1,
     W2,
-    /// Криволинейный или наклонный участок.
+    /// Curved or slanted segment.
     Other,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Edge {
-    /// Материал в формате Базиса `Название\rАртикул`.
+    /// Material in Bazis format `Name\rArticle`.
     pub material: String,
     pub thickness: f64,
-    /// Ширина ленты (`Width`), 0 — не задана.
+    /// Banding width (`Width`), 0 — not set.
     pub width: f64,
     pub allowance: f64,
-    /// `ClipPanel`: панель подрезается на толщину кромки.
+    /// `ClipPanel`: the panel is trimmed by the edge banding thickness.
     pub clip: bool,
-    /// Индекс сегмента контура (`Elem`).
+    /// Contour segment index (`Elem`).
     pub segment: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Panel {
     pub name: String,
-    /// Номер позиции (`ArtPos`).
+    /// Position number (`ArtPos`).
     pub pos: String,
-    /// Обозначение (`Des`).
+    /// Designation (`Des`).
     pub designation: String,
     pub material: String,
     pub thickness: f64,
-    /// Контур, сдвинутый так, что габарит начинается в (0, 0).
+    /// Contour shifted so the bounding box starts at (0, 0).
     pub segs: Vec<Seg>,
-    /// Габарит контура по X и Y, мм.
+    /// Contour bounding box in X and Y, mm.
     pub size: (f64, f64),
     pub texture: Texture,
     pub edges: Vec<Edge>,
-    /// Положение в пространстве модели: начало — угол габарита контура (0, 0), толщина вдоль +Z плиты.
-    /// Оси модели: X вправо, Y вверх, Z к зрителю. Нет — деталь без положения.
+    /// Placement in model space: origin — contour bounding-box corner (0, 0), thickness along panel +Z.
+    /// Model axes: X right, Y up, Z toward the viewer. None — part without placement.
     pub frame: Option<Frame>,
-    /// Присадка: отверстия крепежа, попавшие в эту плиту.
+    /// Drilling: fastener holes that landed in this panel.
     pub holes: Vec<Hole>,
-    /// Пазы.
     pub grooves: Vec<Groove>,
 }
 
-/// Паз вдоль прямой траектории (`Cuts/Cut` плиты Базиса): в осях контура плиты. Сечение — прямоугольник:
-/// поперёк траектории от `across[0]` до `across[1]` (влево от направления траектории) и по толщине плиты
-/// от `z[0]` до `z[1]` (Z — от тыльной пласти). Пазы по кривой траектории не разбираются.
+/// Groove along a straight path (`Cuts/Cut` of a Bazis panel), in panel contour axes. Cross-section is a rectangle:
+/// across the path from `across[0]` to `across[1]` (to the left of the path direction) and through panel thickness
+/// from `z[0]` to `z[1]` (Z — from the back face). Grooves along a curved path are not parsed.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Groove {
     pub name: String,
@@ -88,7 +87,7 @@ pub struct Groove {
 }
 
 impl Groove {
-    /// Точка в осях плиты лежит в пазу (с допуском `eps`).
+    /// Point in panel axes lies in the groove (with tolerance `eps`).
     pub fn contains(&self, p: [f64; 3], eps: f64) -> bool {
         let [a, b] = self.path;
         let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
@@ -104,11 +103,11 @@ impl Groove {
     }
 }
 
-/// Отверстие в координатах плиты: X, Y — как у контура (от 0), Z — от тыльной пласти (0) к лицевой (толщина).
+/// Hole in panel coordinates: X, Y — as for the contour (from 0), Z — from the back face (0) to the front face (thickness).
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Hole {
     pub pos: [f64; 3],
-    /// Единичное направление сверления.
+    /// Unit drilling direction.
     pub dir: [f64; 3],
     pub diameter: f64,
     pub depth: f64,
@@ -117,12 +116,12 @@ pub struct Hole {
 const EPS: f64 = 0.01;
 
 impl Panel {
-    /// Габарит в пространстве модели ([мин], [макс]), мм.
+    /// Bounding box in model space ([min], [max]), mm.
     pub fn bounds(&self) -> Option<([f64; 3], [f64; 3])> {
         Some(self.frame?.bounds([0.0; 3], [self.size.0, self.size.1, self.thickness]))
     }
 
-    /// Сторона габарита, на которой лежит отрезок контура.
+    /// Bounding-box side the contour segment lies on.
     pub fn rect_side(&self, seg: usize) -> Option<RectSide> {
         let Seg::Line { a, b } = *self.segs.get(seg)? else { return None };
         let (sx, sy) = self.size;
@@ -140,12 +139,12 @@ impl Panel {
         }
     }
 
-    /// Контур — прямоугольник из четырёх отрезков по габариту.
+    /// Contour is a rectangle of four segments along the bounding box.
     pub fn is_rect(&self) -> bool {
         self.segs.len() == 4 && (0..4).all(|i| self.rect_side(i).is_some())
     }
 
-    /// Длина спецификации идёт по Y контура: текстура вертикальная, а без текстуры — Y длиннее.
+    /// Parts-list length runs along contour Y: grain is vertical, or without grain Y is longer.
     fn along_y(&self) -> bool {
         match self.texture {
             Texture::Vertical => true,
@@ -170,18 +169,18 @@ impl Panel {
     }
 
     fn trim(&self, side: RectSide) -> f64 {
-        // Сторона может состоять из нескольких сегментов — берём самую толстую кромку.
+        // A side may consist of several segments — take the thickest edge banding.
         self.edges
             .iter()
             .filter(|e| self.rect_side(e.segment) == Some(side))
             .map(|e| if e.clip { e.thickness } else { 0.0 } - e.allowance)
-            // Припуск больше толщины кромки делает заготовку больше габарита; без кромки — 0.
+            // An allowance larger than the banding thickness makes the blank larger than the bounding box; no banding — 0.
             .reduce(f64::max)
             .unwrap_or(0.0)
     }
 
-    /// Заготовка в осях контура: габарит минус толщина подрезающих (`ClipPanel`) кромок плюс припуск.
-    /// shortcut: кромка на криволинейных участках не учитывается — у фигурных деталей Раскрой даёт чуть меньший размер.
+    /// Blank in contour axes: bounding box minus thickness of trimming (`ClipPanel`) edge banding plus allowance.
+    /// shortcut: edge banding on curved segments is ignored — for shaped parts BAZIS-Raskroy gives a slightly smaller size.
     pub fn blank(&self) -> (f64, f64) {
         (
             self.size.0 - self.trim(RectSide::Left) - self.trim(RectSide::Right),
@@ -189,7 +188,7 @@ impl Panel {
         )
     }
 
-    /// Пильный размер в осях спецификации: (длина, ширина).
+    /// Cut size in parts-list axes: (length, width).
     pub fn cut_size(&self) -> (f64, f64) {
         let (x, y) = self.blank();
         if self.along_y() { (y, x) } else { (x, y) }
@@ -199,27 +198,27 @@ impl Panel {
 #[derive(Debug, Default)]
 pub struct Extract {
     pub panels: Vec<Panel>,
-    /// Плиты, чей контур не удалось разобрать (имя).
+    /// Panels whose contour could not be parsed (name).
     pub skipped: Vec<String>,
-    /// Отверстия крепежа, не попавшие ни в одну плиту.
+    /// Fastener holes that landed in no panel.
     pub holes_lost: usize,
-    /// Блоки модели (Type 1005) в порядке обхода.
+    /// Model blocks (Type 1005) in traversal order.
     pub blocks: Vec<BlockInfo>,
-    /// Блок, в котором лежит плита, по порядку `panels`.
+    /// Block containing each panel, in `panels` order.
     pub panel_block: Vec<Option<usize>>,
 }
 
-/// Блок модели Базиса: имя и родительский блок (индекс в `Extract::blocks`).
+/// Bazis model block: name and parent block (index into `Extract::blocks`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct BlockInfo {
     pub name: String,
     pub parent: Option<usize>,
 }
 
-/// Блок (сборочная единица) в дереве `Document/Model`.
+/// Block (assembly unit) in the `Document/Model` tree.
 pub const TYPE_BLOCK: i64 = 1005;
 
-/// Наибольший зазор между началом отверстия и плитой, мм (толщина планки петли, навеса).
+/// Largest gap between hole start and panel, mm (thickness of a hinge plate, hanger).
 const GAP: f64 = 5.0;
 
 pub fn panels(file: &File) -> Extract {
@@ -232,7 +231,7 @@ pub fn panels(file: &File) -> Extract {
     out
 }
 
-/// Отверстие в координатах модели: начало, направление сверления, диаметр, глубина.
+/// Hole in model coordinates: start, drilling direction, diameter, depth.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct WorldHole {
     pub pos: [f64; 3],
@@ -241,8 +240,8 @@ pub struct WorldHole {
     pub depth: f64,
 }
 
-/// Отверстия крепежа модели Базиса в её координатах. Описание крепежа (`Document/FurnList`, по `FastID`)
-/// хранит отверстия в его координатах; экземпляр (Type 3001) ставит их в модель. Отдельные отверстия — Type 3000.
+/// Fastener holes of a Bazis model in its coordinates. A fastener definition (`Document/FurnList`, by `FastID`)
+/// stores holes in its own coordinates; an instance (Type 3001) places them into the model. Standalone holes — Type 3000.
 pub fn world_holes(file: &File) -> Vec<WorldHole> {
     let Some(model) = file.section("Document").and_then(|d| d.get("Model")) else { return Vec::new() };
     let defs: Vec<(i64, &Node)> = file
@@ -285,12 +284,12 @@ pub fn world_holes(file: &File) -> Vec<WorldHole> {
     world
 }
 
-/// Треугольник сетки фурнитуры в координатах модели, мм.
+/// Hardware mesh triangle in model coordinates, mm.
 pub type Tri = [[f32; 3]; 3];
 
-/// Сетка из `TriData` описания крепежа: u32 число групп; у группы — материал (u32 длина + UTF-16),
-/// матрица 4×4 f64 (строками, перенос в последней строке), байт-флаг, u32 число треугольников
-/// и по 112 байт на треугольник: 3 вершины, 4 нормали и 6 текстурных координат (f32), u32 флаги.
+/// Mesh from a fastener definition's `TriData`: u32 group count; each group — material (u32 length + UTF-16),
+/// 4×4 f64 matrix (row-major, translation in the last row), byte flag, u32 triangle count
+/// and 112 bytes per triangle: 3 vertices, 4 normals and 6 texture coordinates (f32), u32 flags.
 pub fn tri_data(b: &[u8]) -> Result<Vec<Tri>, String> {
     let mut o = 0usize;
     let mut take = |n: usize| -> Result<&[u8], String> {
@@ -319,7 +318,7 @@ pub fn tri_data(b: &[u8]) -> Result<Vec<Tri>, String> {
     Ok(out)
 }
 
-/// Сетка всей модели: экземпляры крепежа (Type 3001) с сеткой описания (`FurnList`, `TriData`), в координатах модели.
+/// Mesh of the whole model: fastener instances (Type 3001) with the definition mesh (`FurnList`, `TriData`), in model coordinates.
 pub fn world_mesh(file: &File) -> Vec<Tri> {
     let Some(doc) = file.section("Document") else { return Vec::new() };
     let Some(model) = doc.get("Model") else { return Vec::new() };
@@ -343,10 +342,10 @@ pub fn world_mesh(file: &File) -> Vec<Tri> {
     out
 }
 
-/// Отверстия → плиты: отверстие достаётся плите, в которую луч сверления входит не дальше `GAP` от начала
-/// (шуруп проходит сквозь планку петли, навеса и т.п.); точка входа становится началом отверстия.
-/// Возвращает число отверстий, не попавших ни в одну плиту.
-/// shortcut: проверка «внутри плиты» по габариту контура — у фигурных плит возможны лишние попадания.
+/// Holes → panels: a hole goes to the panel the drilling ray enters no farther than `GAP` from the start
+/// (the screw passes through a hinge plate, hanger, etc.); the entry point becomes the hole start.
+/// Returns the number of holes that landed in no panel.
+/// shortcut: the "inside the panel" check uses the contour bounding box — shaped panels may get false hits.
 pub fn assign(panels: &mut [Panel], holes: &[WorldHole]) -> usize {
     let mut lost = 0;
     'hole: for h in holes {
@@ -359,7 +358,7 @@ pub fn assign(panels: &mut [Panel], holes: &[WorldHole]) -> usize {
             let l = f.local(p);
             let ld = [f.x, f.y, f.z].map(|a| a[0] * h.dir[0] + a[1] * h.dir[1] + a[2] * h.dir[2]);
             let hi = [panel.size.0, panel.size.1, panel.thickness];
-            // Вход луча в габарит плиты (метод плит): параметр входа и выхода по каждой оси.
+            // Ray entry into the panel bounding box (slab method): entry and exit parameter per axis.
             let (mut t0, mut t1) = (f64::MIN, f64::MAX);
             for k in 0..3 {
                 if ld[k].abs() < 1e-9 {
@@ -383,7 +382,7 @@ pub fn assign(panels: &mut [Panel], holes: &[WorldHole]) -> usize {
     lost
 }
 
-/// Преобразование «локальные → мировые» координаты: поворот и смещение.
+/// Local → world coordinate transform: rotation and offset.
 #[derive(Clone, Copy)]
 struct Xform {
     r: [[f64; 3]; 3],
@@ -398,7 +397,7 @@ impl Xform {
         std::array::from_fn(|i| r[i][0] * p[0] + r[i][1] * p[1] + r[i][2] * p[2] + self.t[i])
     }
 
-    /// `Trans` объекта: X, Y, Z и кватернион Rx, Ry, Rz, Rw относительно родителя.
+    /// Object `Trans`: X, Y, Z and quaternion Rx, Ry, Rz, Rw relative to the parent.
     fn then(&self, n: &Node) -> Xform {
         let Some(tr) = n.get("Trans") else { return *self };
         let g = |k: &str, d: f64| tr.f64(k).unwrap_or(d);
@@ -426,7 +425,7 @@ fn walk(n: &Node, out: &mut Extract, frames: &mut Vec<Xform>, parent: &Xform, bl
     } else {
         block
     };
-    // Плиты нулевой толщины — изображения внутри фурнитуры (заглушки, крепления), в раскрой не идут.
+    // Zero-thickness panels are images inside hardware (caps, mounts); they don't go to nesting.
     if n.int("Type") == Some(TYPE_PANEL) && n.f64("Thick").is_some_and(|t| t > 0.0) {
         match panel(n, &xf) {
             Some((p, frame)) => {
@@ -442,11 +441,11 @@ fn walk(n: &Node, out: &mut Extract, frames: &mut Vec<Xform>, parent: &Xform, bl
     }
 }
 
-/// Плита и её система координат (с началом в углу габарита контура, как у `segs`).
+/// Panel and its coordinate frame (origin at the contour bounding-box corner, as for `segs`).
 fn panel(n: &Node, xf: &Xform) -> Option<(Panel, Xform)> {
     let segs = contour::parse(n.blob("Contour")?)?;
     let (lo, hi) = contour::bounds(&segs)?;
-    // Контур лежит в плоскости XY плиты, толщина откладывается в +Z (сверено по шкафу: полки встают между боковинами).
+    // The contour lies in the panel XY plane, thickness goes along +Z (checked on a cabinet: shelves sit between side panels).
     let sh = |p: [f64; 2]| [p[0] - lo[0], p[1] - lo[1]];
     let segs = segs
         .into_iter()
@@ -508,14 +507,14 @@ fn panel(n: &Node, xf: &Xform) -> Option<(Panel, Xform)> {
     Some((panel, frame))
 }
 
-/// Строка спецификации: одинаковые детали сведены в одну позицию.
+/// Parts-list row: identical parts merged into one position.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpecRow {
     pub panel: Panel,
     pub count: usize,
 }
 
-/// Группировка по материалу, номеру позиции, имени, размерам и кромке.
+/// Grouping by material, position number, name, sizes and edge banding.
 pub fn spec(panels: &[Panel]) -> Vec<SpecRow> {
     let key = |p: &Panel| {
         let (l, w) = p.cut_size();
@@ -535,10 +534,10 @@ pub fn spec(panels: &[Panel]) -> Vec<SpecRow> {
     rows
 }
 
-/// Фурнитура модели Базиса: (наименование `Название\rАртикул`, количество), по имени.
-/// Считаются крепёж (3001) и покупные изделия (4001, 4004) — покупное целиком, без содержимого.
-/// Объекты с флагом `BazisFlags & 2` и всё внутри них в смету не идут — сверено со сметой
-/// `reference/pairs/sanuzly` (так исключаются, например, чашки петель внутри блоков петель).
+/// Bazis model hardware: (name `Name\rArticle`, quantity), by name.
+/// Counts fasteners (3001) and purchased items (4001, 4004) — a purchased item as a whole, without its contents.
+/// Objects with the `BazisFlags & 2` flag and everything inside them are excluded from the estimate — checked against the estimate
+/// `reference/pairs/sanuzly` (this excludes, e.g., hinge cups inside hinge blocks).
 pub fn hardware(file: &File) -> Vec<(String, usize)> {
     fn walk(n: &Node, out: &mut Vec<(String, usize)>, excluded: bool) {
         let ty = n.int("Type");
@@ -565,20 +564,20 @@ pub fn hardware(file: &File) -> Vec<(String, usize)> {
     out
 }
 
-/// Строка расчёта материалов, как в смете Базиса.
+/// Material usage row, as in the Bazis cost estimate.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MaterialRow {
-    /// Материал в формате `Название\rАртикул`.
+    /// Material in `Name\rArticle` format.
     pub material: String,
-    /// «м2» для плит, «м» для кромки.
+    /// Unit as in Russian output: m² for panels, m for edge banding.
     pub unit: &'static str,
     pub coef: f64,
     pub qty: f64,
 }
 
-/// Расход материалов: плиты — сумма габаритов (м²), кромка — длина кромкованных сегментов (м);
-/// умножается на коэффициент материала и округляется вверх: м² до 0,1, м до целого.
-/// Сверено со сметой Базиса `reference/pairs/sanuzly`.
+/// Material usage: panels — sum of bounding boxes (m²), edge banding — length of banded segments (m);
+/// multiplied by the material coefficient and rounded up: m² to 0.1, m to a whole number.
+/// Checked against the Bazis estimate `reference/pairs/sanuzly`.
 pub fn materials(panels: &[Panel], coef: impl Fn(&str) -> f64) -> Vec<MaterialRow> {
     let mut sums: Vec<(String, &'static str, f64)> = Vec::new();
     let mut add = |m: &str, unit: &'static str, v: f64| match sums.iter_mut().find(|(n, u, _)| n == m && *u == unit) {
@@ -595,7 +594,7 @@ pub fn materials(panels: &[Panel], coef: impl Fn(&str) -> f64) -> Vec<MaterialRo
         .into_iter()
         .map(|(material, unit, v)| {
             let k = coef(&material);
-            // Отсекаем шум float перед округлением вверх: 2.0000000001 → 2.0.
+            // Drop float noise before rounding up: 2.0000000001 → 2.0.
             let up = |x: f64, step: f64| ((x / step - 1e-9).ceil() * step * 1e6).round() / 1e6;
             let qty = if unit == "м" { up(v * k, 1.0) } else { up(v * k, 0.1) };
             MaterialRow { material, unit, coef: k, qty }
@@ -605,7 +604,7 @@ pub fn materials(panels: &[Panel], coef: impl Fn(&str) -> f64) -> Vec<MaterialRo
     rows
 }
 
-/// Сравнение размеров с точностью 0,01 мм (в моделях шум вида 1868.0000000001).
+/// Size comparison to 0.01 mm (models have noise like 1868.0000000001).
 fn mm(v: f64) -> i64 {
     (v * 100.0).round() as i64
 }
@@ -614,12 +613,12 @@ fn pos_num(s: &str) -> (u64, String) {
     (s.trim().parse().unwrap_or(u64::MAX), s.to_string())
 }
 
-/// Название материала без артикула.
+/// Material name without the article number.
 pub fn material_name(m: &str) -> &str {
     m.split('\r').next().unwrap_or(m)
 }
 
-/// Значение узла — только для отладочного вывода дерева.
+/// Node value — only for debug output of the tree.
 pub fn describe(v: &Value) -> String {
     match v {
         Value::Obj => String::new(),

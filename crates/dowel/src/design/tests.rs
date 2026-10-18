@@ -1,4 +1,4 @@
-//! Проверки модели: генераторы, дерево объектов, команды.
+//! Model tests: generators, object tree, commands.
 use super::*;
 
 fn wardrobe() -> Session {
@@ -26,16 +26,16 @@ fn by_name<'a>(parts: &'a [Part], name: &str) -> Vec<&'a Part> {
 fn wardrobe_parts_and_sizes() {
     let s = wardrobe();
     let parts = build(&s.project).unwrap();
-    // 2 боковины, дно, крыша, цоколь, перегородка, 2 полки, задняя стенка, 2 двери.
+    // 2 side panels, bottom, top, plinth, partition, 2 shelves, back panel, 2 doors.
     assert_eq!(parts.len(), 11);
     let side = by_name(&parts, "Боковина левая")[0];
     assert_eq!(side.panel.size, (600.0, 2000.0));
-    // Лицевая кромка 0,4 подрезает заготовку по глубине; длина вдоль текстуры — высота.
+    // Front edge banding 0.4 trims the blank in depth; length along the grain is the height.
     assert_eq!(side.panel.cut_size(), (2000.0, 599.6));
     assert_eq!(by_name(&parts, "Дно")[0].panel.size, (768.0, 600.0));
     assert_eq!(by_name(&parts, "Перегородка")[0].panel.size, (600.0, 2000.0 - 80.0 - 32.0));
     let shelves = by_name(&parts, "Полка");
-    // Секции: 16..392 (376 мм) и 408..784 (376 мм).
+    // Sections: 16..392 (376 mm) and 408..784 (376 mm).
     assert_eq!(shelves[0].panel.size.0, 376.0);
     assert_eq!(shelves[1].origin[0], 408.0);
     let doors = by_name(&parts, "Дверь");
@@ -80,28 +80,28 @@ fn drawers_countertop_and_wall_module() {
     let mine: Vec<&Part> = parts.iter().filter(|p| p.owner == 2).collect();
     let count = |n: &str| mine.iter().filter(|p| p.panel.name == n).count();
     assert_eq!((count("Фасад ящика"), count("Боковина ящика"), count("Дно ящика")), (3, 6, 3));
-    // Короб: 600 − 2·16 − 2·13 = 542 по ширине, направляющие 550 (глубина 560 → кратно 50).
+    // Box: 600 − 2·16 − 2·13 = 542 wide, drawer runners 550 (depth 560 → multiple of 50).
     let bottom = mine.iter().find(|p| p.panel.name == "Дно ящика").unwrap();
     assert_eq!(bottom.panel.size, (542.0, 550.0));
     assert_eq!(bottom.panel.thickness, 3.0);
     let side = mine.iter().find(|p| p.panel.name == "Боковина ящика").unwrap();
     assert_eq!(side.panel.size, (550.0, 100.0));
-    // Фасады не выходят за корпус: 100 + 2 + 140+2 + 280+2 + 280+2 = 808 ≤ 820.
+    // Fronts don't extend beyond the cabinet: 100 + 2 + 140+2 + 280+2 + 280+2 = 808 ≤ 820.
     let top = mine.iter().filter(|p| p.kind == Kind::Drawer).map(|p| p.origin[1] + p.size[1]).fold(0.0, f64::max);
     assert!(top <= 820.0, "{top}");
-    // Слишком высокие ящики и полка в зоне ящиков отклоняются.
+    // Drawers that are too tall and a shelf in the drawer zone are rejected.
     assert!(s.execute("cabinet.set", &json!({"id": 2, "drawers": [400, 400]})).is_err());
     assert!(s.execute("shelf.add", &json!({"cabinet": 2, "height": 100})).is_err());
-    // Ящики в правой секции корпуса с перегородкой: короб по ширине секции.
+    // Drawers in the right section of a cabinet with a partition: box as wide as the section.
     s.execute("cabinet.add", &json!({"name": "Тумба", "width": 1000, "height": 820, "depth": 560, "material": "ЛДСП Белый 16",
         "partitions": [392], "drawers": [200, 200], "drawer_section": 1, "doors": 0})).unwrap();
     let parts = build(&s.project).unwrap();
     let tumba: Vec<&Part> = parts.iter().filter(|p| p.owner == 3).collect();
     let bottom = tumba.iter().find(|p| p.panel.name == "Дно ящика").unwrap();
-    // Секция 408…984 (576 мм) − 2·13 = 550; короб начинается у перегородки + 13.
+    // Section 408…984 (576 mm) − 2·13 = 550; the box starts at the partition + 13.
     assert_eq!((bottom.panel.size.0, bottom.origin[0]), (550.0, 421.0));
     let facade = tumba.iter().find(|p| p.kind == Kind::Drawer).unwrap();
-    // От середины перегородки (400) до правого края (1000), минус зазоры по 2.
+    // From the partition middle (400) to the right edge (1000), minus gaps of 2.
     assert_eq!((facade.origin[0], facade.size[0]), (402.0, 596.0));
     assert!(s.execute("cabinet.set", &json!({"id": 3, "drawer_section": 5})).is_err());
     s.execute("cabinet.remove", &json!({"id": 3})).unwrap();
@@ -113,7 +113,7 @@ fn drawers_countertop_and_wall_module() {
     let parts = build(&s.project).unwrap();
     let ct = parts.iter().find(|p| p.panel.name == "Столешница").unwrap();
     assert_eq!((ct.panel.size, ct.origin[1]), ((1400.0, 600.0), 2000.0));
-    // Номера общие для всех объектов: корпуса 1 и 2, столешница 3, навесной 4.
+    // Ids are shared by all objects: cabinets 1 and 2, countertop 3, wall cabinet 4.
     let wall = parts.iter().filter(|p| p.owner == 4).map(|p| p.origin[1]).fold(f64::MAX, f64::min);
     assert_eq!(wall, 1400.0);
     assert!(s.execute("countertop.set", &json!({"id": 3, "length": -5})).is_err());
@@ -123,7 +123,7 @@ fn drawers_countertop_and_wall_module() {
 fn iso_view_shows_three_faces_per_box() {
     let parts = build(&wardrobe().project).unwrap();
     let faces = iso_view(&parts, true);
-    // Спереди-справа-сверху видны фронт, правая грань и верх каждой детали.
+    // From front-right-top, the front, right face and top of every part are visible.
     assert_eq!(faces.len(), parts.len() * 3);
     assert_eq!(iso_view(&parts, false).len(), (parts.len() - 2) * 3);
 }
@@ -135,14 +135,14 @@ fn corner_module() {
         "edge": "ПВХ 0,4 белая", "plinth": 100, "back": "ХДФ 3", "shelves": [300], "doors": true, "position": [3000, 0, 0]})).unwrap()["id"].clone();
     let parts: Vec<Part> = build(&s.project).unwrap().into_iter().filter(|p| p.origin[0] >= 2990.0 || p.panel.name.contains("углов")).collect();
     let bottom = parts.iter().find(|p| p.panel.name == "Дно угловое").unwrap();
-    // Г-контур из 6 отрезков: это фигурная деталь (BOARDFIG), лицевая кромка на двух внутренних сторонах.
+    // L-contour of 6 segments: a shaped part (BOARDFIG), front edge banding on the two inner sides.
     assert_eq!(bottom.panel.segs.len(), 6);
     assert!(!bottom.panel.is_rect());
     assert_eq!(bottom.panel.size, (984.0, 884.0));
     assert_eq!(bottom.panel.edges.iter().map(|e| e.segment).collect::<Vec<_>>(), vec![3, 4]);
     assert_eq!(parts.iter().filter(|p| p.kind == Kind::Door).count(), 2);
     assert_eq!(parts.iter().filter(|p| p.kind == Kind::Back).count(), 2);
-    // Двери не пересекаются во внутреннем углу.
+    // Doors don't intersect in the inner corner.
     let doors: Vec<&Part> = parts.iter().filter(|p| p.kind == Kind::Door).collect();
     let overlap = (0..3).all(|k| doors[0].origin[k] < doors[1].origin[k] + doors[1].size[k] && doors[1].origin[k] < doors[0].origin[k] + doors[0].size[k]);
     assert!(!overlap, "двери пересекаются");
@@ -153,8 +153,8 @@ fn corner_module() {
     assert!(s.project.corners.is_empty());
 }
 
-/// Каждая деталь генераторов имеет точное положение: оси ровно 0/±1, габарит из положения совпадает
-/// с заданным, толщина смотрит поперёк плоскости детали.
+/// Every generator part has an exact position: axes exactly 0/±1, the bounding box from the position matches
+/// the given one, thickness points across the part plane.
 #[test]
 fn generated_parts_have_exact_frames() {
     let mut s = wardrobe();
@@ -173,7 +173,7 @@ fn generated_parts_have_exact_frames() {
         assert_eq!(p.size[thick_axis], p.panel.thickness, "{}", p.panel.name);
     }
     let shelf = by_name(&parts, "Полка")[0];
-    // Горизонтальная: контур X → X, Y → +Z (лицевая кромка к зрителю), толщина вниз от верхней пласти.
+    // Horizontal: contour X → X, Y → +Z (front edge towards the viewer), thickness down from the top face.
     let f = shelf.panel.frame.unwrap();
     assert_eq!((f.x, f.y, f.z), ([1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]));
     assert_eq!(f.origin, [16.0, 80.0 + 16.0 + 400.0 + 16.0, 0.0]);
@@ -197,7 +197,7 @@ fn free_panels_in_three_planes_and_blocks() {
     assert!(s.execute("panel.add", &json!({"material": "ЛДСП Белый 16", "plane": "front", "size": [0, 10]})).is_err());
     assert!(s.execute("panel.add", &json!({"material": "нет", "plane": "front", "size": [10, 10]})).is_err());
 
-    // Блок с панелью внутри: положение блока сдвигает панель; удаление блока убирает всё содержимое.
+    // Block with a panel inside: the block position shifts the panel; deleting the block removes all its contents.
     s.project.objects.push(Object::Block(Block { id: 100, name: "Блок".into(), frame: Frame::IDENTITY, children: Vec::new() }));
     let inner = s.execute("panel.add", &json!({"material": "ЛДСП Белый 16", "plane": "front", "size": [100, 100], "block": 100})).unwrap()["id"].as_u64().unwrap();
     s.execute("block.set", &json!({"id": 100, "name": "Тумба", "frame": {"origin": [0, 0, 1000], "x": [1, 0, 0], "y": [0, 1, 0], "z": [0, 0, 1]}})).unwrap();
@@ -222,7 +222,7 @@ fn explode_keeps_parts_exactly() {
     for (a, b) in before.iter().zip(&after) {
         assert_eq!((&a.panel, a.kind, a.origin, a.size, a.owner), (&b.panel, b.kind, b.origin, b.size, b.owner));
     }
-    // Теперь деталь правится отдельно.
+    // Now the part is edited on its own.
     let side = s.project.panels().iter().find(|p| p.name == "Боковина левая").unwrap().id;
     s.execute("panel.set", &json!({"id": side, "material": "ХДФ 3"})).unwrap();
     assert!(s.execute("cabinet.explode", &json!({"id": 1})).is_err());
@@ -234,7 +234,7 @@ fn old_format_loads_without_free_panels() {
     assert_eq!(Project::load(v1).unwrap().format, FORMAT);
     let v1_panels = r#"{"format":"basis-craft/1","name":"Старый","panels":[{"id":1}]}"#;
     assert!(Project::load(v1_panels).unwrap_err().contains("импортируйте"));
-    // Проект, сохранённый ещё под именем basis-craft.
+    // A project saved under the old name basis-craft.
     let old_name = r#"{"format":"basis-craft/2","name":"Старый","materials":[]}"#;
     assert_eq!(Project::load(old_name).unwrap().format, FORMAT);
     assert!(is_project_file(std::path::Path::new("шкаф.DCRAFT")));
@@ -260,41 +260,41 @@ fn reports_work_on_own_model() {
     assert_eq!(xml.matches("<BOARDSMP>").count(), 11);
 }
 
-/// Панель в проём: полка между боковиной и перегородкой, стойка между дном и крышей, вставка спереди.
+/// Panel into an opening: shelf between a side panel and a partition, upright between bottom and top, front insert.
 #[test]
 fn panel_fill_takes_the_opening() {
     let mut s = wardrobe();
-    // Левая секция шкафа: от боковины (16) до перегородки (392), глубина 0…600.
+    // Left section of the wardrobe: from the side panel (16) to the partition (392), depth 0…600.
     let id = |v: Value| v["id"].as_u64().unwrap() as u32;
     let shelf = id(s.execute("panel.fill", &json!({"material": "ЛДСП Белый 16", "plane": "horizontal", "at": [200, 1500], "gaps": [0, 0, 0, 20]})).unwrap());
     let parts = build(&s.project).unwrap();
     let p = parts.iter().find(|p| p.id == shelf).unwrap();
     assert_eq!((p.origin, p.size), ([16.0, 1500.0, 0.0], [376.0, 16.0, 580.0]));
-    // Стойка в правой секции между полкой (на 800 от дна → верх 80+16+800+16 = 912) и крышей (2000−16).
+    // Upright in the right section between the shelf (800 above the bottom → top 80+16+800+16 = 912) and the top (2000−16).
     let post = id(s.execute("panel.fill", &json!({"material": "ЛДСП Белый 16", "plane": "vertical", "at": [600, 1500]})).unwrap());
     let parts = build(&s.project).unwrap();
     let p = parts.iter().find(|p| p.id == post).unwrap();
     assert_eq!((p.origin, p.size), ([600.0, 912.0, 0.0], [16.0, 1984.0 - 912.0, 600.0]));
-    // Фронтальная в левой секции: между дном (верх 96) и полкой шкафа на 400 (низ 496), отступы по 2 мм.
+    // Front panel in the left section: between the bottom (top at 96) and the wardrobe shelf at 400 (bottom at 496), 2 mm gaps.
     let front = id(s.execute("panel.fill", &json!({"material": "ЛДСП Белый 16", "plane": "front", "at": [200, 300], "gaps": [2, 2, 2, 2]})).unwrap());
     let parts = build(&s.project).unwrap();
     let p = parts.iter().find(|p| p.id == front).unwrap();
     assert_eq!((p.origin, p.size), ([18.0, 98.0, 584.0], [372.0, 396.0, 16.0]));
-    // Вне шкафа проёма нет.
+    // No opening outside the wardrobe.
     assert!(s.execute("panel.fill", &json!({"material": "ЛДСП Белый 16", "plane": "horizontal", "at": [5000, 500]})).is_err());
 }
 
-/// Кромка по торцам панели: наносится, подрезает заготовку, снимается; ошибки — понятные.
+/// Edge banding on panel edges: applied, trims the blank, removed; errors are clear.
 #[test]
 fn panel_edges_by_segment() {
     let mut s = wardrobe();
     let id = s.execute("panel.add", &json!({"material": "ЛДСП Белый 16", "plane": "horizontal", "size": [600, 400], "position": [2000, 0, 0]})).unwrap()["id"].clone();
     let cut = |s: &Session| build(&s.project).unwrap().into_iter().find(|p| json!(p.id) == id).unwrap().panel.cut_size();
     assert_eq!(cut(&s), (600.0, 400.0));
-    // Торцы прямоугольника: 0 — низ, 1 — лево, 2 — верх, 3 — право.
+    // Rectangle edges: 0 — bottom, 1 — left, 2 — top, 3 — right.
     s.execute("panel.edge", &json!({"id": id, "segments": [2], "edge": "ПВХ 0,4 белая"})).unwrap();
     s.execute("panel.edge", &json!({"id": id, "segments": [1, 3], "edge": "ПВХ 0,4 белая", "allowance": 1})).unwrap();
-    // Длина: 600 − 2·0,4 + 2·1 (припуск); ширина: 400 − 0,4.
+    // Length: 600 − 2·0.4 + 2·1 (allowance); width: 400 − 0.4.
     let (l, w) = cut(&s);
     assert!((l - 601.2).abs() < 1e-9 && (w - 399.6).abs() < 1e-9, "{l} × {w}");
     s.execute("panel.edge", &json!({"id": id, "segments": [1, 2, 3], "edge": null})).unwrap();
@@ -304,38 +304,38 @@ fn panel_edges_by_segment() {
     assert!(s.execute("panel.edge", &json!({"id": 1, "segments": [0], "edge": "ПВХ 0,4 белая"})).unwrap_err().contains("Разрушить"));
 }
 
-/// Правка контура: скругление и фаска угла, вырез, размеры; деталь не смещается, ошибки отклоняются.
+/// Contour editing: corner fillet and chamfer, cut-out, resizing; the part doesn't move, errors are rejected.
 #[test]
 fn contour_editing() {
     let mut s = wardrobe();
     let id = s.execute("panel.add", &json!({"material": "ЛДСП Белый 16", "plane": "front", "size": [600, 400], "position": [2000, 0, 0]})).unwrap()["id"].clone();
     let part = |s: &Session| build(&s.project).unwrap().into_iter().find(|p| json!(p.id) == id).unwrap();
     s.execute("panel.edge", &json!({"id": id, "segments": [0, 1, 2, 3], "edge": "ПВХ 0,4 белая"})).unwrap();
-    // Скругление R50 в углу (600, 400): габарит тот же, торцов 5, новая дуга с той же кромкой.
+    // R50 fillet at corner (600, 400): same bounding box, 5 edges, the new arc has the same edge banding.
     s.execute("panel.corner", &json!({"id": id, "at": [600, 400], "radius": 50})).unwrap();
     let p = part(&s);
     assert_eq!((p.origin, p.size), ([2000.0, 0.0, 0.0], [600.0, 400.0, 16.0]));
     assert_eq!(p.panel.segs.len(), 5);
     assert!(matches!(p.panel.segs[4], crate::contour::Seg::Arc { c, .. } if c == [550.0, 350.0]));
     assert_eq!(p.panel.edges.len(), 5);
-    // Фаска 30 в углу (0, 0) и круглый вырез.
+    // 30 chamfer at corner (0, 0) and a round cut-out.
     s.execute("panel.corner", &json!({"id": id, "at": [0, 0], "chamfer": 30})).unwrap();
     s.execute("panel.cutout", &json!({"id": id, "center": [300, 200], "radius": 40})).unwrap();
     let m = crate::mesh::build(&[part(&s)], |_| false);
     assert!(m.errors.is_empty());
-    // Ошибки: скругление больше торца, вырез вне панели, разрыв контура, размеры фигурной.
+    // Errors: fillet larger than the edge, cut-out outside the panel, broken contour, resizing a shaped panel.
     assert!(s.execute("panel.corner", &json!({"id": id, "at": [600, 0], "radius": 900})).is_err());
     assert!(s.execute("panel.cutout", &json!({"id": id, "center": [900, 200], "radius": 10})).unwrap_err().contains("вне"));
     assert!(s.execute("panel.contour", &json!({"id": id, "segs": [{"Line": {"a": [0, 0], "b": [10, 0]}}]})).is_err());
     assert!(s.execute("panel.resize", &json!({"id": id, "size": [500, 300]})).is_err());
-    // Размеры прямоугольной панели: кромка остаётся на тех же торцах.
+    // Resizing a rectangular panel: edge banding stays on the same edges.
     let id2 = s.execute("panel.add", &json!({"material": "ЛДСП Белый 16", "plane": "horizontal", "size": [600, 400], "position": [3000, 0, 0]})).unwrap()["id"].clone();
     s.execute("panel.edge", &json!({"id": id2, "segments": [2], "edge": "ПВХ 0,4 белая"})).unwrap();
     s.execute("panel.resize", &json!({"id": id2, "size": [800, 450]})).unwrap();
     let p = build(&s.project).unwrap().into_iter().find(|p| json!(p.id) == id2).unwrap();
     assert_eq!(p.panel.size, (800.0, 450.0));
     assert_eq!(p.panel.cut_size(), (800.0, 449.6));
-    // Контур целиком: треугольник, смещённый от (0, 0), — нормализуется, начало осей переносится.
+    // Whole contour: a triangle offset from (0, 0) is normalized, the axes origin moves.
     s.execute("panel.contour", &json!({"id": id2, "segs": [
         {"Line": {"a": [10, 10], "b": [110, 10]}}, {"Line": {"a": [110, 10], "b": [10, 60]}}, {"Line": {"a": [10, 60], "b": [10, 10]}}]})).unwrap();
     let p = build(&s.project).unwrap().into_iter().find(|p| json!(p.id) == id2).unwrap();
@@ -343,7 +343,7 @@ fn contour_editing() {
     assert_eq!(p.origin, [3010.0, 0.0, 10.0]);
 }
 
-/// Действия с объектами: сдвиг, поворот на 90° (точно), зеркало с копией, массив, блок, удаление.
+/// Object actions: move, exact 90° rotation, mirror with copy, array, block, delete.
 #[test]
 fn object_actions() {
     let mut s = wardrobe();
@@ -351,17 +351,16 @@ fn object_actions() {
     let p1 = id(s.execute("panel.add", &json!({"material": "ЛДСП Белый 16", "plane": "front", "size": [300, 200], "position": [2000, 0, 0]})).unwrap());
     s.execute("panel.corner", &json!({"id": p1, "at": [300, 200], "radius": 50})).unwrap();
     let part = |s: &Session, i: u32| build(&s.project).unwrap().into_iter().find(|p| p.id == i).unwrap();
-    // Сдвиг шаблона и панели.
     s.execute("object.move", &json!({"ids": [1, p1], "d": [100, 0, -50]})).unwrap();
     assert_eq!(s.project.cabinets[0].position, [100.0, 0.0, -50.0]);
     assert_eq!(part(&s, p1).origin, [2100.0, 0.0, -50.0]);
-    // Поворот на 90° вокруг Y: оси точные, габарит повёрнут.
+    // 90° rotation about Y: exact axes, rotated bounding box.
     s.execute("object.rotate", &json!({"ids": [p1], "axis": "y", "angle": 90, "center": [2100, 0, -50]})).unwrap();
     let f = part(&s, p1).panel.frame.unwrap();
     assert!(f.x.iter().chain(&f.y).chain(&f.z).all(|v| [0.0, 1.0, -1.0].contains(v)), "{f:?}");
     assert_eq!(part(&s, p1).size, [16.0, 200.0, 300.0]);
     assert!(s.execute("object.rotate", &json!({"ids": [1], "axis": "y", "angle": 90})).unwrap_err().contains("Разрушить"));
-    // Зеркальная копия плоскостью x = 3000: тот же габарит, отражённый; скругление — на другой стороне.
+    // Mirror copy in the plane x = 3000: same bounding box, mirrored; the fillet is on the other side.
     let before = part(&s, p1);
     let m = s.execute("object.mirror", &json!({"ids": [p1], "axis": "x", "at": 3000, "copy": true})).unwrap()["ids"][0].as_u64().unwrap() as u32;
     let after = part(&s, m);
@@ -369,13 +368,13 @@ fn object_actions() {
     assert_eq!(after.origin[0], 6000.0 - before.origin[0] - before.size[0]);
     after.panel.frame.unwrap().check().unwrap();
     assert!(crate::mesh::build(std::slice::from_ref(&after), |_| false).errors.is_empty());
-    // Пильный размер и кромка зеркальной копии — те же.
+    // Cut size and edge banding of the mirror copy are the same.
     assert_eq!(after.panel.cut_size(), before.panel.cut_size());
-    // Массив: 3 копии корпуса через 800 мм.
+    // Array: 3 copies of the cabinet 800 mm apart.
     let ids = s.execute("object.copy", &json!({"ids": [1], "d": [800, 0, 0], "count": 3})).unwrap()["ids"].clone();
     assert_eq!(ids.as_array().unwrap().len(), 3);
     assert_eq!(s.project.cabinets.last().unwrap().position[0], 100.0 + 2400.0);
-    // Блок из двух панелей; разрушение возвращает их на место.
+    // Block of two panels; exploding puts them back in place.
     let b = id(s.execute("block.create", &json!({"ids": [p1, m], "name": "Боковины"})).unwrap());
     s.execute("block.set", &json!({"id": b, "frame": {"origin": [0, 100, 0], "x": [1, 0, 0], "y": [0, 1, 0], "z": [0, 0, 1]}})).unwrap();
     let lifted = part(&s, p1).origin;
@@ -386,7 +385,7 @@ fn object_actions() {
     assert!(s.project.cabinets.iter().all(|c| c.id != 1));
 }
 
-/// Присадка корпуса конфирматами: отверстия с точными координатами на обеих деталях стыка.
+/// Cabinet drilling with confirmat screws: holes with exact coordinates on both parts of the joint.
 #[test]
 fn cabinet_fasteners_drill_exactly() {
     let mut s = wardrobe();
@@ -394,29 +393,29 @@ fn cabinet_fasteners_drill_exactly() {
     let parts = build(&s.project).unwrap();
     let side = by_name(&parts, "Боковина левая")[0];
     let bottom = by_name(&parts, "Дно")[0];
-    // Стык дна с левой боковиной: длина 600, точки на 50 и 550 мм.
-    // Боковина: сквозное ⌀8 с наружной пласти (z = 16 в осях боковины) на высоте середины дна (88).
+    // Joint of the bottom with the left side panel: length 600, points at 50 and 550 mm.
+    // Side panel: through ⌀8 from the outer face (z = 16 in side panel axes) at the height of the bottom's middle (88).
     assert!(side.panel.holes.contains(&crate::panel::Hole { pos: [50.0, 88.0, 16.0], dir: [0.0, 0.0, -1.0], diameter: 8.0, depth: 16.0 }), "{:?}", side.panel.holes);
-    // Дно: ⌀5 × 37 в торец, посередине толщины.
+    // Bottom: ⌀5 × 37 into the edge, at mid-thickness.
     assert!(bottom.panel.holes.contains(&crate::panel::Hole { pos: [0.0, 50.0, 8.0], dir: [1.0, 0.0, 0.0], diameter: 5.0, depth: 37.0 }), "{:?}", bottom.panel.holes);
-    // Полки — на полкодержатели, по 2 с каждой стороны.
+    // Shelves sit on shelf supports, 2 on each side.
     let shelf = by_name(&parts, "Полка")[0];
     assert!(shelf.panel.holes.is_empty(), "полкодержатель сверлится только в стойке");
-    // И под полкой, а не над ней: верх отверстия ⌀5 ниже нижней пласти полки.
+    // And below the shelf, not above it: the top of the ⌀5 hole is below the shelf's bottom face.
     let supports: Vec<f64> = side.panel.holes.iter().filter(|h| h.diameter == 5.0 && h.depth == 9.0).map(|h| side.origin[1] + h.pos[1]).collect();
     assert!(!supports.is_empty() && supports.iter().all(|&y| y + 2.5 <= shelf.origin[1] + 1e-9), "полкодержатели {supports:?}, низ полки {}", shelf.origin[1]);
     let hw = hardware(&s.project).unwrap();
     let count = |n: &str| hw.iter().find(|(k, _)| k.starts_with(n)).map_or(0, |r| r.1);
     assert_eq!(count("Полкодержатель"), 2 * 2 * 2);
     assert!(count("Конфирмат") >= 12, "{hw:?}");
-    // В XML Раскроя появляется присадка.
+    // Drilling appears in the Raskroy XML.
     let panels: Vec<Panel> = parts.iter().map(|p| p.panel.clone()).collect();
     assert!(crate::raskroy::project_string("Шкаф", &panels, |_| (2800.0, 2070.0)).contains("<DRILLING>"));
-    // Неизвестный крепёж отклоняется.
+    // An unknown fastener is rejected.
     assert!(s.execute("cabinet.set", &json!({"id": 1, "fastener": "Гвоздь"})).is_err());
 }
 
-/// Крепёж между отдельными панелями: стык ищется сам, без стыка — отказ; раздвинутые панели — «висячий» крепёж.
+/// Fasteners between separate panels: the joint is found automatically, no joint — rejected; panels moved apart — a "dangling" fastener.
 #[test]
 fn fasteners_between_panels() {
     let mut s = Session::new(Project::new("Тумба"));
@@ -429,23 +428,23 @@ fn fasteners_between_panels() {
     assert!(s.execute("fastener.add", &json!({"kind": "Конфирмат 7х50", "a": side, "b": far})).unwrap_err().contains("не стыкуются"));
     let parts = build(&s.project).unwrap();
     let get = |i: u32| parts.iter().find(|p| p.id == i).unwrap();
-    // Крышка: в торце ⌀8×34 и чашка ⌀15 в пласти; стойка: ⌀5×13. По 2 точки (стык 500: 50 и 450).
+    // Lid: ⌀8×34 in the edge and a ⌀15 cup in the face; upright: ⌀5×13. 2 points each (joint 500: 50 and 450).
     assert_eq!(get(top).panel.holes.len(), 4);
     assert_eq!(get(side).panel.holes.len(), 2);
     assert!(get(top).panel.holes.iter().any(|h| h.diameter == 15.0 && h.depth == 13.0));
     assert_eq!(hardware(&s.project).unwrap(), vec![("Эксцентрик Minifix 15".to_string(), 2)]);
-    // Раздвинули — крепёж «висит», отверстий нет, анализ это видит.
+    // Moved apart — the fastener "dangles", no holes, analysis detects it.
     s.execute("object.move", &json!({"ids": [top], "d": [100, 0, 0]})).unwrap();
     assert_eq!(hanging_fasteners(&s.project).len(), 1);
     assert!(build(&s.project).unwrap().iter().all(|p| p.panel.holes.is_empty()));
     s.execute("fastener.remove", &json!({"id": f})).unwrap();
-    // Крепёж на все стыки: возвращаем крышку — один стык.
+    // Fasteners on all joints: put the lid back — one joint.
     s.execute("object.move", &json!({"ids": [top], "d": [-100, 0, 0]})).unwrap();
     let added = s.execute("fastener.auto", &json!({"kind": "Шкант 8х30"})).unwrap()["ids"].as_array().unwrap().len();
     assert_eq!(added, 1);
 }
 
-/// У каждого крепежа свой номер: иначе `fastener.remove` снимает сразу все с тем же номером.
+/// Each fastener has its own id: otherwise `fastener.remove` removes all with the same id at once.
 #[test]
 fn fasteners_get_distinct_ids() {
     let mut s = Session::new(Project::new("Тумба"));
@@ -461,7 +460,7 @@ fn fasteners_get_distinct_ids() {
     assert_eq!(s.project.fasteners.len(), 1);
 }
 
-/// Составной крепёж «Minifix + шкант»: шкант в 32 мм от эксцентрика к середине стыка; в смете — оба по отдельности.
+/// Composite fastener Minifix (cam lock) + dowel: the dowel is 32 mm from the cam lock towards the joint middle; in the estimate — both separately.
 #[test]
 fn minifix_with_dowel() {
     let mut s = Session::new(Project::new("Тумба"));
@@ -476,19 +475,19 @@ fn minifix_with_dowel() {
     assert_eq!(get(side).panel.holes.len(), 4);
     let pos = |d: f64, depth: f64| -> Vec<[f64; 3]> { get(top).panel.holes.iter().filter(|h| h.diameter == d && h.depth == depth).map(|h| h.pos).collect() };
     let (m, w) = (pos(8.0, 34.0), pos(8.0, 20.0));
-    // Ось вдоль стыка — та, по которой точки эксцентрика расходятся.
+    // The axis along the joint is the one along which the cam lock points diverge.
     let k = (0..3).find(|&k| (m[0][k] - m[1][k]).abs() > 1.0).unwrap();
     let sorted = |v: &[[f64; 3]]| { let mut a: Vec<f64> = v.iter().map(|p| p[k]).collect(); a.sort_by(f64::total_cmp); a };
     let (minifix, dowel) = (sorted(&m), sorted(&w));
     assert_eq!(minifix.len(), 2);
     assert_eq!(dowel.len(), 2);
-    // Точки эксцентрика 50 и 450 по стыку, шканты — 82 и 418 (внутрь).
+    // Cam lock points 50 and 450 along the joint, dowels — 82 and 418 (inward).
     let gaps: Vec<f64> = minifix.iter().zip(&dowel).map(|(m, d)| d - m).collect();
     assert_eq!(gaps, vec![32.0, -32.0], "эксцентрики {minifix:?}, шканты {dowel:?}");
     assert_eq!(hardware(&s.project).unwrap(), vec![("Шкант 8х30".to_string(), 2), ("Эксцентрик Minifix 15".to_string(), 2)]);
 }
 
-/// Чашка эксцентрика — внутри корпуса: у дна сверху, у крыши снизу.
+/// The cam lock cup is inside the cabinet: on the bottom from above, on the top from below.
 #[test]
 fn minifix_cups_face_inside() {
     let mut s = Session::new(Project::new("Тумба"));
@@ -501,7 +500,7 @@ fn minifix_cups_face_inside() {
         s.execute("fastener.add", &json!({"kind": "Эксцентрик Minifix 15", "a": side, "b": b})).unwrap();
     }
     let parts = build(&s.project).unwrap();
-    // Мировая высота входа чашки ⌀15.
+    // World height of the ⌀15 cup entry.
     let cups = |i: u32| -> Vec<f64> {
         let p = parts.iter().find(|p| p.id == i).unwrap();
         let f = p.panel.frame.unwrap();
@@ -509,7 +508,7 @@ fn minifix_cups_face_inside() {
     };
     assert_eq!(cups(top), vec![684.0, 684.0], "крыша 684…700: чашка снизу");
     assert_eq!(cups(bottom), vec![16.0, 16.0], "дно 0…16: чашка сверху");
-    // Настройка: у крыши чашку — наружу, наверх.
+    // Setting: for the top, the cup goes outside, upwards.
     let f = s.project.fasteners.iter().find(|f| f.b == top).unwrap().id;
     s.execute("fastener.set", &json!({"id": f, "outside": true})).unwrap();
     let parts = build(&s.project).unwrap();
@@ -518,7 +517,7 @@ fn minifix_cups_face_inside() {
     assert_eq!(up, vec![700.0, 700.0], "чашка на верхней пласти крыши");
 }
 
-/// Материал и кромку можно удалить, только если они нигде не используются.
+/// A material and edge banding can be deleted only if they are not used anywhere.
 #[test]
 fn unused_materials_and_edges_are_removed() {
     let mut s = Session::new(Project::new("Тумба"));
@@ -536,13 +535,13 @@ fn unused_materials_and_edges_are_removed() {
     assert_eq!((s.project.materials.len(), s.project.edges.len()), (1, 1));
 }
 
-/// Фурнитура из библиотеки: отверстия садятся в прижатую панель; в смете — по названию; оторвали — анализ видит.
+/// Hardware from the library: holes are drilled into the touching panel; in the estimate — by name; detached — analysis detects it.
 #[test]
 fn furniture_drills_panels() {
     let mut s = Session::new(Project::new("Тумба"));
     s.execute("material.add", &json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
     let side = s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "vertical", "size": [500, 700], "position": [0, 0, 0]})).unwrap()["id"].as_u64().unwrap() as u32;
-    // Направляющая: два шурупа ⌀4×12 влево (в стойку), модель прижата к правой пласти стойки (x = 16).
+    // Drawer runner: two ⌀4×12 screws to the left (into the upright), the model touches the upright's right face (x = 16).
     let hole = |z: f64| crate::panel::WorldHole { pos: [0.0, 10.0, z], dir: [-1.0, 0.0, 0.0], diameter: 4.0, depth: 12.0 };
     s.project.objects.push(Object::Furniture(Furniture {
         id: 50, name: "Направляющая".into(), kind: "Ящик".into(), source: String::new(),
@@ -552,14 +551,14 @@ fn furniture_drills_panels() {
     let parts = build(&s.project).unwrap();
     let p = parts.iter().find(|p| p.id == side).unwrap();
     assert_eq!(p.panel.holes.len(), 2);
-    // В осях стойки: X — глубина (z проекта), Y — высота, Z — к левой пласти; вход — на правой пласти (z = 0).
+    // In upright axes: X — depth (project z), Y — height, Z — towards the left face; entry on the right face (z = 0).
     assert!(p.panel.holes.iter().any(|h| (h.pos[0] - 37.0).abs() < 1e-9 && (h.pos[1] - 110.0).abs() < 1e-9 && h.pos[2].abs() < 1e-9 && h.depth == 12.0), "{:?}", p.panel.holes);
     assert_eq!(hardware(&s.project).unwrap(), vec![("Направляющая".to_string(), 1)]);
     assert!(furniture_lost_holes(&s.project).is_empty());
     s.execute("object.move", &json!({"ids": [50], "d": [200, 0, 0]})).unwrap();
     assert_eq!(furniture_lost_holes(&s.project), vec![("Направляющая".to_string(), 2)]);
     assert!(s.execute("object.mirror", &json!({"ids": [50], "axis": "x", "at": 0})).is_err());
-    // Настоящая модель из примеров ставится командой.
+    // A real model from the examples is placed by a command.
     let tandem = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/telegram/Ящик_300_мм_TANDEM_BLUMOTION_част,выд_11_16_мм_30_кг.fr3d");
     if tandem.exists() {
         let id = s.execute("furniture.add", &json!({"path": tandem, "position": [1000, 0, 0]})).unwrap()["id"].as_u64().unwrap() as u32;
@@ -568,42 +567,41 @@ fn furniture_drills_panels() {
     }
 }
 
-/// Двери и ящики в проём: размеры по типу установки, петли с присадкой в двери и стойке, ящики с направляющими.
+/// Doors and drawers in an opening: sizes by mount type, hinges with drilling in the door and upright, drawers with runners.
 #[test]
 fn doors_and_drawers_in_opening() {
     let mut s = Session::new(Project::new("Тумба"));
     s.execute("material.add", &json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
     s.execute("material.add", &json!({"name": "ХДФ 3", "thickness": 3})).unwrap();
-    // Короб без дверей: стойки 0…16 и 584…600, дно 0…16, крыша 704…720, глубина 500.
+    // Box without doors: uprights 0…16 and 584…600, bottom 0…16, top 704…720, depth 500.
     s.execute("cabinet.add", &json!({"width": 600, "height": 720, "depth": 500, "material": "ЛДСП 16", "doors": 0})).unwrap();
     let block = s.execute("door.add", &json!({"at": [300, 360], "material": "ЛДСП 16", "mount": "overlay"})).unwrap()["id"].as_u64().unwrap() as u32;
     let parts = build(&s.project).unwrap();
     let door = parts.iter().find(|p| p.owner == block && p.kind == Kind::Door).unwrap();
-    // Накладная: по внешним граням стоек минус зазор 2.
+    // Overlay: at the outer faces of the uprights minus a 2 gap.
     assert_eq!((door.origin, door.size), ([2.0, 2.0, 500.0], [596.0, 716.0, 16.0]));
-    // Две петли: чашка ⌀35 в двери в 22 мм от левого края, на 100 мм от низа и верха.
+    // Two hinges: ⌀35 cup in the door 22 mm from the left edge, 100 mm from the bottom and top.
     let cups: Vec<_> = door.panel.holes.iter().filter(|h| h.diameter == 35.0).collect();
     assert_eq!(cups.len(), 2, "{:?}", door.panel.holes);
     let side = parts.iter().find(|p| p.panel.name == "Боковина левая").unwrap();
-    // Планки: 4 отверстия ⌀2 в левой стойке, в 37 мм от переднего края (z = 463).
+    // Mounting plates: 4 ⌀2 holes in the left upright, 37 mm from the front edge (z = 463).
     let plate: Vec<_> = side.panel.holes.iter().filter(|h| h.diameter == 2.0).collect();
     assert_eq!(plate.len(), 4, "{:?}", side.panel.holes);
     assert!(plate.iter().all(|h| (h.pos[0] - 463.0).abs() < 1e-9), "{plate:?}");
     assert!(hardware(&s.project).unwrap().contains(&("Петля накладная с доводчиком".to_string(), 2)));
     assert!(furniture_lost_holes(&s.project).is_empty());
-    // Проём закрыт: вторая дверь и ящики в него не встают.
+    // Opening closed: a second door and drawers don't fit into it.
     let again = s.execute("door.add", &json!({"at": [300, 360], "material": "ЛДСП 16"})).unwrap_err();
     assert!(again.contains("уже стоит"), "{again}");
     assert!(s.execute("drawers.add", &json!({"at": [300, 360], "material": "ЛДСП 16", "heights": [300]})).unwrap_err().contains("уже стоит"));
     s.execute("block.remove", &json!({"id": block})).unwrap();
-    // Вкладная двойная.
     let block = s.execute("door.add", &json!({"at": [300, 360], "material": "ЛДСП 16", "mount": "inset", "double": true})).unwrap()["id"].as_u64().unwrap() as u32;
     let parts = build(&s.project).unwrap();
     let leaves: Vec<_> = parts.iter().filter(|p| p.owner == block && p.kind == Kind::Door).collect();
     assert_eq!(leaves.len(), 2);
     assert_eq!((leaves[0].origin, leaves[0].size), ([18.0, 18.0, 484.0], [281.0, 684.0, 16.0]));
     s.execute("block.remove", &json!({"id": block})).unwrap();
-    // Ящики: два фасада, короба по ширине проёма минус 2·13.
+    // Drawers: two fronts, boxes as wide as the opening minus 2·13.
     let block = s.execute("drawers.add", &json!({"at": [300, 360], "material": "ЛДСП 16", "heights": [300, 400], "bottom": "ХДФ 3"})).unwrap()["id"].as_u64().unwrap() as u32;
     let parts = build(&s.project).unwrap();
     let mine: Vec<_> = parts.iter().filter(|p| p.owner == block).collect();
@@ -614,7 +612,7 @@ fn doors_and_drawers_in_opening() {
     assert!(s.execute("drawers.add", &json!({"at": [300, 360], "material": "ЛДСП 16", "heights": [500, 500]})).is_err());
 }
 
-/// Анализ модели: свои шаблоны чисты; пересечение, деталь больше листа и висячий крепёж находятся.
+/// Model analysis: own templates are clean; intersection, part larger than the sheet and dangling fastener are found.
 #[test]
 fn analysis_finds_real_problems_only() {
     let mut s = wardrobe();
@@ -625,9 +623,9 @@ fn analysis_finds_real_problems_only() {
     s.execute("countertop.add", &json!({"material": "ЛДСП Белый 16", "length": 600, "depth": 600, "position": [1000, 820, 0]})).unwrap();
     let clean = analysis::analyze(&s.project).unwrap();
     assert!(clean.is_empty(), "{clean:#?}");
-    // Панель внутрь боковины шкафа — пересечение.
+    // Panel inside the wardrobe's side panel — intersection.
     s.execute("panel.add", &json!({"material": "ЛДСП Белый 16", "plane": "horizontal", "size": [300, 300], "position": [-100, 1000, 100]})).unwrap();
-    // Панель больше листа 2800×2070 (обрезка 10).
+    // Panel larger than the 2800×2070 sheet (trim 10).
     s.execute("panel.add", &json!({"material": "ЛДСП Белый 16", "plane": "front", "size": [3000, 500], "position": [6000, 0, 0]})).unwrap();
     let found = analysis::analyze(&s.project).unwrap();
     let kinds: Vec<&str> = found.iter().map(|p| p.kind).collect();
@@ -635,7 +633,7 @@ fn analysis_finds_real_problems_only() {
     assert_eq!(found[0].parts.len(), 2);
 }
 
-/// Маркеры размера: панель занимает заданный габарит в любой плоскости, одной командой.
+/// Dimension markers: a panel occupies the given bounding box in any plane, with a single command.
 #[test]
 fn panel_box_resizes_exactly() {
     let mut s = Session::new(Project::new("Т"));

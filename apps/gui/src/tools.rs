@@ -1,5 +1,5 @@
-//! Палитра «Инструменты» (как Tool Sets в cadcraft): иконки по группам, под ними — параметры
-//! включённого инструмента. Подсказка, что делать дальше, — в строке состояния (`App::hint`).
+//! The "Tools" palette (like Tool Sets in cadcraft): icons by group, below them the parameters
+//! of the active tool. The hint on what to do next is in the status bar (`App::hint`).
 
 use dowel::design;
 use eframe::egui::{self, Color32};
@@ -9,7 +9,7 @@ use crate::icons::{Icon, tool};
 use crate::{App, FillTool, MenuAct, Pane};
 
 
-/// Инструмент изменения выделенного: параметры — под палитрой, «Применить» — Enter.
+/// Tool that modifies the selection: parameters below the palette, Enter applies.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Modify {
     Move,
@@ -31,7 +31,7 @@ impl Modify {
     }
 }
 
-/// Что выбрано в палитре на этом кадре.
+/// What was picked in the palette this frame.
 enum Pick {
     Add(&'static str),
     Fill(&'static str),
@@ -43,9 +43,9 @@ enum Pick {
     Script,
 }
 
-/// Группа палитры: заголовок и иконки в строку с переносом.
+/// Palette group: a header and icons in a wrapping row.
 fn group(ui: &mut egui::Ui, title: &str, body: impl FnOnce(&mut egui::Ui)) {
-    // Без отступа содержимого: в ряд помещаются три подписанные кнопки.
+    // No content indent: three labelled buttons fit in a row.
     egui::CollapsingHeader::new(egui::RichText::new(crate::i18n::t(title)).strong()).default_open(true).show_unindented(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
@@ -151,7 +151,7 @@ impl App {
             Some(Pick::Script) => self.pick_script(),
             None => {}
         }
-        // Параметры включённого инструмента.
+        // Parameters of the active tool.
         if self.fill.is_some() || self.modify.is_some() || self.fastening {
             ui.separator();
             if self.fill.is_some() {
@@ -164,7 +164,7 @@ impl App {
         }
     }
 
-    /// Включить или выключить инструмент «в проём» и показать вид спереди, где им щёлкают.
+    /// Toggle the "into opening" tool and show the front view, where it is clicked.
     pub(crate) fn toggle_fill(&mut self, plane: &'static str) {
         self.modify = None;
         self.fastening = false;
@@ -189,19 +189,19 @@ impl App {
         self.show_pane(Pane::Front);
     }
 
-    /// Новый модуль или панель с размерами по умолчанию; встаёт справа от модулей и сразу выделяется.
+    /// New module or panel with default dimensions; placed to the right of the modules and selected at once.
     pub(crate) fn add_object(&mut self, kind: &str) {
         let Some(s) = &self.session else { return };
         let project = &s.project;
         let Some(material) = project.materials.first().map(|m| m.name.clone()) else { return };
         let edge = project.edges.first().map(|e| e.name.clone());
         let floor: Vec<&design::Cabinet> = project.cabinets.iter().filter(|c| c.position[1] <= 0.0).collect();
-        // Правее всего, что уже есть (корпуса, панели, фурнитура), с зазором 50 мм — иначе новое ложится поверх.
+        // To the right of everything already there (cabinets, panels, furniture) with a 50 mm gap, otherwise the new one lands on top.
         let right = self.free_x();
         let (cmd, args) = match kind {
             "cabinet" => ("cabinet.add", json!({ "width": 600, "height": 820, "depth": 560, "material": material, "plinth": 100, "edge": edge, "doors": 1, "position": [right, 0, 0] })),
             "wall" => {
-                // Над столешницей (или напольными) на 600 мм; без них — на 1400 мм от пола.
+                // 600 mm above the countertop (or floor units); without them, 1400 mm above the floor.
                 let top = project.countertops.iter().map(|c| c.position[1] + project.material(&c.material).map_or(38.0, |m| m.thickness)).chain(floor.iter().map(|c| c.height)).fold(0.0, f64::max);
                 let y = if top > 0.0 { top + 600.0 } else { 1400.0 };
                 let x = project.cabinets.iter().filter(|c| c.position[1] > 0.0).map(|c| c.position[0] + c.width).fold(0.0, f64::max);
@@ -227,7 +227,7 @@ impl App {
         }
     }
 
-    /// X, с которого новое не пересечётся с уже поставленным: правый край всех деталей и фурнитуры + 50 мм.
+    /// X from which a new object won't overlap existing ones: right edge of all parts and furniture + 50 mm.
     pub(crate) fn free_x(&self) -> f64 {
         let parts = self.parts.as_ref().map(|p| p.iter().map(|p| p.origin[0] + p.size[0]).fold(f64::MIN, f64::max)).unwrap_or(f64::MIN);
         let furniture = self.session.as_ref().map_or(f64::MIN, |s| design::furniture(&s.project).iter().map(|(f, fr)| (0..8).map(|c| fr.apply([if c & 1 == 0 { f.lo[0] } else { f.hi[0] }, if c & 2 == 0 { f.lo[1] } else { f.hi[1] }, if c & 4 == 0 { f.lo[2] } else { f.hi[2] }])[0]).fold(f64::MIN, f64::max)).fold(f64::MIN, f64::max));
@@ -235,7 +235,7 @@ impl App {
         if right == f64::MIN { 0.0 } else { (right + 50.0).round() }
     }
 
-    /// Выделить объект по номеру: первую его деталь.
+    /// Select an object by number: its first part.
     pub(crate) fn select_object(&mut self, id: u32) {
         let Ok(parts) = &self.parts else { return };
         if let Some(i) = parts.iter().position(|p| p.owner == id || p.id == id) {
@@ -245,7 +245,7 @@ impl App {
         }
     }
 
-    /// Параметры «в проём»: материал, отступы или вид фасада.
+    /// "Into opening" parameters: material, gaps or front type.
     fn fill_params(&mut self, ui: &mut egui::Ui) {
         let Some(s) = &self.session else { return };
         let names: Vec<String> = s.project.materials.iter().map(|m| m.name.clone()).collect();
@@ -295,7 +295,7 @@ impl App {
         });
     }
 
-    /// Параметры сдвига, копии, поворота, отражения и кнопка «Применить» (или Enter).
+    /// Parameters for move, copy, rotate, mirror and the "Apply" button (or Enter).
     fn modify_params(&mut self, ui: &mut egui::Ui) {
         let Some(m) = self.modify else { return };
         ui.strong(crate::i18n::t(m.title()));
@@ -356,8 +356,8 @@ impl App {
         self.exec(cmd, args);
     }
 
-    /// Крепёж: вид из справочника, пояснение и «Поставить на выделенное».
-    /// Корпусу и угловому модулю крепёж задаётся целиком (все стыки), отдельным панелям — на их стыки.
+    /// Fasteners: type from the catalog, a description and "Place on selection".
+    /// A cabinet or corner module gets fasteners as a whole (all joints), individual panels on their own joints.
     fn fastener_params(&mut self, ui: &mut egui::Ui) {
         let Some(s) = &self.session else { return };
         let project = s.project.clone();
@@ -395,7 +395,7 @@ impl App {
                 self.exec("corner.set", json!({ "id": id, "fastener": kind }));
                 modules += 1;
             } else {
-                // Панель или блок: все отдельные панели внутри.
+                // Panel or block: all individual panels inside.
                 let Ok(parts) = &self.parts else { continue };
                 panels.extend(parts.iter().filter(|p| p.id != 0 && (p.id == id || p.owner == id)).map(|p| p.id));
             }
@@ -408,7 +408,7 @@ impl App {
         {
             joints = r.get("ids").and_then(Value::as_array).map_or(0, Vec::len);
         }
-        // Уже стоящий крепёж между выделенными панелями — на выбранную сторону.
+        // Fasteners already placed between the selected panels go to the chosen side.
         let stale: Vec<u32> = self.session.as_ref().map_or(Vec::new(), |s| {
             s.project.fasteners.iter().filter(|f| panels.contains(&f.a) && panels.contains(&f.b) && f.outside != self.fastener_outside).map(|f| f.id).collect()
         });
@@ -421,7 +421,7 @@ impl App {
         }
     }
 
-    /// Подсказка в строке состояния: что делать дальше.
+    /// Status bar hint: what to do next.
     pub(crate) fn hint(&self) -> String {
         if self.fastening {
             return "Крепёж: выделите корпус или панели (Ctrl — несколько) и нажмите «Поставить на выделенное». Esc — выйти.".into();

@@ -18,7 +18,7 @@ serde_json = { version = "1", features = ["float_roundtrip"] }
 [workspace.lints.rust]
 unsafe_code = "forbid"
 
-# Тесты гоняют сжатие и сетку по 305 моделям — без оптимизации это минуты.
+# Tests run compression and meshing over 305 models — without optimization that takes minutes.
 [profile.dev.package.miniz_oxide]
 opt-level = 3
 [profile.dev.package.flate2]

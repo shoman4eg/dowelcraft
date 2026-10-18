@@ -1,4 +1,4 @@
-//! Редакторы объектов проекта: каждое изменение — команда (`cabinet.set` и т.п.), применяется по отпусканию.
+//! Project object editors: each change is a command (`cabinet.set` etc.), applied on release.
 
 use dowel::design::{self, Project};
 use dowel::panel::Texture;
@@ -7,12 +7,12 @@ use serde_json::{Value, json};
 
 pub type Cmds = Vec<(&'static str, Value)>;
 
-/// Ширина колонки подписей в таблицах свойств (как в cadcraft: подпись справа, значение — поле).
+/// Width of the label column in property tables (as in cadcraft: label on the right, value is a field).
 pub const KEY_W: f32 = 128.0;
-/// Ширина поля значения (числа, списки, текст).
+/// Width of the value field (numbers, lists, text).
 pub const VALUE_W: f32 = 150.0;
 
-/// Таблица свойств: две колонки, подписи прижаты вправо, ровные отступы.
+/// Property table: two columns, labels right-aligned, even spacing.
 pub fn props<R>(ui: &mut egui::Ui, id: impl std::hash::Hash + std::fmt::Debug, body: impl FnOnce(&mut egui::Ui) -> R) -> R {
     egui::Grid::new(id).num_columns(2).spacing([8.0, 5.0]).show(ui, |ui| {
         ui.spacing_mut().interact_size.x = 72.0;
@@ -21,7 +21,7 @@ pub fn props<R>(ui: &mut egui::Ui, id: impl std::hash::Hash + std::fmt::Debug, b
     .inner
 }
 
-/// Подпись свойства: приглушённая, прижата вправо в колонке фиксированной ширины; длинная — с «…».
+/// Property label: dimmed, right-aligned in a fixed-width column; long ones get "…".
 pub fn caption(ui: &mut egui::Ui, text: &str) -> egui::Response {
     let color = ui.visuals().weak_text_color();
     let text = &crate::i18n::t(text);
@@ -35,7 +35,7 @@ pub fn caption(ui: &mut egui::Ui, text: &str) -> egui::Response {
     resp
 }
 
-/// Значение только для чтения — в рамке поля (как неактивное поле cadcraft).
+/// Read-only value — in a field frame (like a disabled cadcraft field).
 pub fn value_box(ui: &mut egui::Ui, text: impl Into<String>) {
     let v = ui.visuals();
     egui::Frame::new().fill(v.extreme_bg_color).stroke(egui::Stroke::new(1.0, v.widgets.noninteractive.bg_stroke.color)).corner_radius(3).inner_margin(egui::Margin::symmetric(6, 2)).show(ui, |ui| {
@@ -44,19 +44,19 @@ pub fn value_box(ui: &mut egui::Ui, text: impl Into<String>) {
     });
 }
 
-/// Изменение числового поля завершено: отпустили перетаскивание или ввели с клавиатуры.
+/// A numeric field edit is finished: drag released or typed from the keyboard.
 fn done(r: &egui::Response) -> bool {
     r.drag_stopped() || (r.changed() && !r.dragged())
 }
 
-/// Поле в мм; возвращает новое значение, когда изменение завершено.
+/// Field in mm; returns the new value when the edit is finished.
 pub fn mm(ui: &mut egui::Ui, value: f64, range: std::ops::RangeInclusive<f64>) -> Option<f64> {
     let mut v = value;
     let r = crate::expr::add(ui, &mut v, |d| d.range(range).suffix(crate::i18n::t(" мм")));
     (done(&r) && v != value).then_some(v)
 }
 
-/// Необязательное поле в мм: флажок «своё значение» и число.
+/// Optional field in mm: a "custom value" checkbox and a number.
 fn optional_mm(ui: &mut egui::Ui, value: Option<f64>, default_text: &str) -> Option<Option<f64>> {
     let mut on = value.is_some();
     let mut out = None;
@@ -78,7 +78,7 @@ fn optional_mm(ui: &mut egui::Ui, value: Option<f64>, default_text: &str) -> Opt
     out
 }
 
-/// Положение X, Y, Z (целые мм при перетаскивании).
+/// Position X, Y, Z (whole mm while dragging).
 pub fn position_editor(ui: &mut egui::Ui, pos: [f64; 3]) -> Option<[f64; 3]> {
     let mut out = None;
     ui.horizontal(|ui| {
@@ -95,7 +95,7 @@ pub fn position_editor(ui: &mut egui::Ui, pos: [f64; 3]) -> Option<[f64; 3]> {
     out
 }
 
-/// Выбор из списка имён; `none` — разрешить «—». Возвращает выбор, если он изменился.
+/// Pick from a list of names; `none` — allow "—". Returns the choice if it changed.
 pub fn choose(ui: &mut egui::Ui, key: impl std::hash::Hash + std::fmt::Debug, value: Option<&str>, names: &[String], none: bool) -> Option<Option<String>> {
     let mut chosen = value.map(str::to_owned);
     egui::ComboBox::from_id_salt(key).width(VALUE_W).selected_text(value.unwrap_or("—")).show_ui(ui, |ui| {
@@ -113,7 +113,7 @@ fn materials(p: &Project) -> Vec<String> {
     p.materials.iter().map(|m| m.name.clone()).collect()
 }
 
-/// Названия крепежа справочника проекта (без артикула).
+/// Fastener names from the project catalog (without article number).
 pub fn fastener_names(p: &Project) -> Vec<String> {
     p.defs().iter().map(|d| d.name.split('\r').next().unwrap_or(&d.name).to_string()).collect()
 }
@@ -122,7 +122,7 @@ fn edges(p: &Project) -> Vec<String> {
     p.edges.iter().map(|e| e.name.clone()).collect()
 }
 
-/// Угловой модуль: все параметры.
+/// Corner module: all parameters.
 pub fn corner_editor(ui: &mut egui::Ui, project: &Project, c: &design::Corner, cmds: &mut Cmds) {
     let id = c.id;
     let mut set = |key: &str, v: Value| cmds.push(("corner.set", json!({ "id": id, key: v })));
@@ -199,7 +199,7 @@ pub fn corner_editor(ui: &mut egui::Ui, project: &Project, c: &design::Corner, c
     });
 }
 
-/// Столешница: все параметры.
+/// Countertop: all parameters.
 pub fn countertop_editor(ui: &mut egui::Ui, project: &Project, ct: &design::Countertop, cmds: &mut Cmds) {
     let id = ct.id;
     let mut set = |key: &str, v: Value| cmds.push(("countertop.set", json!({ "id": id, key: v })));
@@ -243,7 +243,7 @@ pub fn countertop_editor(ui: &mut egui::Ui, project: &Project, ct: &design::Coun
     });
 }
 
-/// Отдельная панель дерева: имя, материал, назначение, текстура, положение; размеры — из контура.
+/// Standalone tree panel: name, material, role, texture, position; sizes come from the contour.
 pub fn panel_editor(ui: &mut egui::Ui, project: &Project, fp: &design::FreePanel, size: (f64, f64, f64), cmds: &mut Cmds) {
     let id = fp.id;
     let mut set = |key: &str, v: Value| cmds.push(("panel.set", json!({ "id": id, key: v })));
@@ -311,8 +311,8 @@ pub fn texture_name(t: Texture) -> &'static str {
     }
 }
 
-/// Текстовое поле с черновиком: набранное хранится, пока поле в фокусе,
-/// и возвращается по выходу из поля или Enter, если отличается от `value`.
+/// Text field with a draft: typed text is kept while the field has focus
+/// and returned on leaving the field or Enter, if it differs from `value`.
 pub fn text_field(ui: &mut egui::Ui, key: impl egui::AsId, value: &str) -> Option<String> {
     let id = egui::Id::new(key);
     let mut draft = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_else(|| value.to_owned());
@@ -327,7 +327,7 @@ pub fn text_field(ui: &mut egui::Ui, key: impl egui::AsId, value: &str) -> Optio
     None
 }
 
-/// Поля корпуса. Каждое изменение — команда `cabinet.set` и т.п.
+/// Cabinet fields. Each change is a command `cabinet.set` etc.
 pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet, cmds: &mut Cmds) {
     let id = c.id;
     let mut set = |key: &str, v: Value| cmds.push(("cabinet.set", json!({ "id": id, key: v })));
@@ -346,7 +346,7 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
         ] {
             caption(ui, label);
             let mut v = value;
-            // Применяем по отпусканию, чтобы перетаскивание давало один шаг отмены.
+            // Apply on release so that a drag yields a single undo step.
             let r = crate::expr::add(ui, &mut v, |d| d.range(min..=6000.0).suffix(crate::i18n::t(" мм")));
             if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != value {
                 set(key, json!(v));
@@ -478,7 +478,7 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
     }
 }
 
-/// Точки сегмента для рисования (дуги — ломаной).
+/// Segment points for drawing (arcs as a polyline).
 fn seg_points(s: &dowel::contour::Seg) -> Vec<[f64; 2]> {
     use dowel::contour::Seg;
     match *s {
@@ -502,7 +502,7 @@ fn seg_points(s: &dowel::contour::Seg) -> Vec<[f64; 2]> {
     }
 }
 
-/// Щелчок по схеме контура: торец под курсором, вершина рядом и точка в мм осей панели.
+/// Click on the contour diagram: edge under the cursor, nearby vertex and point in mm of the panel axes.
 #[derive(Clone, Copy, Debug)]
 pub struct ContourClick {
     pub segment: Option<usize>,
@@ -510,8 +510,8 @@ pub struct ContourClick {
     pub point: [f64; 2],
 }
 
-/// Схема контура панели (как в Базисе при облицовке: панель параллельно экрану). Торцы с кромкой —
-/// толстой линией с подписью толщины, торец под курсором — оранжевым, вершины — кружками.
+/// Panel contour diagram (as in Bazis when edge banding: panel parallel to the screen). Banded edges —
+/// thick line with a thickness label, edge under the cursor — orange, vertices — circles.
 pub fn contour_view(ui: &mut egui::Ui, segs: &[dowel::contour::Seg], edges: &[dowel::panel::Edge], height: f32) -> Option<ContourClick> {
     use egui::{Color32, Pos2, Stroke};
     let (resp, painter) = ui.allocate_painter(egui::vec2(ui.available_width(), height), egui::Sense::click());
@@ -542,7 +542,7 @@ pub fn contour_view(ui: &mut egui::Ui, segs: &[dowel::contour::Seg], edges: &[do
             (false, None) => Stroke::new(1.0, Color32::from_gray(90)),
         };
         painter.add(egui::Shape::line(pl.clone(), stroke));
-        // Середина ломаной: у отрезка — между концами.
+        // Middle of the polyline: for a line segment — between the ends.
         let mid = if pl.len() == 2 { pl[0] + (pl[1] - pl[0]) / 2.0 } else { pl[pl.len() / 2] };
         let label = match edge {
             Some(e) => format!("{} · {}", i, e.thickness),
@@ -550,7 +550,7 @@ pub fn contour_view(ui: &mut egui::Ui, segs: &[dowel::contour::Seg], edges: &[do
         };
         painter.text(mid, egui::Align2::CENTER_CENTER, label, egui::FontId::proportional(11.0), Color32::from_rgb(20, 60, 160));
     }
-    // Вершины: концы отрезков и дуг.
+    // Vertices: ends of line segments and arcs.
     let vertices: Vec<[f64; 2]> = segs.iter().filter(|s| !matches!(s, dowel::contour::Seg::Circle { .. })).map(|s| dowel::contour::ends(s).0).collect();
     let vertex = mouse.and_then(|m| vertices.iter().copied().filter(|&v| (to(v) - m).length() < 9.0).min_by(|a, b| (to(*a) - m).length().total_cmp(&(to(*b) - m).length())));
     for &v in &vertices {

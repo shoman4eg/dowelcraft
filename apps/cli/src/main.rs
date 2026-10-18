@@ -178,7 +178,7 @@ fn run(args: &[String]) -> Result<(), String> {
                 }
             }
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("html"));
-            // .pdf — карты раскроя в PDF (без браузера), иначе HTML с картами и «Панелями в производство».
+            // .pdf — cutting maps as PDF (no browser), otherwise HTML with the maps and "Panels for production".
             let data = if out.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf")) { dowel::pdf::from_svg_pages(&job::cards(&job, &cuts))? } else { job::document(&job, &cuts).into_bytes() };
             std::fs::write(&out, data).map_err(|e| format!("{}: {e}", out.display()))?;
             println!("→ {}", out.display());
@@ -188,7 +188,7 @@ fn run(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// Команда над проектом .dcraft: загрузить (или создать), выполнить, сохранить при изменении.
+/// Command on a .dcraft project: load (or create), execute, save if changed.
 fn design_cmd(path: &str, rest: &[String]) -> Result<(), String> {
     if path == "--help" {
         println!("Команды проекта:");

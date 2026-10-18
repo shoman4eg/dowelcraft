@@ -1,53 +1,53 @@
-//! Крепёж и присадка: справочник крепежа, стыки панелей, расстановка и отверстия с координатами.
+//! Fasteners and drilling: fastener library, panel joints, placement and holes with coordinates.
 //!
-//! Стык — торец панели B касается пласти панели A (схема «пласть – торец», табл. 28.1 руководства
-//! Базиса). У стыка своя система координат: начало — на плоскости касания, посередине толщины B;
-//! X — внутрь B, Y — по нормали B (к её лицевой пласти; у горизонтальной B — вверх), Z — вдоль стыка. Отверстия крепежа заданы
-//! в этой системе и зависят от толщин: координата = c + t·(коэф. толщины A) + tb·(коэф. толщины B).
-//! Размеры справочника сверены с крепежом из моделей Базиса (`Document/FurnList`).
+//! Joint — the edge of panel B touches the face of panel A ("face – edge" scheme, table 28.1 of the Bazis
+//! manual). A joint has its own frame: origin on the contact plane, at mid-thickness of B;
+//! X — into B, Y — along B's normal (toward its front face; for horizontal B — up), Z — along the joint. Fastener holes are given
+//! in this frame and depend on thicknesses: coordinate = c + t·(A thickness coef.) + tb·(B thickness coef.).
+//! Library sizes are checked against fasteners from Bazis models (`Document/FurnList`).
 
 use serde::{Deserialize, Serialize};
 
 use crate::design::Part;
 use crate::panel::Hole;
 
-/// Отверстие крепежа в системе стыка.
+/// Fastener hole in the joint frame.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct HoleDef {
-    /// В какую панель: "a" — с пластью, "b" — с торцом.
+    /// Which panel: "a" — the face one, "b" — the edge one.
     pub panel: char,
     pub at: [f64; 3],
     #[serde(default)]
     pub at_t: [f64; 3],
     #[serde(default)]
     pub at_tb: [f64; 3],
-    /// Направление сверления.
+    /// Drilling direction.
     pub dir: [f64; 3],
     pub diameter: f64,
     pub depth: f64,
-    /// Добавка к глубине на толщину A (сквозное через A — `depth: 0, depth_t: 1`).
+    /// Depth added per thickness of A (through A — `depth: 0, depth_t: 1`).
     #[serde(default)]
     pub depth_t: f64,
-    /// По Y — внутрь корпуса (чашка эксцентрика): у крыши вниз, у дна вверх. Иначе Y как есть
-    /// (полкодержатель всегда под полкой).
+    /// Y points into the carcass (cam lock cup): down at the top, up at the bottom. Otherwise Y as is
+    /// (shelf support always under the shelf).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub inward: bool,
 }
 
-/// Крепёж справочника.
+/// Library fastener.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Def {
-    /// Название `Наименование\rАртикул` — как в смете Базиса.
+    /// Name `Name\rArticle` — as in the Bazis cost estimate.
     pub name: String,
     pub holes: Vec<HoleDef>,
-    /// Отступ крайних точек от концов стыка, мм.
+    /// Offset of the outermost points from the joint ends, mm.
     pub offset: f64,
-    /// Наибольший шаг между точками, мм.
+    /// Maximum spacing between points, mm.
     pub step: f64,
-    /// Наименьшее и наибольшее число точек на стык.
+    /// Minimum and maximum number of points per joint.
     pub min: usize,
     pub max: usize,
-    /// Что покупается на одну точку, если крепёж составной (эксцентрик + шкант); пусто — сам крепёж, 1 шт.
+    /// What is bought per point if the fastener is composite (cam lock + dowel); empty — the fastener itself, 1 pc.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub items: Vec<(String, usize)>,
 }
@@ -56,14 +56,14 @@ fn h(panel: char, at: [f64; 3], dir: [f64; 3], diameter: f64, depth: f64) -> Hol
     HoleDef { panel, at, at_t: [0.0; 3], at_tb: [0.0; 3], dir, diameter, depth, depth_t: 0.0, inward: false }
 }
 
-/// Справочник по умолчанию.
+/// Default library.
 pub fn library() -> Vec<Def> {
     let (x, nx, ny) = ([1.0, 0.0, 0.0], [-1.0, 0.0, 0.0], [0.0, -1.0, 0.0]);
     vec![
         Def {
             name: "Конфирмат 7х50".into(),
             holes: vec![
-                // Сквозное ⌀8 через пласть A от её наружной стороны; ⌀5 в торец B: 50 − t + 3 мм.
+                // Through ⌀8 across face A from its outer side; ⌀5 into edge B: 50 − t + 3 mm.
                 HoleDef { at_t: [-1.0, 0.0, 0.0], depth_t: 1.0, ..h('a', [0.0; 3], x, 8.0, 0.0) },
                 HoleDef { depth_t: -1.0, ..h('b', [0.0; 3], x, 5.0, 53.0) },
             ],
@@ -77,7 +77,7 @@ pub fn library() -> Vec<Def> {
             name: "Эксцентрик Minifix 15".into(),
             holes: vec![
                 h('b', [0.0; 3], x, 8.0, 34.0),
-                // Чашка ⌀15×13 в пласти B в 34 мм от стыка, с внутренней стороны корпуса.
+                // Cup ⌀15×13 in face B, 34 mm from the joint, on the inner side of the carcass.
                 HoleDef { at_tb: [0.0, 0.5, 0.0], inward: true, ..h('b', [34.0, 0.0, 0.0], ny, 15.0, 13.0) },
                 h('a', [0.0; 3], nx, 5.0, 13.0),
             ],
@@ -98,7 +98,7 @@ pub fn library() -> Vec<Def> {
         },
         Def {
             name: "Полкодержатель 5".into(),
-            // Под полкой: центр на 2,5 мм ниже её нижней пласти, ⌀5×9 в пласть A.
+            // Under the shelf: centre 2.5 mm below its bottom face, ⌀5×9 into face A.
             holes: vec![HoleDef { at_tb: [0.0, -0.5, 0.0], ..h('a', [0.0, -2.5, 0.0], nx, 5.0, 9.0) }],
             offset: 50.0,
             step: 10_000.0,
@@ -108,7 +108,7 @@ pub fn library() -> Vec<Def> {
         },
         Def {
             name: "Minifix 15 + шкант 8х30".into(),
-            // В каждой точке — эксцентрик, рядом в 32 мм ближе к середине стыка — шкант.
+            // At each point — a cam lock, next to it 32 mm closer to the joint middle — a dowel.
             holes: vec![
                 h('b', [0.0; 3], x, 8.0, 34.0),
                 HoleDef { at_tb: [0.0, 0.5, 0.0], inward: true, ..h('b', [34.0, 0.0, 0.0], ny, 15.0, 13.0) },
@@ -125,16 +125,16 @@ pub fn library() -> Vec<Def> {
     ]
 }
 
-/// Стык: торец панели `b` на пласти панели `a`.
+/// Joint: edge of panel `b` on the face of panel `a`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Joint {
     pub a: usize,
     pub b: usize,
-    /// Начало стыка (в системе стыка Z = 0) и оси X, Y, Z в координатах проекта.
+    /// Joint origin (Z = 0 in the joint frame) and X, Y, Z axes in project coordinates.
     pub origin: [f64; 3],
     pub axes: [[f64; 3]; 3],
     pub length: f64,
-    /// Знак Y «внутрь корпуса» для `HoleDef::inward`: −1, если горизонтальная B выше середины A (крыша).
+    /// Sign of the "into the carcass" Y for `HoleDef::inward`: −1 if horizontal B is above the middle of A (top).
     pub inward: f64,
 }
 
@@ -145,7 +145,7 @@ fn thick_axis(p: &Part) -> Option<usize> {
     (0..3).find(|&k| f.z[k].abs() > 1.0 - 1e-9)
 }
 
-/// Стык двух деталей, если торец `b` касается пласти `a`. Только для деталей вдоль осей проекта.
+/// Joint of two parts if the edge of `b` touches the face of `a`. Only for parts aligned with the project axes.
 pub fn joint(parts: &[Part], a: usize, b: usize) -> Option<Joint> {
     let (pa, pb) = (&parts[a], &parts[b]);
     let (ka, kb) = (thick_axis(pa)?, thick_axis(pb)?);
@@ -164,7 +164,7 @@ pub fn joint(parts: &[Part], a: usize, b: usize) -> Option<Joint> {
     };
     let m = kb;
     let j = 3 - k - m;
-    // Торец B целиком на пласти A по толщине B и с перекрытием по длине стыка.
+    // Edge B lies fully on face A across B's thickness and overlaps along the joint length.
     let (j0, j1) = (alo[j].max(blo[j]), ahi[j].min(bhi[j]));
     if j1 - j0 <= EPS || blo[m] < alo[m] - EPS || bhi[m] > ahi[m] + EPS {
         return None;
@@ -174,17 +174,17 @@ pub fn joint(parts: &[Part], a: usize, b: usize) -> Option<Joint> {
     origin[m] = (blo[m] + bhi[m]) / 2.0;
     origin[j] = j0;
     let unit = |i: usize, s: f64| { let mut v = [0.0; 3]; v[i] = s; v };
-    // У горизонтальной B ось Y — всегда вверх: полкодержатель под полкой, чашка эксцентрика сверху,
-    // как бы ни была повёрнута её лицевая пласть.
+    // For horizontal B the Y axis is always up: shelf support under the shelf, cam lock cup on top,
+    // however its front face is turned.
     let ny = if m == 1 { 1.0 } else { pb.panel.frame.map_or(1.0, |f| f.z[m].signum()) };
-    // Z — вдоль стыка в сторону роста координаты (точки отсчитываются от его начала); тройка может
-    // быть и левой — для перевода координат это не важно.
+    // Z — along the joint toward increasing coordinate (points are measured from its start); the triple may
+    // be left-handed — it doesn't matter for coordinate conversion.
     let (xa, ya, za) = (unit(k, sign), unit(m, ny), unit(j, 1.0));
     let inward = if m == 1 && blo[1] + bhi[1] > alo[1] + ahi[1] { -1.0 } else { 1.0 };
     Some(Joint { a, b, origin, axes: [xa, ya, za], length: j1 - j0, inward })
 }
 
-/// Точки крепежа вдоль стыка длиной `len`: отступ от концов, шаг не больше `step`.
+/// Fastener points along a joint of length `len`: offset from the ends, spacing no more than `step`.
 pub fn positions(def: &Def, len: f64) -> Vec<f64> {
     let span = len - 2.0 * def.offset;
     if span <= 0.0 {
@@ -194,14 +194,14 @@ pub fn positions(def: &Def, len: f64) -> Vec<f64> {
     (0..n).map(|i| def.offset + span * i as f64 / (n - 1) as f64).collect()
 }
 
-/// Отверстия крепежа `def` в точке `s` стыка: (индекс детали, отверстие в координатах детали).
-/// Ошибка — если отверстие выходит за деталь (глубже толщины, мимо контура).
+/// Holes of fastener `def` at joint point `s`: (part index, hole in part coordinates).
+/// Error if a hole goes outside the part (deeper than thickness, off the contour).
 pub fn holes(def: &Def, parts: &[Part], jt: &Joint, s: f64) -> Result<Vec<(usize, Hole)>, String> {
     let (t, tb) = (parts[jt.a].panel.thickness, parts[jt.b].panel.thickness);
     let [x, y, z] = jt.axes;
     let world = |l: [f64; 3]| -> [f64; 3] { std::array::from_fn(|k| jt.origin[k] + x[k] * l[0] + y[k] * l[1] + z[k] * (l[2] + s)) };
     let wdir = |d: [f64; 3]| -> [f64; 3] { std::array::from_fn(|k| x[k] * d[0] + y[k] * d[1] + z[k] * d[2]) };
-    // Смещение вдоль стыка — к его середине: у точек второй половины зеркально.
+    // Offset along the joint — toward its middle: mirrored for points in the second half.
     let toward = if s > jt.length / 2.0 { -1.0 } else { 1.0 };
     let mut out = Vec::new();
     for hd in &def.holes {
@@ -239,7 +239,7 @@ fn clean(v: f64) -> f64 {
     if r == 0.0 { 0.0 } else { r }
 }
 
-/// Все стыки среди деталей `ids` (пары, где торец одной на пласти другой).
+/// All joints among parts `ids` (pairs where the edge of one is on the face of the other).
 pub fn joints(parts: &[Part], ids: &[usize]) -> Vec<Joint> {
     let mut out = Vec::new();
     for &a in ids {

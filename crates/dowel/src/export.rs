@@ -1,8 +1,8 @@
-//! Модель Базис-Мебельщика (`.b3d`) из своего проекта: каждый объект верхнего уровня (корпус, угловой
-//! модуль, столешница, блок, панель) — блок Базиса (Type 1005) с плитами (4002) и отверстиями (3000).
-//! Положение плит — точное (оси → кватернион `Trans`). Заголовок — как у Базиса 23.15 (файлы старых версий
-//! открываются новыми). Проверка — обратное чтение своим разборщиком (тесты); в настоящем Базисе —
-//! у пользователя: 64-байтный хвост Базиса (вероятно, подпись) мы не пишем.
+//! Bazis-Mebelshchik model (`.b3d`) from our project: every top-level object (cabinet, corner
+//! module, countertop, block, panel) becomes a Bazis block (Type 1005) with slabs (4002) and holes (3000).
+//! Slab placement is exact (axes → quaternion `Trans`). The header is as in Bazis 23.15 (older-version files
+//! open in newer ones). Verified by reading back with our own parser (tests); in real Bazis —
+//! by the user: we do not write Bazis's 64-byte tail (probably a signature).
 
 use crate::b3d::{self, File, Node, Value};
 use crate::contour::Seg;
@@ -26,7 +26,7 @@ fn f(name: &str, v: f64) -> Node {
     leaf(name, Value::F64(v))
 }
 
-/// Кватернион поворота с осями `x`, `y`, `z` (столбцы матрицы): Rx, Ry, Rz, Rw.
+/// Rotation quaternion with axes `x`, `y`, `z` (matrix columns): Rx, Ry, Rz, Rw.
 pub fn quaternion(fr: &Frame) -> [f64; 4] {
     let m = |i: usize, j: usize| [fr.x, fr.y, fr.z][j][i];
     let trace = m(0, 0) + m(1, 1) + m(2, 2);
@@ -43,7 +43,7 @@ pub fn quaternion(fr: &Frame) -> [f64; 4] {
         let s = (1.0 + m(2, 2) - m(0, 0) - m(1, 1)).sqrt() * 2.0;
         [(m(0, 2) + m(2, 0)) / s, (m(1, 2) + m(2, 1)) / s, 0.25 * s, (m(1, 0) - m(0, 1)) / s]
     };
-    // Знак не важен (q и −q — один поворот); Базис пишет Rw ≥ 0.
+    // The sign does not matter (q and −q are the same rotation); Bazis writes Rw ≥ 0.
     if q[3] < 0.0 { q.map(|v| -v) } else { q }
 }
 
@@ -52,7 +52,7 @@ fn trans(fr: &Frame) -> Node {
     obj("Trans", vec![f("X", fr.origin[0]), f("Y", fr.origin[1]), f("Z", fr.origin[2]), f("Rx", q[0]), f("Ry", q[1]), f("Rz", q[2]), f("Rw", q[3])])
 }
 
-/// Контур в blob Базиса: u32 n, затем сегменты.
+/// Contour as a Bazis blob: u32 n, then segments.
 pub fn contour_blob(segs: &[Seg]) -> Vec<u8> {
     let mut out = (segs.len() as u32).to_le_bytes().to_vec();
     let mut kinds = Vec::new();
@@ -113,7 +113,7 @@ fn panel_node(p: &Part, id: i32) -> Node {
     obj("Obj", c)
 }
 
-/// Отверстие (Type 3000) в координатах проекта: начало, направление, радиус, глубина.
+/// Hole (Type 3000) in project coordinates: start, direction, radius, depth.
 fn hole_node(p: &Part, h: &crate::panel::Hole, id: i32) -> Node {
     let fr = p.panel.frame.unwrap_or(Frame::IDENTITY);
     let (o, d) = (fr.apply(h.pos), fr.dir(h.dir));
@@ -127,7 +127,7 @@ fn hole_node(p: &Part, h: &crate::panel::Hole, id: i32) -> Node {
     ])
 }
 
-/// Имя объекта верхнего уровня для блока Базиса.
+/// Top-level object name for the Bazis block.
 fn owner_name(pr: &Project, owner: u32) -> String {
     pr.cabinets.iter().find(|c| c.id == owner).map(|c| c.name.clone())
         .or_else(|| pr.corners.iter().find(|c| c.id == owner).map(|c| c.name.clone()))
@@ -140,8 +140,8 @@ fn owner_name(pr: &Project, owner: u32) -> String {
         .unwrap_or_else(|| format!("Блок {owner}"))
 }
 
-/// Белая картинка 256×256 PNG — превью в заголовке файла.
-/// shortcut: превью без изображения модели; Базис перерисует его при сохранении.
+/// White 256×256 PNG image — the preview in the file header.
+/// shortcut: the preview has no model image; Bazis redraws it on save.
 fn blank_png() -> Vec<u8> {
     fn crc(data: &[u8]) -> u32 {
         let mut c = 0xffff_ffffu32;
@@ -180,7 +180,7 @@ fn blank_png() -> Vec<u8> {
     out
 }
 
-/// Дерево файла Базиса для проекта.
+/// Bazis file tree for a project.
 pub fn file(pr: &Project) -> Result<File, String> {
     let parts = design::build(pr)?;
     let mut owners: Vec<u32> = Vec::new();
@@ -244,7 +244,7 @@ pub fn file(pr: &Project) -> Result<File, String> {
     Ok(File { sections: vec![header, document] })
 }
 
-/// Файл `.b3d` для проекта.
+/// `.b3d` file for a project.
 pub fn b3d(pr: &Project) -> Result<Vec<u8>, String> {
     Ok(b3d::write(&file(pr)?))
 }
@@ -257,13 +257,13 @@ mod tests {
 
     #[test]
     fn quaternion_of_basis_horizontal_panel() {
-        // Поворот −90° вокруг X, как у горизонтальной плиты в шкафу Базиса: Rx = −0.7071, Rw = 0.7071.
+        // Rotation −90° about X, like a horizontal slab in a Bazis cabinet: Rx = −0.7071, Rw = 0.7071.
         let fr = Frame::new([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, -1.0]);
         let q = quaternion(&fr);
         assert!((q[0] + 0.5f64.sqrt()).abs() < 1e-12 && q[1] == 0.0 && q[2] == 0.0 && (q[3] - 0.5f64.sqrt()).abs() < 1e-12, "{q:?}");
     }
 
-    /// Свой проект → .b3d → разбор: те же плиты, размеры, кромка, положение и присадка.
+    /// Our project → .b3d → parse: same slabs, sizes, edge banding, placement and drilling.
     #[test]
     fn exported_model_reads_back() {
         let mut s = Session::new(Project::new("Экспорт"));
@@ -288,7 +288,7 @@ mod tests {
             let close = |x: [f64; 3], y: [f64; 3]| (0..3).all(|k| (x[k] - y[k]).abs() < 1e-9);
             assert!(close(fa.origin, fb.origin) && close(fa.x, fb.x) && close(fa.y, fb.y) && close(fa.z, fb.z), "{}: {fa:?} ≠ {fb:?}", a.panel.name);
         }
-        // Блоки: по одному на объект верхнего уровня.
+        // Blocks: one per top-level object.
         assert_eq!(ex.blocks.len(), 3);
         assert_eq!(back.section("Header").and_then(|h| h.get("Article")).and_then(|a| a.str("Name")), Some("Экспорт"));
     }

@@ -1,5 +1,5 @@
-//! Окно слушает сокет (`dowel::live`): команды MCP идут в открытую вкладку так же, как кнопки, —
-//! с отменой (Ctrl+Z), пометкой «*» и перерисовкой. Запрос ждёт ответа от кадра окна.
+//! The window listens on a socket (`dowel::live`): MCP commands go to the open tab just like buttons —
+//! with undo (Ctrl+Z), the "*" mark and redraw. A request waits for a reply from the window's frame.
 
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::fs::PermissionsExt;
@@ -14,16 +14,16 @@ use serde_json::{Value, json};
 
 use crate::App;
 
-/// Команда, её параметры, куда ответить и до какого времени (позже ответ уже не ждут — не выполнять).
+/// Command, its params, where to reply and the deadline (after it nobody waits for the reply — don't run it).
 pub type Request = (String, Value, Sender<Result<Value, String>>, Instant);
 
 const WAIT: Duration = Duration::from_secs(60);
 
-/// Слушать сокет; `None` — его уже слушает другое окно или не удалось открыть.
+/// Listen on the socket; `None` — another window already listens on it or it couldn't be opened.
 pub fn listen(path: &Path, ctx: egui::Context) -> Option<Receiver<Request>> {
     match UnixStream::connect(path) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        // Сокет остался от закрытого окна: файл есть, никто не слушает.
+        // Socket left over from a closed window: the file exists, nobody is listening.
         Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
             let _ = std::fs::remove_file(path);
         }
@@ -39,7 +39,7 @@ pub fn listen(path: &Path, ctx: egui::Context) -> Option<Receiver<Request>> {
             return None;
         }
     };
-    // Только владелец: через сокет пишутся файлы от его имени.
+    // Owner only: files are written through the socket on their behalf.
     if let Err(e) = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)) {
         eprintln!("[связь] {}: {e}", path.display());
         return None;
@@ -68,7 +68,7 @@ fn serve(conn: UnixStream, tx: &Sender<Request>, ctx: &egui::Context) {
                     return;
                 }
                 ctx.request_repaint();
-                // Окно может быть занято диалогом выбора файла — не ждать вечно.
+                // The window may be busy with a file dialog — don't wait forever.
                 rrx.recv_timeout(WAIT).unwrap_or_else(|_| Err("окно не ответило за минуту (открыт диалог?)".into()))
             }
             Err(e) => Err(format!("запрос: {e}")),
@@ -84,12 +84,12 @@ fn serve(conn: UnixStream, tx: &Sender<Request>, ctx: &egui::Context) {
 }
 
 impl App {
-    /// Выполнить пришедшие запросы (раз в кадр).
+    /// Run pending requests (once per frame).
     pub(crate) fn serve_live(&mut self) {
         let Some(rx) = &self.live else { return };
         let requests: Vec<Request> = rx.try_iter().collect();
         for (cmd, params, reply, deadline) in requests {
-            // Окно было занято (диалог), клиенту уже ответили отказом — не выполнять задним числом.
+            // The window was busy (dialog), the client was already refused — don't run it after the fact.
             if Instant::now() > deadline {
                 continue;
             }
@@ -109,7 +109,7 @@ impl App {
             "project.get" => serde_json::to_value(&s.project).map_err(|e| e.to_string()),
             "project.replace" => {
                 let text = params.get("project").and_then(Value::as_str).ok_or("нужен параметр «project»")?;
-                // Скрипт считался на копии: если с тех пор проект поменяли (или переключили вкладку) — не затирать.
+                // The script ran on a copy: if the project changed since (or the tab was switched) — don't overwrite.
                 if params.get("base") != Some(&serde_json::to_value(&s.project).map_err(|e| e.to_string())?) {
                     return Err("проект в окне изменился, пока выполнялся скрипт (правка или другая вкладка) — запустите скрипт ещё раз".into());
                 }
@@ -137,7 +137,7 @@ impl App {
 mod tests {
     use super::*;
 
-    /// MCP-клиент шлёт команды в окно: материал появляется в открытом проекте, отменяется Ctrl+Z окна.
+    /// An MCP client sends commands to the window: the material shows up in the open project, undone by the window's Ctrl+Z.
     #[test]
     fn commands_reach_the_open_window() {
         let dir = std::env::temp_dir().join(format!("dowel-craft-live-{}", std::process::id()));
@@ -145,7 +145,7 @@ mod tests {
         let path = dir.join("test.sock");
         let mut app = App { live: listen(&path, egui::Context::default()), ..Default::default() };
         assert!(app.live.is_some());
-        // Второе окно на тот же сокет не садится.
+        // A second window doesn't bind the same socket.
         assert!(listen(&path, egui::Context::default()).is_none());
         let client = std::thread::spawn({
             let path = path.clone();
@@ -154,14 +154,14 @@ mod tests {
                 c.call("material.add", &json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
                 let bad = c.call("material.add", &json!({"name": "ЛДСП 16", "thickness": 16})).unwrap_err();
                 let p = c.call("project.get", &json!({})).unwrap();
-                // Итог скрипта, посчитанный на старой копии, не затирает проект окна.
+                // A script result computed on a stale copy doesn't overwrite the window's project.
                 let stale = c.call("project.replace", &json!({"project": p.to_string(), "base": {}})).unwrap_err();
                 assert!(stale.contains("изменился"), "{stale}");
                 assert!(c.call("save", &json!({"path": "/tmp/x.txt"})).is_err());
                 (bad, p)
             }
         });
-        // Кадры окна, пока клиент не закончит.
+        // Window frames until the client finishes.
         while !client.is_finished() {
             app.serve_live();
             std::thread::sleep(Duration::from_millis(5));

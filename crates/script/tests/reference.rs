@@ -1,12 +1,12 @@
-//! Прогон скриптов пользователей (reference/scripts) без окна на «Кухне 24.04»: сколько выполняется
-//! без ошибок. Число успешных не должно падать (защита от регрессий пролога).
+//! Runs user scripts (reference/scripts) without a window on the "Kitchen 24.04" sample: how many run
+//! without errors. The success count must not drop (guards against prelude regressions).
 
 use std::path::Path;
 
 #[test]
 fn reference_scripts() {
-    // Движок JS рекурсивен: в debug-сборке глубоким скриптам мало 2 МБ стека тестового потока
-    // (в окне скрипт идёт в главном потоке, там 8 МБ).
+    // The JS engine is recursive: in a debug build 2 MB of test-thread stack is not enough for deep scripts
+    // (in the window the script runs on the main thread, which has 8 MB).
     std::thread::Builder::new().stack_size(64 << 20).spawn(run_all).unwrap().join().unwrap();
 }
 
@@ -43,5 +43,5 @@ fn run_all() {
     assert!(ok >= MIN_OK, "регрессия: {ok} < {MIN_OK}");
 }
 
-/// Нижняя граница успешных скриптов (поднимается по мере развития пролога).
+/// Lower bound of successful scripts (raised as the prelude develops).
 const MIN_OK: usize = 81;

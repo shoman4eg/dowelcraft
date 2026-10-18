@@ -1,4 +1,4 @@
-//! Ядро dowel-craft: чтение моделей Базис-Мебельщика, спецификация деталей, раскрой.
+//! dowel-craft core: reading Bazis-Mebelshchik models, parts list, sheet cutting.
 
 pub mod b3d;
 pub mod contour;

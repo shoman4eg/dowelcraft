@@ -1,5 +1,5 @@
-//! MCP-сервер dowel-craft: JSON-RPC 2.0 через stdio, одно сообщение на строку.
-//! ИИ-агент проектирует мебель теми же командами, что окно и CLI (`Session::execute`).
+//! dowel-craft MCP server: JSON-RPC 2.0 over stdio, one message per line.
+//! An AI agent designs furniture with the same commands as the window and the CLI (`Session::execute`).
 
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
@@ -26,7 +26,7 @@ fn main() {
             Err(e) => Some(json!({"jsonrpc": "2.0", "id": null, "error": {"code": -32700, "message": e.to_string()}})),
         };
         if let Some(r) = reply {
-            // Ошибка записи — клиент ушёл, завершаемся.
+            // Write error — the client is gone, exit.
             if writeln!(out, "{r}").and_then(|_| out.flush()).is_err() {
                 break;
             }
@@ -36,10 +36,10 @@ fn main() {
 
 struct Server {
     session: Option<Session>,
-    /// Открытая модель Базиса (только чтение) или собранный из проекта набор деталей.
+    /// An open Bazis model (read-only) or a set of parts built from a project.
     job: Job,
     path: Option<PathBuf>,
-    /// Подключено к открытому окну: команды идут в его вкладку, чтение — с её копии.
+    /// Connected to an open window: commands go to its tab, reads come from its copy.
     #[cfg(unix)]
     live: Option<dowel::live::Client>,
 }
@@ -57,7 +57,7 @@ impl Default for Server {
     }
 }
 
-/// Ответ инструмента: содержимое MCP и признак ошибки.
+/// Tool response: MCP content and an error flag.
 type ToolResult = Result<Vec<Value>, String>;
 
 fn text(s: impl Into<String>) -> Vec<Value> {
@@ -116,7 +116,7 @@ impl Server {
         let id = msg.get("id").cloned();
         let method = msg.get("method").and_then(Value::as_str).unwrap_or("");
         let params = msg.get("params").cloned().unwrap_or(json!({}));
-        // Уведомления (без id) не требуют ответа.
+        // Notifications (no id) need no response.
         let id = id?;
         let result = match method {
             "initialize" => Ok(json!({
@@ -150,7 +150,7 @@ impl Server {
         }
     }
 
-    /// Работа с окном: команды и сохранение — туда, чтение — с его копии проекта.
+    /// Working with a window: commands and saving go there, reads come from its copy of the project.
     #[cfg(unix)]
     fn call_live(&mut self, name: &str, a: &Value) -> Option<ToolResult> {
         let live = self.live.as_mut()?;
@@ -163,14 +163,14 @@ impl Server {
             "project_save" => live.call("save", &json!({ "path": a.get("path") })).map(|p| text(format!("Сохранено: {}", p.as_str().unwrap_or_default()))),
             "window_connect" | "window_disconnect" => return None,
             _ => {
-                // Чтение и скрипт — над свежей копией проекта окна.
+                // Reads and scripts run on a fresh copy of the window's project.
                 match live.call("project.get", &json!({})).and_then(|v| Project::load(&v.to_string()).map(|p| (v, p))) {
                     Err(e) => Err(e),
                     Ok((base, p)) => {
                         self.session = Some(Session::new(p));
                         self.refresh();
                         let r = self.call_local(name, a);
-                        // Итог скрипта — в окно, если там тот же проект, с которого начинали (`base`).
+                        // The script result goes to the window if it still has the same project we started from (`base`).
                         match (name, &r, &self.session, &mut self.live) {
                             ("run_script", Ok(_), Some(s), Some(live)) => live.call("project.replace", &json!({ "project": s.project.save(), "base": base })).and(r),
                             _ => r,
@@ -179,7 +179,7 @@ impl Server {
                 }
             }
         };
-        // Окно закрыли — дальше работаем со своей копией.
+        // The window was closed — keep working with our own copy.
         if let Err(e) = &r
             && e.starts_with("связь с окном")
         {
@@ -440,12 +440,12 @@ fn base64(data: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    // Нужно только тесту связи с окном (Unix): в Windows импорт без пользы — ошибка clippy.
+    // Only needed by the window-connection test (Unix): on Windows the import is unused — a clippy error.
     #[cfg(unix)]
     use super::*;
 
-    /// Подключение к окну: команды уходят в окно, чтение — с его проекта, project_new запрещён.
-    /// Окно изображает поток, который отвечает как `apps/gui/src/live.rs`.
+    /// Window connection: commands go to the window, reads come from its project, project_new is forbidden.
+    /// The window is mimicked by a thread that responds like `apps/gui/src/live.rs`.
     #[cfg(unix)]
     #[test]
     fn window_mode_forwards_commands() {
@@ -475,7 +475,7 @@ mod tests {
         let mut server = Server { live: Some(dowel::live::Client::connect(&sock).unwrap()), ..Default::default() };
         server.call("command", &json!({"command": "material.add", "params": {"name": "ЛДСП 16", "thickness": 16}})).unwrap();
         assert!(server.call("project_new", &json!({"name": "x"})).is_err());
-        // Чтение — с проекта окна: материал есть, деталей нет.
+        // Reads come from the window's project: the material is there, no parts.
         let parts = server.call("parts", &json!({})).unwrap();
         assert!(parts[0]["text"].as_str().unwrap().starts_with("№"));
         assert_eq!(server.session.as_ref().unwrap().project.materials.len(), 1);

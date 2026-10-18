@@ -1,15 +1,15 @@
-//! Команды проекта: `Session::execute(команда, JSON)` с отменой и возвратом.
+//! Project commands: `Session::execute(command, JSON)` with undo and redo.
 
 use super::*;
 
-/// Состояние редактирования: проект и история для отмены.
+/// Editing state: the project and the undo history.
 pub struct Session {
     pub project: Project,
     undo: Vec<Project>,
     redo: Vec<Project>,
 }
 
-/// Справка по командам: имя → описание параметров. Её же покажут CLI и MCP.
+/// Command reference: name → parameter description. Also shown by the CLI and MCP.
 pub const COMMANDS: &[(&str, &str)] = &[
     ("project.get", "весь проект в JSON"),
     ("project.rename", "{name}"),
@@ -78,7 +78,7 @@ fn idx(p: &Value, key: &str) -> Result<usize, String> {
     field(p, key)?.as_u64().map(|v| v as usize).ok_or_else(|| format!("«{key}» должно быть целым ≥ 0"))
 }
 
-/// Накладывает поля `patch` на объект `base` (кроме `except`) и разбирает результат обратно.
+/// Overlays the fields of `patch` onto `base` (except `except`) and parses the result back.
 fn patch<T: Serialize + for<'de> Deserialize<'de>>(base: &T, patch: &Value, except: &str) -> Result<T, String> {
     let mut v = serde_json::to_value(base).map_err(|e| e.to_string())?;
     let (Some(obj), Some(changes)) = (v.as_object_mut(), patch.as_object()) else {
@@ -97,7 +97,7 @@ impl Session {
         Session { project, undo: Vec::new(), redo: Vec::new() }
     }
 
-    /// Заменить проект целиком (итог скрипта): одна запись в истории отмены; проект должен строиться.
+    /// Replaces the whole project (script result): one undo entry; the project must build.
     pub fn apply_project(&mut self, next: Project) -> Result<(), String> {
         build(&next)?;
         self.undo.push(std::mem::replace(&mut self.project, next));
@@ -112,7 +112,7 @@ impl Session {
         !self.redo.is_empty()
     }
 
-    /// Выполняет команду. Изменение применяется, только если изделие после него строится.
+    /// Executes a command. The change is applied only if the product still builds afterwards.
     pub fn execute(&mut self, cmd: &str, p: &Value) -> Result<Value, String> {
         match cmd {
             "project.get" => return serde_json::to_value(&self.project).map_err(|e| e.to_string()),
@@ -155,7 +155,7 @@ fn cabinet_mut<'a>(pr: &'a mut Project, p: &Value, key: &str) -> Result<&'a mut 
     pr.cabinets.iter_mut().find(|c| c.id == id).ok_or_else(|| format!("нет корпуса {id}"))
 }
 
-/// Элемент проекта с номером и именем: столешница, угловой модуль.
+/// Project item with an id and a name: countertop, corner unit.
 trait Item: Serialize + for<'de> Deserialize<'de> {
     fn id(&self) -> u32;
     fn name(&mut self) -> &mut String;
@@ -177,7 +177,7 @@ impl Item for Corner {
     }
 }
 
-/// Команды `*.add` (→ {id}), `*.set` {id, ...поля}, `*.remove` {id} над списком элементов.
+/// Commands `*.add` (→ {id}), `*.set` {id, ...fields}, `*.remove` {id} over a list of items.
 fn item<T: Item>(list: &mut Vec<T>, next_id: u32, cmd: &str, p: &Value, what: &str) -> Result<Value, String> {
     if cmd.ends_with(".add") {
         let id = next_id;
@@ -222,7 +222,7 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
             let name = s(p, "name")?;
             let i = pr.materials.iter().position(|m| m.name == name).ok_or_else(|| format!("нет материала «{name}»"))?;
             pr.materials.remove(i);
-            // Детали без своего материала не строятся — значит, он где-то используется.
+            // Parts without their own material don't build, so it is used somewhere.
             if build(pr).is_err() {
                 return Err(format!("материал «{name}» используется в деталях — сначала замените его там"));
             }
@@ -314,7 +314,7 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
             };
             let id = pr.next_id();
             let name = p.get("name").and_then(Value::as_str).map_or(m.name.clone(), str::to_string);
-            // Мин. угол габарита модели встаёт в `position`.
+            // The model's bounding box min corner lands at `position`.
             let origin = std::array::from_fn(|k| position[k] - m.lo[k]);
             pr.objects.push(Object::Furniture(Furniture { id, name, kind: m.kind, source: path.to_string(), frame: Frame { origin, ..Frame::IDENTITY }, holes: m.holes, lo: m.lo, hi: m.hi }));
             return Ok(json!({ "id": id }));
@@ -350,8 +350,8 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
     Ok(Value::Null)
 }
 
-/// Разрушение шаблона (корпуса, углового модуля, столешницы): его детали становятся панелями блока
-/// с тем же номером и именем. Дальше их правят по одной, параметры шаблона больше не действуют.
+/// Explodes a template (cabinet, corner unit, countertop): its parts become panels of a block
+/// with the same id and name. After that they are edited one by one; template parameters no longer apply.
 fn explode(pr: &mut Project, id: u32) -> Result<Value, String> {
     let name = (pr.cabinets.iter().find(|c| c.id == id).map(|c| c.name.clone()))
         .or_else(|| pr.corners.iter().find(|c| c.id == id).map(|c| c.name.clone()))
@@ -387,8 +387,8 @@ fn explode(pr: &mut Project, id: u32) -> Result<Value, String> {
     Ok(json!({ "id": id }))
 }
 
-/// Крепёж: `fastener.add` (между двумя панелями), `fastener.auto` (на все стыки панелей),
-/// `fastener.remove`, `fastener.def` (добавить или заменить крепёж справочника).
+/// Fasteners: `fastener.add` (between two panels), `fastener.auto` (on all panel joints),
+/// `fastener.remove`, `fastener.def` (add or replace a fastener in the library).
 fn fastener_cmd(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
     match cmd {
         "fastener.def" => {
@@ -436,7 +436,7 @@ fn fastener_cmd(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String>
             Ok(json!({ "id": id }))
         }
         _ => {
-            // fastener.auto: на все стыки среди панелей `ids` (или всех панелей дерева).
+            // fastener.auto: on all joints among panels `ids` (or all tree panels).
             let kind = s(p, "kind")?.to_string();
             let outside = p.get("outside").and_then(Value::as_bool).unwrap_or(false);
             pr.def(&kind)?;
@@ -461,7 +461,7 @@ fn fastener_cmd(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String>
     }
 }
 
-/// `panel.edge`: кромка на торцах (сегментах контура) панели дерева; `edge: null` — снять.
+/// `panel.edge`: edge banding on the edges (contour segments) of a tree panel; `edge: null` removes it.
 fn panel_edge(pr: &mut Project, p: &Value) -> Result<Value, String> {
     let id = idx(p, "id")? as u32;
     let segments: Vec<usize> = serde_json::from_value(field(p, "segments")?.clone()).map_err(|e| format!("segments: {e}"))?;
@@ -498,7 +498,7 @@ fn panel_edge(pr: &mut Project, p: &Value) -> Result<Value, String> {
     Ok(Value::Null)
 }
 
-/// `panel.fill`: панель в проёме у точки вида спереди (см. [`fill::fill`]).
+/// `panel.fill`: a panel in the opening at a front-view point (see [`fill::fill`]).
 fn panel_fill(pr: &mut Project, p: &Value) -> Result<Value, String> {
     let plane: Plane = serde_json::from_value(field(p, "plane")?.clone()).map_err(|e| format!("plane: {e}"))?;
     let at: [f64; 2] = serde_json::from_value(field(p, "at")?.clone()).map_err(|e| format!("at: {e}"))?;
@@ -515,14 +515,14 @@ fn panel_fill(pr: &mut Project, p: &Value) -> Result<Value, String> {
     panel_add(pr, &args)
 }
 
-/// `panel.add`: прямоугольная панель в одной из трёх плоскостей, `position` — минимальный угол габарита.
+/// `panel.add`: a rectangular panel in one of three planes; `position` is the bounding box min corner.
 fn panel_add(pr: &mut Project, p: &Value) -> Result<Value, String> {
     #[derive(Deserialize)]
     struct Args {
         material: String,
         plane: Plane,
-        /// Размеры контура: фронтальная — ширина × высота, горизонтальная — ширина × глубина,
-        /// вертикальная — глубина × высота.
+        /// Contour size: front — width × height, horizontal — width × depth,
+        /// vertical — depth × height.
         size: [f64; 2],
         #[serde(default)]
         position: [f64; 3],
@@ -532,7 +532,7 @@ fn panel_add(pr: &mut Project, p: &Value) -> Result<Value, String> {
         texture: Option<Texture>,
         #[serde(default)]
         kind: Kind,
-        /// Блок, в который положить панель; нет — в корень.
+        /// Block to put the panel into; none — the root.
         #[serde(default)]
         block: Option<u32>,
     }
@@ -578,7 +578,7 @@ fn panel_add(pr: &mut Project, p: &Value) -> Result<Value, String> {
     match a.block {
         None => pr.objects.push(Object::Panel(fp)),
         Some(b) => match find_mut(&mut pr.objects, b) {
-            // shortcut: положение задаётся в координатах блока; блоки импорта стоят в начале координат.
+            // shortcut: position is given in block coordinates; imported blocks sit at the origin.
             Some(Object::Block(block)) => block.children.push(Object::Panel(fp)),
             _ => return Err(format!("нет блока {b}")),
         },

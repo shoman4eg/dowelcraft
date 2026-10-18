@@ -1,4 +1,4 @@
-//! Все образцы из `example/` должны читаться целиком, а контуры плит — разбираться.
+//! All samples from `example/` must read completely, and slab contours must parse.
 
 use std::path::Path;
 
@@ -19,7 +19,7 @@ fn samples() -> Vec<std::path::PathBuf> {
     out
 }
 
-/// Пара «модель + смета Базиса»: расход плит и кромки совпадает со сметой.
+/// A "model + Bazis estimate" pair: slab and edge banding consumption matches the estimate.
 #[test]
 fn materials_match_bazis_estimate() {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/pairs/sanuzly/1.0711 Мебель в санузлы.b3d");
@@ -28,7 +28,7 @@ fn materials_match_bazis_estimate() {
         return;
     };
     let ex = dowel::panel::panels(&dowel::b3d::parse(&data).unwrap());
-    // Коэффициенты из сметы: фасады 1, остальное 1,2.
+    // Factors from the estimate: fronts 1, everything else 1.2.
     let rows = dowel::panel::materials(&ex.panels, |m| if m.starts_with("Фасад") { 1.0 } else { 1.2 });
     let qty = |prefix: &str| rows.iter().find(|r| r.material.starts_with(prefix)).map(|r| r.qty).unwrap_or(f64::NAN);
     for (name, want) in [
@@ -44,23 +44,23 @@ fn materials_match_bazis_estimate() {
     }
 }
 
-/// Фурнитура из модели совпадает со сметой Базиса по штучным позициям.
+/// Hardware from the model matches the Bazis estimate for piece items.
 #[test]
 fn hardware_matches_bazis_estimate() {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/pairs/sanuzly/1.0711 Мебель в санузлы.b3d");
     let Ok(data) = std::fs::read(&p) else { return };
     let hw = dowel::panel::hardware(&dowel::b3d::parse(&data).unwrap());
     let qty = |article: &str| hw.iter().filter(|(n, _)| n.ends_with(&format!("\r{article}"))).map(|r| r.1).sum::<usize>();
-    // Значения из сметы.
+    // Values from the estimate.
     for (article, want) in [("113706", 50), ("4*16", 116), ("4*20", 24), ("4*30", 107), ("9071313/9073662", 16),
         ("9071576", 20), ("BU17PN", 40), ("FRM0598/1", 8), ("DU-10х62", 13), ("12535", 2), ("GOLA BALANCE RPK001", 6)] {
         assert_eq!(qty(article), want, "{article}");
     }
-    // Чашки петель лежат в блоках с флагом «не в смету» — Базис их не считает.
+    // Hinge cups sit in blocks flagged "not in estimate" — Bazis does not count them.
     assert!(!hw.iter().any(|(n, _)| n.starts_with("Чашка петли")));
 }
 
-/// Импорт модели Базиса в свой проект сохраняет детали: те же пильные размеры, материалы, положение.
+/// Importing a Bazis model into our project keeps the parts: same saw sizes, materials, placement.
 #[test]
 fn import_basis_model_into_project() {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/pairs/kuhnya-24-04/_Кухня 24.04.b3d");
@@ -74,21 +74,21 @@ fn import_basis_model_into_project() {
     assert_eq!(parts.len(), src.len());
     for (a, b) in src.iter().zip(&parts) {
         assert_eq!((a.cut_size(), &a.name, a.thickness), (b.panel.cut_size(), &b.panel.name, b.panel.thickness));
-        // Положение точное: та же система координат плиты, тот же габарит.
+        // Placement is exact: same slab coordinate system, same bounding box.
         assert_eq!(a.frame, b.panel.frame);
         assert_eq!(a.bounds().unwrap().0, b.origin);
     }
-    // Блоки Базиса сохранились: есть блоки, и в них лежат плиты.
+    // Bazis blocks are preserved: there are blocks, and slabs lie in them.
     let blocks = project.objects.iter().filter(|o| matches!(o, dowel::design::Object::Block(_))).count();
     assert!(blocks > 0 && !ex.blocks.is_empty(), "блоков {blocks} из {}", ex.blocks.len());
-    // Деталь можно перевести в другой материал командой.
+    // A part can be moved to another material with a command.
     let mut s = dowel::design::Session::new(project);
     let other = s.project.materials[1].name.clone();
     s.execute("panel.set", &serde_json::json!({"id": 1, "material": other})).unwrap();
     assert!(s.execute("panel.set", &serde_json::json!({"id": 1, "material": "нет такого"})).is_err());
 }
 
-/// Присадка шкафа: все отверстия крепежа нашли плиту и лежат на её поверхности; выгружаются в XML Раскроя.
+/// Cabinet drilling: every fastener hole found its slab and lies on its surface; exported to Raskroy XML.
 #[test]
 fn drilling_of_wardrobe() {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/шкаф.b3d");
@@ -101,7 +101,7 @@ fn drilling_of_wardrobe() {
             let on_face = h.pos[2].abs() < 0.01 || (h.pos[2] - p.thickness).abs() < 0.01;
             let on_edge = [h.pos[0], h.pos[1]].iter().zip([p.size.0, p.size.1]).any(|(v, s)| v.abs() < 0.01 || (v - s).abs() < 0.01);
             assert!(on_face || on_edge, "«{}»: отверстие {:?} не на поверхности", p.name, h.pos);
-            // Торцевое отверстие — посередине толщины.
+            // An edge hole is at mid-thickness.
             if h.dir[2].abs() < 0.5 {
                 assert!((h.pos[2] - p.thickness / 2.0).abs() < 0.5, "«{}»: торцевое отверстие не по центру толщины", p.name);
             }
@@ -109,7 +109,7 @@ fn drilling_of_wardrobe() {
     }
     let xml = dowel::raskroy::project_string("шкаф", &ex.panels, |_| (2800.0, 2070.0));
     let n: usize = xml.matches("<DRILLING>").count();
-    // <DRILLING> — и обёртка у каждой детали (11), и каждое отверстие (80).
+    // <DRILLING> — both the per-part wrapper (11) and each hole (80).
     assert_eq!(n, 11 + 80);
     assert!(xml.contains("<TYPE>EDGEDIR</TYPE>") && xml.contains("<TYPE>FACETOBACKDIR</TYPE>"));
 }
@@ -126,7 +126,7 @@ fn all_samples_parse() {
     for f in &files {
         let file = dowel::b3d::parse(&std::fs::read(f).unwrap()).unwrap_or_else(|e| panic!("{}: {e}", f.display()));
         assert!(file.section("Header").is_some(), "{}: нет Header", f.display());
-        // Запись и повторное чтение дают то же дерево (A3: запись .b3d).
+        // Writing and reading back gives the same tree (A3: writing .b3d).
         assert!(dowel::b3d::parse(&dowel::b3d::write(&file)).as_ref() == Ok(&file), "{}: запись меняет дерево", f.display());
         let ex = dowel::panel::panels(&file);
         assert!(ex.skipped.is_empty(), "{}: не разобраны контуры {:?}", f.display(), ex.skipped);
@@ -135,14 +135,14 @@ fn all_samples_parse() {
             assert!(l > 0.0 && w > 0.0 && p.thickness > 0.0, "{}: «{}» {l}x{w}x{}", f.display(), p.name, p.thickness);
         }
         panels += ex.panels.len();
-        // Контур каждой плиты сцепляется в замкнутые контуры и даёт сетку для 3D.
+        // Every slab's contour chains into closed contours and yields a 3D mesh.
         let parts: Vec<dowel::design::Part> = ex
             .panels
             .iter()
             .map(|p| dowel::design::Part { owner: 0, id: 0, kind: dowel::design::Kind::Body, panel: p.clone(), origin: [0.0; 3], size: [0.0; 3] })
             .collect();
         let mesh = dowel::mesh::build(&parts, |_| false);
-        // «проверить контур.b3d» — модель с заведомо незамкнутым контуром: ошибка должна найтись.
+        // The "proverit kontur.b3d" model has a deliberately open contour: the error must be found.
         let broken = f.file_name().is_some_and(|n| n.to_string_lossy().starts_with("проверить контур"));
         assert_eq!(broken, !mesh.errors.is_empty(), "{}: {:?}", f.display(), mesh.errors);
         for (i, e) in mesh.errors.iter().filter(|_| !broken) {
@@ -153,7 +153,7 @@ fn all_samples_parse() {
     assert!(open_contours.is_empty(), "незамкнутые контуры ({}):\n{}", open_contours.len(), open_contours.join("\n"));
 }
 
-/// Положение плит Базиса: в шкафу полки стоят между боковинами, а не заходят в них.
+/// Bazis slab placement: in a cabinet the shelves sit between the sides rather than into them.
 #[test]
 fn panel_positions_in_space() {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/шкаф.b3d");
@@ -169,7 +169,7 @@ fn panel_positions_in_space() {
     }
 }
 
-/// Анализ модели Базиса: задняя стенка в пазу боковины — не пересечение (пазы читаются из модели).
+/// Bazis model analysis: a back panel in a side's groove is not an intersection (grooves are read from the model).
 #[test]
 fn analysis_respects_grooves() {
     let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/шкаф.b3d");

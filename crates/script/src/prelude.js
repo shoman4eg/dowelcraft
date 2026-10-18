@@ -1,6 +1,6 @@
-// Объекты BAZIS-Script поверх моста __h(команда, JSON) → JSON. Имена и поведение — по справке
-// BAZIS-Script и по скриптам пользователей (reference/scripts). Чего нет в программе — бросает ошибку
-// с объяснением, а не делает вид, что сработало.
+// BAZIS-Script objects on top of the bridge __h(command, JSON) → JSON. Names and behaviour follow the
+// BAZIS-Script help and user scripts (reference/scripts). Whatever the program lacks throws an error
+// with an explanation instead of pretending it worked.
 (function (G) {
 'use strict';
 var __call = function (cmd, args) {
@@ -13,15 +13,15 @@ var __finish = function () { var f = __finishers; __finishers = []; f.forEach(fu
 var __text = function (args) { return Array.prototype.map.call(args, function (a) { return typeof a === 'object' ? JSON.stringify(a) : String(a); }).join(' '); };
 var __unsupported = function (what) { return function () { throw new Error(what + ': недоступно в dowel-craft'); }; };
 
-// ── Векторы и точки ──
+// ── Vectors and points ──
 function NewVector(x, y, z) { return { x: x || 0, y: y || 0, z: z || 0 }; }
 function VectorMake(x, y, z) { return NewVector(x, y, z); }
 function NewPoint(x, y) { return { x: x || 0, y: y || 0 }; }
-// NewNumber/NewString: с окном-владельцем — поле ввода, иначе — значение.
+// NewNumber/NewString: with an owner window — an input field, otherwise — a value.
 function NewNumber(v, parent) { if (v && v.Children) return __control('Number', v, parent); return { Value: v || 0 }; }
 function NewString(v, parent) { if (v && v.Children) return __control('TextEdit', v, parent); return { Value: v || '' }; }
 
-// ── Контур (T2DElemList) ──
+// ── Contour (T2DElemList) ──
 function T2DElement() {}
 function T2DLine() {} T2DLine.prototype = Object.create(T2DElement.prototype);
 function T2DArc() {} T2DArc.prototype = Object.create(T2DElement.prototype);
@@ -83,7 +83,7 @@ function __seg(e) {
 function NewContour(segs, edges) {
   var c = Object.create(T2DElemList.prototype);
   c.Objects = (segs || []).map(__elem);
-  // Кромка элемента — в Data.Butt, как у контура панели в Базисе.
+  // Element edge banding is in Data.Butt, as in a Bazis panel contour.
   (edges || []).forEach(function (e) { var el = c.Objects[e.segment]; if (el) el.Data.Butt = { Material: e.material, Sign: __matName(e.material), Thickness: e.thickness, ClipPanel: e.clip }; });
   Object.defineProperty(c, 'Count', { get: function () { return this.Objects.length; } });
   c.Clear = function () { this.Objects = []; };
@@ -119,7 +119,7 @@ function NewContour(segs, edges) {
   c.IsClosed = function () { return true; };
   c.IsClosedContour = function () { return true; };
   c.forEach = function (fn) { this.Objects.forEach(fn); };
-  // Точки ломаной (дуги — по 32 хорды) в порядке элементов; closed — вернуть к первой.
+  // Polyline points (arcs as 32 chords) in element order; closed — return to the first one.
   c.__poly = function (closed) {
     var out = [];
     this.Objects.forEach(function (e) {
@@ -159,7 +159,7 @@ function NewContour(segs, edges) {
   c.AddList = function (l) { this.Append(l); };
   c.LineTo = function (x, y) { var last = this.Objects[this.Objects.length - 1]; return this.AddLine(last.Pos2.x, last.Pos2.y, x, y); };
   c.AddArc3 = function (p1, p2, p3) {
-    // Окружность через три точки: центр — пересечение серединных перпендикуляров.
+    // Circle through three points: center is the intersection of the perpendicular bisectors.
     var ax = p1.x, ay = p1.y, bx = p2.x, by = p2.y, cx = p3.x, cy = p3.y, d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
     if (Math.abs(d) < 1e-12) return this.AddLine(ax, ay, cx, cy);
     var ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d;
@@ -169,17 +169,17 @@ function NewContour(segs, edges) {
   };
   c.FindNearestObject = function (p) { var best = null, bd = Infinity; this.Objects.forEach(function (e) { var d = e.DistanceToPoint(p); if (d < bd) { bd = d; best = e; } }); return best; };
   c.OrderContours = function () {};
-  // Эквидистанта: только для прямоугольного контура (габарит ± смещение).
+  // Offset: only for a rectangular contour (bounding box ± offset).
   c.AddEquidistant = function (src, offset) {
     if (!src.IsContourRectangle()) throw new Error('AddEquidistant: для фигурного контура недоступно');
     var g = src.Gabarits();
     this.AddRectangle(g.Min.x - offset, g.Min.y - offset, g.Max.x + offset, g.Max.y + offset);
   };
-  // Доступ к элементам по номеру: contour[i] — как в Базисе.
+  // Element access by index: contour[i] — as in Bazis.
   return new Proxy(c, { get: function (t, k) { if (typeof k === 'string' && /^\d+$/.test(k)) return t.Objects[+k]; return t[k]; } });
 }
 
-// ── Детали модели ──
+// ── Model parts ──
 var __matName = function (full) { return String(full).split('\r')[0]; };
 function __panel(key) {
   var p = { __key: key, __rev: -1, __d: null, List: false };
@@ -259,7 +259,7 @@ function __panel(key) {
     var o = d().frame.origin;
     __exec('object.rotate', { ids: ids(), axis: a, angle: angle, center: o });
   };
-  // Поворот вокруг своей оси: только когда она совпадает с осью проекта (иначе — точности ради — ошибка).
+  // Rotation about its own axis: only when it coincides with a project axis (otherwise — for precision's sake — an error).
   var local = function (k) {
     return function (angle) {
       var f = d().frame, ax = [f.x, f.y, f.z][k], i = ax.findIndex(function (v) { return Math.abs(Math.abs(v) - 1) < 1e-9; });
@@ -275,11 +275,11 @@ function ObjectIsPanel(o) { return !!(o && o.__key); }
 function ObjectIsBlock(o) { return !!(o && o.List); }
 ['ObjectIsFastener', 'ObjectIsExtrusionBody', 'ObjectIsTrajectoryBody', 'ObjectIsRotationBody', 'ObjectIsBent', 'ObjectIsProfile'].forEach(function (n) { G[n] = function () { return false; }; });
 
-// ── Модель ──
+// ── Model ──
 var Model = (function () {
   var m = { Name: '', Designation: '', UserProperty: {}, DS: {}, Highlights: [], HighlightCount: 0 };
   var panels = function () { return __call('parts').map(__panel); };
-  // Объекты верхнего уровня — блоки по владельцу (корпус, модуль, блок), как в дереве Базиса.
+  // Top-level objects are blocks by owner (cabinet, module, block), as in the Bazis tree.
   var blocks = function () {
     var by = {}, order = [];
     panels().forEach(function (p) { var o = p.__key[0]; if (!by[o]) { by[o] = []; order.push(o); } by[o].push(p); });
@@ -310,7 +310,7 @@ function UnSelectAll() { Model.UnSelectAll(); }
 function DeleteObject(o) { o.Delete(); }
 function ForEachObjectInList(list, fn) { (list.Objects || list).forEach(fn); }
 
-// ── Создание панелей (старое API): активный материал — первый в проекте ──
+// ── Panel creation (old API): the active material is the first one in the project ──
 var __activeMaterial = null, __activeEdge = null;
 function __material() {
   if (__activeMaterial) return __activeMaterial;
@@ -327,7 +327,7 @@ function AddFrontPanel(x1, y1, x2, y2, z) { return __newPanel('front', Math.abs(
 function AddHorizPanel(x1, z1, x2, z2, y) { return __newPanel('horizontal', Math.abs(x2 - x1), Math.abs(z2 - z1), [Math.min(x1, x2), y, Math.min(z1, z2)]); }
 function AddVertPanel(z1, y1, z2, y2, x) { return __newPanel('vertical', Math.abs(z2 - z1), Math.abs(y2 - y1), [x, Math.min(y1, y2), Math.min(z1, z2)]); }
 
-// ── Модульное API (новые скрипты) ──
+// ── Modular API (new scripts) ──
 var objects3d = {
   PanelOrientation: { front: 'front', vertical: 'vertical', horizont: 'horizontal', horizontal: 'horizontal' },
   NewPanel: function (w, h, orientation) { return __newPanel(orientation || 'front', w, h, [0, 0, 0]); },
@@ -352,7 +352,7 @@ var materialData = {
 var apiVersion = { version: 3, AwareAndThrowIfApiVersionIsLowestThan: function () {} };
 function AwareAndThrowIfApiVersionIsLowestThan() {}
 
-// ── Изменения и выполнение ──
+// ── Changes and execution ──
 ['RegisterObjectChanging', 'CommitCurrentChanges', 'RevertCurrentChanges', 'RecursiveChanging', 'StartEditing', 'Changing', 'Repaint', 'ReTransform', 'FinishExecution', 'ContinueExecution', 'Finish', 'Continue', 'Commit', 'Update'].forEach(function (n) { G[n] = function () {}; });
 var Action = {
   ModelFilename: '', DS: {}, Hint: '', Control: { EstimateData: '', Article: { Code: '', Name: '' } },
@@ -377,16 +377,16 @@ var Action = {
 };
 Object.defineProperty(Action, 'OnFinish', { set: function (fn) { if (typeof fn === 'function') __finishers.push(fn); } });
 
-// ── Сообщения ──
+// ── Messages ──
 function alert() { __call('log', __text(arguments)); }
 function MessageBox() { __call('log', __text(arguments)); return 1; }
 function ErrorBox() { __call('log', 'Ошибка: ' + __text(arguments)); }
 function RunYesNoDialog() { __call('log', 'Вопрос (ответ «Да»): ' + __text(arguments)); return true; }
 var console = { log: function () { __call('log', __text(arguments)); }, warn: function () { __call('log', __text(arguments)); }, error: function () { __call('log', __text(arguments)); } };
 
-// ── Окна (старое API): описание запоминается; в окне программы показывается диалогом ──
-// Живые окна: элементы с номерами, показанные формы; окно программы читает их через __forms(),
-// а щелчки и ввод передаёт в __click / __change.
+// ── Windows (old API): the description is stored; the program window shows it as a dialog ──
+// Live windows: numbered elements, shown forms; the program window reads them via __forms(),
+// and passes clicks and input to __click / __change.
 var __controls = [], __shown = [];
 function __control(kind, owner, parent) {
   var c = { __id: __controls.length, Kind: kind, Caption: '', Text: '', Value: 0, Checked: false, ItemIndex: -1, Items: [], Visible: true, Enabled: true, Children: [], Left: 0, Top: 0, Width: 0, Height: 0 };
@@ -431,7 +431,7 @@ function NewForm() {
 var UI = { components: {} };
 
 
-// ── Файлы (только папка скрипта) ──
+// ── Files (script folder only) ──
 var fs = {
   readFileSync: function (p) { return __call('fs.read', String(p)); },
   writeFileSync: function (p, data) { __call('fs.write', { path: String(p), data: String(data) }); },
@@ -470,13 +470,13 @@ function NewCOMObject(name) { throw new Error('COM-объект «' + name + '»
 var COM = NewCOMObject;
 var execution = { Finish: function () {}, Continue: function () {} };
 
-// ── Отмена (Undo) и модульное API BAZIS-Script ──
+// ── Undo and the BAZIS-Script modular API ──
 var __noop = function () {};
-// Модуль, которого нет в программе: любой вызов — понятная ошибка.
+// A module the program lacks: any call is a clear error.
 var __missing = function (module) {
   return new Proxy({}, { get: function (t, k) { if (k in t) return t[k]; if (typeof k !== 'string') return undefined; return function () { throw new Error(module + '.' + k + ': недоступно в dowel-craft'); }; } });
 };
-// Объект с известными методами; неизвестные — ошибка с именем.
+// An object with known methods; unknown ones are an error naming them.
 var __module = function (name, known) {
   return new Proxy(known, { get: function (t, k) { if (k in t) return t[k]; if (typeof k !== 'string') return undefined; return function () { throw new Error(name + '.' + k + ': недоступно в dowel-craft'); }; } });
 };
@@ -521,7 +521,7 @@ var Alert = alert;
 var AxisX = NewVector(1, 0, 0), AxisY = NewVector(0, 1, 0), AxisZ = NewVector(0, 0, 1);
 var ActiveMaterial = {};
 Object.defineProperty(ActiveMaterial, 'Name', { get: function () { return __material(); } });
-// Указание объекта мышью: без окна — первая выделенная деталь (или null).
+// Picking an object with the mouse: without a window — the first selected part (or null).
 function GetPanel(text) { __call('log', 'Указать панель: ' + (text || '')); return Model.Selected; }
 function GetObject(text) { return GetPanel(text); }
 function prompt(text, def) { __call('log', 'Запрос (ответ по умолчанию): ' + text); return def === undefined ? '' : def; }
@@ -529,7 +529,7 @@ function confirm(text) { __call('log', 'Подтверждение (ответ �
 function setTimeout(fn) { __finishers.push(fn); return 0; }
 function setInterval() { throw new Error('setInterval: таймеры недоступны'); }
 
-// Экспорт: глобальные имена — обычные (перезаписываемые) свойства, чтобы скрипт мог объявить свои fs, path и т.п.
+// Export: globals are ordinary (overwritable) properties so a script can declare its own fs, path etc.
 G['__call'] = __call;
 G['__finish'] = __finish;
 G['NewVector'] = NewVector;
@@ -590,7 +590,7 @@ G['prompt'] = prompt;
 G['confirm'] = confirm;
 G['setTimeout'] = setTimeout;
 G['setInterval'] = setInterval;
-// Окна нового API — те же, что и старые.
+// New-API windows are the same as the old ones.
 ['NewForm'].concat(Object.keys(G).filter(function (k) { return /^New[A-Z]/.test(k); })).forEach(function (k) { if (typeof G[k] === 'function') UI.components[k] = G[k]; });
 G['UI'] = UI;
 G['__forms'] = __forms; G['__click'] = __click; G['__change'] = __change;

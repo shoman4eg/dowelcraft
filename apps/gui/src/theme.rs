@@ -1,8 +1,8 @@
-//! Тёмная тема окна — цвета и отступы cadcraft (`crates/ui-egui/src/theme.rs`, MIT OR Apache-2.0).
+//! Dark window theme: cadcraft colors and spacing (`crates/ui-egui/src/theme.rs`, MIT OR Apache-2.0).
 
 use eframe::egui::{self, Color32};
 
-/// Цвета оболочки.
+/// Shell colors.
 pub struct Tokens {
     pub chrome: Color32,
     pub chrome_dark: Color32,
@@ -35,7 +35,7 @@ pub const T: Tokens = Tokens {
     field: Color32::from_rgb(0x31, 0x38, 0x44),
 };
 
-/// Поставить тему: цвета виджетов, окон и меню, отступы.
+/// Apply the theme: widget, window and menu colors, spacing.
 pub fn apply(ctx: &egui::Context) {
     let mut v = egui::Visuals::dark();
     v.panel_fill = T.panel;

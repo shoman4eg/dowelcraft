@@ -1,7 +1,7 @@
-// BAZIS-Script: выгрузка панелей текущей модели в JSON — эталон для сверки dowel-craft.
-// Запуск в Базис-Мебельщике: Сервис → Скрипты. Файл пишется рядом с моделью или в текущий каталог.
-// shortcut: имена API взяты из документации BAZIS-Script без проверки на живом Базисе;
-// если свойство не найдено, оно попадает в поле errors, скрипт не падает.
+// BAZIS-Script: exports the current model's panels to JSON — a reference for checking dowel-craft.
+// Run in Bazis-Mebelshchik: Service → Scripts. The file is written next to the model or to the current directory.
+// shortcut: API names come from the BAZIS-Script docs, unverified on a live Bazis;
+// if a property is not found, it goes into the errors field and the script does not fail.
 const fs = require('fs');
 
 function safe(f, errors, name) {

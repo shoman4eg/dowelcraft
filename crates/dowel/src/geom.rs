@@ -1,5 +1,5 @@
-//! Положение объекта: начало и оси локальной системы координат в координатах родителя.
-//! Оси, а не кватернион: у деталей вдоль осей проекта все числа точно 0 и ±1, без шума float.
+//! Object placement: origin and axes of the local coordinate system in parent coordinates.
+//! Axes rather than a quaternion: for parts aligned with project axes all numbers are exactly 0 and ±1, no float noise.
 
 use serde::{Deserialize, Serialize};
 
@@ -28,34 +28,34 @@ fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
 impl Frame {
     pub const IDENTITY: Frame = Frame { origin: [0.0; 3], x: [1.0, 0.0, 0.0], y: [0.0, 1.0, 0.0], z: [0.0, 0.0, 1.0] };
 
-    /// Система с осями `x`, `y` и `z = x × y`.
+    /// System with axes `x`, `y` and `z = x × y`.
     pub fn new(origin: [f64; 3], x: [f64; 3], y: [f64; 3]) -> Self {
         Frame { origin, x, y, z: cross(x, y) }
     }
 
-    /// Направление из локальных координат в родительские.
+    /// Direction from local to parent coordinates.
     pub fn dir(&self, v: [f64; 3]) -> [f64; 3] {
         std::array::from_fn(|i| self.x[i] * v[0] + self.y[i] * v[1] + self.z[i] * v[2])
     }
 
-    /// Точка из локальных координат в родительские.
+    /// Point from local to parent coordinates.
     pub fn apply(&self, p: [f64; 3]) -> [f64; 3] {
         let d = self.dir(p);
         std::array::from_fn(|i| d[i] + self.origin[i])
     }
 
-    /// Точка из родительских координат в локальные.
+    /// Point from parent to local coordinates.
     pub fn local(&self, p: [f64; 3]) -> [f64; 3] {
         let d = std::array::from_fn(|i| p[i] - self.origin[i]);
         [dot(d, self.x), dot(d, self.y), dot(d, self.z)]
     }
 
-    /// Система `child`, заданная в этой, — в координатах родителя этой.
+    /// System `child`, given in this one, expressed in this one's parent coordinates.
     pub fn then(&self, child: &Frame) -> Frame {
         Frame { origin: self.apply(child.origin), x: self.dir(child.x), y: self.dir(child.y), z: self.dir(child.z) }
     }
 
-    /// Оси единичные, взаимно перпендикулярные и правые (без зеркала).
+    /// Axes are unit, mutually perpendicular and right-handed (no mirroring).
     pub fn check(&self) -> Result<(), String> {
         let ok = |v: f64, want: f64| (v - want).abs() < 1e-9;
         let (x, y, z) = (self.x, self.y, self.z);
@@ -66,7 +66,7 @@ impl Frame {
         if unit && ortho && right && finite { Ok(()) } else { Err(format!("оси положения не образуют правую ортонормированную систему: {self:?}")) }
     }
 
-    /// Габарит локального параллелепипеда [lo, hi] в координатах родителя.
+    /// Bounding box [lo, hi] of a local box in parent coordinates.
     pub fn bounds(&self, lo: [f64; 3], hi: [f64; 3]) -> ([f64; 3], [f64; 3]) {
         (0..8)
             .map(|i| self.apply(std::array::from_fn(|k| if i >> k & 1 == 0 { lo[k] } else { hi[k] })))
@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn compose_and_invert() {
-        // Горизонтальная панель: X → X, Y → +Z, толщина (Z) → −Y.
+        // Horizontal panel: X → X, Y → +Z, thickness (Z) → −Y.
         let f = Frame::new([10.0, 20.0, 30.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         assert_eq!(f.z, [0.0, -1.0, 0.0]);
         f.check().unwrap();

@@ -1,6 +1,6 @@
-//! Библиотека текстур (как «Фурнитура»): папки с картинками (.jpg, .png), дерево по папкам, поиск, превью.
-//! Список файлов собирается в фоне, превью уменьшаются в фоновом потоке и только для видимых строк —
-//! у Балтламината тысячи картинок по сотне килобайт.
+//! Texture library (like "Fittings"): folders of images (.jpg, .png), folder tree, search, previews.
+//! The file list is gathered in the background, previews are downscaled on a background thread and only for visible rows —
+//! Baltlaminat has thousands of images of about a hundred kilobytes each.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -8,7 +8,7 @@ use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
 
 use eframe::egui::{self, Color32, Vec2};
 
-/// Папка дерева: подпапки и картинки.
+/// Tree folder: subfolders and images.
 #[derive(Default)]
 struct Folder {
     dirs: BTreeMap<String, Folder>,
@@ -21,12 +21,12 @@ impl Folder {
     }
 }
 
-/// Для какого материала выбирают текстуру.
+/// Which material the texture is being picked for.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Target {
-    /// Форма «Новый материал».
+    /// The "New material" form.
     New,
-    /// Существующий материал по имени.
+    /// An existing material by name.
     Material(String),
 }
 
@@ -39,7 +39,7 @@ pub struct TextureLib {
     requested: HashSet<PathBuf>,
     jobs: Sender<PathBuf>,
     done: Receiver<(PathBuf, Option<egui::ColorImage>)>,
-    /// Окно выбора открыто для этого материала.
+    /// The picker window is open for this material.
     pub open_for: Option<Target>,
 }
 
@@ -67,14 +67,14 @@ fn list(dirs: &[String]) -> Vec<PathBuf> {
     out
 }
 
-/// Превью: картинка, уменьшенная до `THUMB` по большей стороне.
+/// Preview: image downscaled to `THUMB` on the longer side.
 fn thumbnail(p: &Path) -> Option<egui::ColorImage> {
     let img = image::open(p).ok()?.thumbnail(THUMB, THUMB).to_rgba8();
     let size = [img.width() as usize, img.height() as usize];
     Some(egui::ColorImage::from_rgba_unmultiplied(size, img.as_raw()))
 }
 
-/// Имя для списка: «d(1101-L)1.jpg» → «1101-L» (артикул Балтламината), иначе имя файла без расширения.
+/// Name for the list: "d(1101-L)1.jpg" → "1101-L" (Baltlaminat article), otherwise the file name without extension.
 pub fn label(p: &Path) -> String {
     let stem = p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     stem.strip_prefix("d(").and_then(|s| s.rsplit_once(')')).map_or(stem.clone(), |(a, _)| a.to_string())
@@ -84,7 +84,7 @@ impl TextureLib {
     pub fn new(dirs: Vec<String>) -> Self {
         let (jobs, rx_jobs) = channel::<PathBuf>();
         let (tx_done, done) = channel();
-        // Один фоновый поток уменьшает картинки по очереди.
+        // A single background thread downscales images one by one.
         std::thread::spawn(move || {
             for p in rx_jobs {
                 let img = thumbnail(&p);
@@ -126,7 +126,7 @@ impl TextureLib {
         !self.requested.iter().all(|p| self.thumbs.contains_key(p))
     }
 
-    /// Превью или заглушка (и заявка на превью в фоне).
+    /// Preview or placeholder (and a background preview request).
     fn thumb(&mut self, ui: &egui::Ui, p: &Path) -> Option<egui::TextureId> {
         if let Some(t) = self.thumbs.get(p) {
             return Some(t.id());
@@ -158,7 +158,7 @@ impl TextureLib {
         picked
     }
 
-    /// Папка дерева: подпапки свёрнуты, картинки — строками с превью; возвращает выбранную.
+    /// Tree folder: subfolders collapsed, images as rows with previews; returns the selected one.
     fn folder(&mut self, ui: &mut egui::Ui, id: &str, f: &Folder, current: Option<&str>) -> Option<PathBuf> {
         let mut picked = None;
         for (name, sub) in &f.dirs {
@@ -177,7 +177,7 @@ impl TextureLib {
         picked
     }
 
-    /// Окно выбора: возвращает (для какого материала, выбранный файл или `None` — «без текстуры»).
+    /// Picker window: returns (for which material, chosen file or `None` — "no texture").
     pub fn window(&mut self, ctx: &egui::Context, current: Option<&str>) -> Option<(Target, Option<PathBuf>)> {
         let target = self.open_for.clone()?;
         let busy = self.poll(ctx);
@@ -243,7 +243,7 @@ impl TextureLib {
                     }
                     return;
                 }
-                // Дерево папок, как лежат на диске (папка библиотеки → подпапки).
+                // Folder tree as laid out on disk (library folder → subfolders).
                 let mut tree = Folder::default();
                 for p in &files {
                     let dir = p.parent().unwrap_or(Path::new(""));
@@ -276,7 +276,7 @@ impl TextureLib {
         self.search = q.to_string();
     }
 
-    /// Папки поменялись (для сохранения в настройках).
+    /// Folders changed (to save in settings).
     pub fn dirs(&self) -> &[String] {
         &self.dirs
     }

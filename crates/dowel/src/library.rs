@@ -1,5 +1,5 @@
-//! Библиотека моделей фурнитуры (`.fr3d`, а также `.b3d`): название, вид, превью и отверстия,
-//! которые модель сверлит в панелях, к которым её ставят. Папку пополняет пользователь.
+//! Library of hardware models (`.fr3d`, also `.b3d`): name, kind, preview and the holes
+//! the model drills in the panels it is attached to. The user fills the folder.
 
 use std::path::{Path, PathBuf};
 
@@ -8,18 +8,18 @@ use crate::panel::{self, Tri, WorldHole};
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelInfo {
     pub path: PathBuf,
-    /// `Article/Name` из файла, иначе имя файла.
+    /// `Article/Name` from the file, otherwise the file name.
     pub name: String,
-    /// `Article/FurnType` («Ящик», «Петля»…), если есть.
+    /// `Article/FurnType` (e.g. drawer, hinge), if present.
     pub kind: String,
-    /// Превью PNG из заголовка.
+    /// PNG preview from the header.
     pub thumbnail: Option<Vec<u8>>,
-    /// Отверстия в координатах модели.
+    /// Holes in model coordinates.
     pub holes: Vec<WorldHole>,
-    /// Габарит модели (по плитам, сетке и отверстиям), мм.
+    /// Model bounding box (from slabs, mesh and holes), mm.
     pub lo: [f64; 3],
     pub hi: [f64; 3],
-    /// Сетка модели (корзины, направляющие, петли) для 3D, мм.
+    /// Model mesh (baskets, runners, hinges) for 3D, mm.
     pub mesh: Vec<Tri>,
 }
 
@@ -55,7 +55,7 @@ pub fn read(path: &Path) -> Result<ModelInfo, String> {
     Ok(ModelInfo { path: path.to_path_buf(), name, kind, thumbnail, holes, lo, hi, mesh })
 }
 
-/// Текстура по артикулу материала в библиотеке (как у Базиса: `d(<артикул>)1.jpg`, напр. Балтламинат).
+/// Texture by material article number in the library (as in Bazis: `d(<article>)1.jpg`, e.g. Baltlaminat).
 pub fn find_texture(dir: &Path, article: &str) -> Option<PathBuf> {
     let article = article.trim().to_lowercase();
     if article.is_empty() {
@@ -81,7 +81,7 @@ pub fn find_texture(dir: &Path, article: &str) -> Option<PathBuf> {
     None
 }
 
-/// Модели в папке и её подпапках (`.fr3d`); нечитаемые файлы пропускаются с причиной.
+/// Models in the folder and its subfolders (`.fr3d`); unreadable files are skipped with a reason.
 pub fn scan(dir: &Path) -> (Vec<ModelInfo>, Vec<String>) {
     let (mut ok, mut bad) = (Vec::new(), Vec::new());
     let mut stack = vec![dir.to_path_buf()];
@@ -129,7 +129,7 @@ mod tests {
         }
         let (models, bad) = scan(&dir);
         assert!(bad.is_empty(), "{bad:?}");
-        // Сетка разобрана у каждой модели с TriData и без обрывов.
+        // The mesh is parsed for every model with TriData, without gaps.
         for path in models.iter().map(|m| &m.path) {
             let file = crate::b3d::parse(&std::fs::read(path).unwrap()).unwrap();
             let defs = file.section("Document").and_then(|d| d.get("FurnList")).map(|l| l.children.clone()).unwrap_or_default();
@@ -139,13 +139,13 @@ mod tests {
         }
         let basket = models.iter().find(|m| m.name == "GTV Ажурная корзина ELITE, Антрацит, 600").expect("корзина 600");
         assert!(basket.mesh.len() > 1000, "{}", basket.mesh.len());
-        // Объёмная: раньше габарит считался по отверстиям и высота была 0.
+        // Volumetric: the bounding box used to be computed from holes and the height was 0.
         assert!((0..3).all(|k| basket.hi[k] - basket.lo[k] > 100.0), "{:?} {:?}", basket.lo, basket.hi);
         let flat = models.iter().filter(|m| (0..3).any(|k| m.hi[k] - m.lo[k] < 1.0)).map(|m| m.name.as_str()).collect::<Vec<_>>();
         println!("плоских: {flat:?}");
     }
 
-    /// Фрагменты Балтламината (замки, магниты, освещение, розетки): читаются все, у каждой сетка и объём.
+    /// Baltlaminat fragments (locks, magnets, lighting, sockets): all are read, each has a mesh and volume.
     #[test]
     fn baltlaminat_fragments() {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/fragments");

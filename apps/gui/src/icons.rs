@@ -1,5 +1,5 @@
-//! Иконки инструментов, нарисованные кодом на сетке 24×24 (как в cadcraft, MIT OR Apache-2.0):
-//! светлые линии — то, что уже есть, синие — то, что создаёт инструмент, оранжевые точки — указанные места.
+//! Tool icons drawn in code on a 24×24 grid (as in cadcraft, MIT OR Apache-2.0):
+//! light lines — what already exists, blue — what the tool creates, orange dots — picked points.
 
 use craft_ui::buttons::{ButtonVisuals, IconButton, IconButtonStyle};
 use eframe::egui::{self, Color32, Painter, Pos2, Rect, Stroke, pos2};
@@ -56,7 +56,7 @@ pub enum Icon {
     EyeOff,
 }
 
-/// Цвета иконок: обычные линии, создаваемое (синий), точки (оранжевый).
+/// Icon colors: regular lines, created (blue), points (orange).
 const BASE: Color32 = Color32::from_rgb(0xcf, 0xd4, 0xdb);
 const ACCENT: Color32 = Color32::from_rgb(0x4f, 0xa3, 0xf7);
 const POINT: Color32 = Color32::from_rgb(0xf5, 0x9e, 0x3b);
@@ -101,7 +101,7 @@ impl Pen<'_> {
     fn fill_c(&self, x: f32, y: f32, r: f32, c: Color32) {
         self.p.circle_filled(self.at(x, y), r * self.sc(), c);
     }
-    /// Дуга в градусах, против часовой стрелки на экране.
+    /// Arc in degrees, counter-clockwise on screen.
     fn arc(&self, x: f32, y: f32, r: f32, a0: f32, a1: f32, c: Color32) {
         let n = (((a1 - a0).abs() / 10.0).ceil() as usize).max(2);
         let pts: Vec<Pos2> = (0..=n)
@@ -133,14 +133,14 @@ impl Pen<'_> {
         let (nx, ny) = (-uy, ux);
         self.tri([(x, y), (x - ux * 3.0 + nx * 1.4, y - uy * 3.0 + ny * 1.4), (x - ux * 3.0 - nx * 1.4, y - uy * 3.0 - ny * 1.4)], c);
     }
-    /// Корпус спереди: боковины, крыша, дно, цоколь (`plinth`) — от `y0` до `y1`.
+    /// Cabinet from the front: side panels, top, bottom, plinth (`plinth`) — from `y0` to `y1`.
     fn carcass(&self, x0: f32, y0: f32, x1: f32, y1: f32, plinth: f32) {
         self.rect(x0, y0, x1 - x0, y1 - y0, self.base);
         if plinth > 0.0 {
             self.l(x0, y1 - plinth, x1, y1 - plinth);
         }
     }
-    /// Брусок в аксонометрии: передняя грань `w × h` в (x, y), глубина `d` вправо-вверх.
+    /// Bar in axonometry: front face `w × h` at (x, y), depth `d` up and to the right.
     fn boxy(&self, x: f32, y: f32, w: f32, h: f32, d: f32, c: Color32) {
         self.rect(x, y, w, h, c);
         self.poly(&[(x, y), (x + d, y - d), (x + w + d, y - d), (x + w, y)], false, c);
@@ -148,7 +148,7 @@ impl Pen<'_> {
     }
 }
 
-/// Рисует `icon` в квадрате `rect`; `dim` — неактивная.
+/// Draws `icon` in square `rect`; `dim` — disabled.
 pub fn paint(p: &Painter, rect: Rect, icon: Icon, dim: bool) {
     let alpha = |c: Color32| if dim { c.gamma_multiply(0.35) } else { c };
     let pen = Pen { p, r: rect, w: (rect.width() / 16.0).clamp(1.0, 1.6), base: alpha(BASE), acc: alpha(ACCENT), pt: alpha(POINT) };
@@ -253,7 +253,7 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, dim: bool) {
             }
         }
         Furniture => {
-            // Корзина: рамка и прутья.
+            // Basket: frame and wires.
             pen.poly(&[(3.0, 8.0), (21.0, 8.0), (18.0, 19.0), (6.0, 19.0)], true, b);
             for x in [8.0, 12.0, 16.0] {
                 pen.l(x, 8.0, x - (x - 12.0) * 0.2, 19.0);
@@ -315,7 +315,7 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, dim: bool) {
             pen.fill_c(12.0, 12.0, 2.0, pen.pt);
         }
         ViewFront | ViewLeft | ViewTop => {
-            // Куб с подсвеченной гранью.
+            // Cube with a highlighted face.
             let front = [(4.0, 9.0), (15.0, 9.0), (15.0, 20.0), (4.0, 20.0)];
             let top = [(4.0, 9.0), (9.0, 4.0), (20.0, 4.0), (15.0, 9.0)];
             let side = [(15.0, 9.0), (20.0, 4.0), (20.0, 15.0), (15.0, 20.0)];
@@ -418,7 +418,7 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, dim: bool) {
                 pen.poly(p, true, b);
             }
             if matches!(icon, ModeHidden | ModeXRay) {
-                // Невидимые рёбра пунктиром.
+                // Hidden edges dashed.
                 for k in 0..3 {
                     let y = 9.0 + 4.0 * k as f32;
                     pen.la(9.0, 4.0 + 4.0 * k as f32, 9.0, y - 2.0);
@@ -442,7 +442,7 @@ fn style() -> IconButtonStyle {
     }
 }
 
-/// Короткая подпись под иконкой в палитре «Инструменты».
+/// Short caption under the icon in the "Tools" palette.
 pub fn caption(icon: Icon) -> &'static str {
     use Icon::*;
     match icon {
@@ -472,7 +472,7 @@ pub fn caption(icon: Icon) -> &'static str {
     }
 }
 
-/// Инструмент палитры: иконка и подпись под ней (как подписанные палитры), подсказка по наведению.
+/// Palette tool: icon with a caption under it (like labeled palettes), tooltip on hover.
 pub fn tool(ui: &mut egui::Ui, enabled: bool, icon: Icon, tooltip: &str, selected: bool) -> egui::Response {
     let enabled = enabled && ui.is_enabled();
     let tooltip = crate::i18n::t(tooltip);
@@ -495,12 +495,12 @@ pub fn tool(ui: &mut egui::Ui, enabled: bool, icon: Icon, tooltip: &str, selecte
     resp.on_hover_text(tooltip)
 }
 
-/// Кнопка «иконка + текст» верхней строки; `selected` — выбранный вид.
+/// Top-bar "icon + text" button; `selected` — the selected view.
 pub fn labeled(ui: &mut egui::Ui, icon: Icon, text: &str, tooltip: &str, selected: bool) -> egui::Response {
     labeled_if(ui, true, icon, text, tooltip, selected)
 }
 
-/// То же, может быть неактивной (бледная, не нажимается).
+/// Same, can be disabled (pale, not clickable).
 pub fn labeled_if(ui: &mut egui::Ui, enabled: bool, icon: Icon, text: &str, tooltip: &str, selected: bool) -> egui::Response {
     let text = crate::i18n::t(text);
     let color = if enabled { Color32::from_rgb(0xd7, 0xdb, 0xe0) } else { Color32::from_rgb(0x80, 0x86, 0x90) };
@@ -522,7 +522,7 @@ pub fn labeled_if(ui: &mut egui::Ui, enabled: bool, icon: Icon, text: &str, tool
     resp.on_hover_text(tooltip)
 }
 
-/// Кнопка-иконка размером `size` с подсказкой; `selected` — нажатое состояние (включённый инструмент, режим).
+/// Icon button of size `size` with a tooltip; `selected` — pressed state (active tool, mode).
 pub fn button(ui: &mut egui::Ui, icon: Icon, size: f32, tooltip: &str, selected: bool) -> egui::Response {
     let tooltip = &crate::i18n::t(tooltip);
     let style = style();
@@ -537,14 +537,14 @@ fn hover_id() -> egui::Id {
     egui::Id::new("icon_hover_tip")
 }
 
-/// Описание иконки под мышью — для строки состояния (как подсказки команд в cadcraft).
+/// Description of the hovered icon — for the status bar (like command hints in cadcraft).
 fn remember_hover(resp: &egui::Response, tooltip: &str) {
     if resp.hovered() {
         resp.ctx.data_mut(|d| d.insert_temp(hover_id(), tooltip.to_string()));
     }
 }
 
-/// Забрать описание иконки, над которой мышь была на прошлом кадре.
+/// Take the description of the icon the mouse was over on the previous frame.
 pub fn take_hover(ctx: &egui::Context) -> Option<String> {
     ctx.data_mut(|d| d.remove_temp::<String>(hover_id()))
 }
@@ -553,7 +553,7 @@ pub fn take_hover(ctx: &egui::Context) -> Option<String> {
 mod tests {
     use eframe::egui;
 
-    /// Навели мышь на иконку и не двигаем — подсказка открывается.
+    /// Hover the icon and keep still — the tooltip opens.
     #[test]
     fn icon_shows_tooltip_on_hover() {
         let ctx = egui::Context::default();
@@ -581,7 +581,7 @@ mod tests {
         assert!(open, "подсказка не открылась");
     }
 
-    /// То же внутри палитры craft-ui (стопка с заголовком), как в окне программы.
+    /// Same inside a craft-ui palette (stack with a header), as in the app window.
     #[test]
     fn icon_shows_tooltip_inside_dock() {
         use craft_ui::docking::{DockArea, DockStyle, Layout, Node, Permissions, StackEntry};

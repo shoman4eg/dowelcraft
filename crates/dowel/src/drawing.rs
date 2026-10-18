@@ -1,13 +1,13 @@
-//! Рабочие чертежи деталей и сборочный чертёж (A4 альбомный, рамка и основная надпись по ГОСТ 2.104
-//! в упрощённом виде). Деталь — контур в стандартном масштабе (ГОСТ 2.302), габаритные размеры, кромка,
-//! пазы, направление текстуры и отверстия с координатами от угла контура (0, 0) в таблице.
+//! Part working drawings and the assembly drawing (A4 landscape, frame and title block per GOST 2.104
+//! in simplified form). A part is its contour at a standard scale (GOST 2.302), overall dimensions, edge banding,
+//! grooves, grain direction and holes with coordinates from the contour corner (0, 0) in a table.
 
 use crate::contour::{self, Seg};
 use crate::design::{Kind, Part};
 use crate::panel::{Panel, Texture, material_name};
 use crate::report::xml;
 
-/// Стандартные масштабы уменьшения.
+/// Standard reduction scales.
 const SCALES: [f64; 10] = [1.0, 2.0, 2.5, 4.0, 5.0, 10.0, 15.0, 20.0, 25.0, 40.0];
 
 fn n(v: f64) -> String {
@@ -16,12 +16,12 @@ fn n(v: f64) -> String {
     s.replace('.', ",")
 }
 
-/// Рамка, основная надпись (185×55 в правом нижнем углу) и графы.
+/// Frame, title block (185×55 in the bottom right corner) and its cells.
 fn frame(title: &str, designation: &str, material: &str, qty: &str, scale: &str, sheet: &str, order: &str) -> String {
     let mut s = String::from(r##"<rect x="20" y="5" width="272" height="200" fill="none" stroke="#000" stroke-width="0.7"/>"##);
     let (x0, y0) = (107.0, 150.0);
     s += &format!(r##"<rect x="{x0}" y="{y0}" width="185" height="55" fill="none" stroke="#000" stroke-width="0.7"/>"##);
-    // Горизонтали и вертикали надписи.
+    // Horizontal and vertical lines of the title block.
     for (x1, y1, x2, y2) in [(x0, y0 + 15.0, x0 + 185.0, y0 + 15.0), (x0, y0 + 35.0, x0 + 185.0, y0 + 35.0), (x0 + 120.0, y0 + 15.0, x0 + 120.0, y0 + 55.0), (x0 + 150.0, y0 + 15.0, x0 + 150.0, y0 + 35.0), (x0 + 120.0, y0 + 25.0, x0 + 185.0, y0 + 25.0)] {
         s += &format!(r##"<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#000" stroke-width="0.5"/>"##);
     }
@@ -39,17 +39,17 @@ fn frame(title: &str, designation: &str, material: &str, qty: &str, scale: &str,
     s
 }
 
-/// Ломаная элемента контура в мм детали.
+/// Polyline of a contour element in part mm.
 fn pts(s: &Seg) -> Vec<[f64; 2]> {
     let mut p = contour::tessellate(s, 0.05);
     p.push(contour::ends(s).1);
     p
 }
 
-/// Рабочий чертёж детали: `qty` — количество одинаковых деталей, `number` — номер позиции.
+/// Part working drawing: `qty` — number of identical parts, `number` — item number.
 pub fn part_svg(p: &Panel, qty: usize, number: &str, order: &str, sheet: (usize, usize)) -> String {
     let (w, h) = p.size;
-    // Поле чертежа: x 25…287, y 10…145 (над надписью и таблицей отверстий — слева от надписи).
+    // Drawing area: x 25…287, y 10…145 (above the title block; the hole table is left of the title block).
     let (ax, ay, aw, ah) = (40.0, 18.0, 160.0, 115.0);
     let scale = SCALES.into_iter().find(|k| w / k <= aw && h / k <= ah).unwrap_or(50.0);
     let k = 1.0 / scale;
@@ -58,17 +58,16 @@ pub fn part_svg(p: &Panel, qty: usize, number: &str, order: &str, sheet: (usize,
     let mut s = String::from(r##"<svg xmlns="http://www.w3.org/2000/svg" width="297mm" height="210mm" viewBox="0 0 297 210">"##);
     let scale_txt = if scale == 1.0 { "1:1".to_string() } else { format!("1:{}", n(scale)) };
     s += &frame(&p.name, format!("{number} {}", p.designation).trim(), &format!("{} — {} мм", material_name(&p.material), n(p.thickness)), &qty.to_string(), &scale_txt, &format!("{} / {}", sheet.0, sheet.1), order);
-    // Контур.
     for (i, sg) in p.segs.iter().enumerate() {
         let path: Vec<String> = pts(sg).into_iter().map(|q| { let (x, y) = to(q); format!("{x:.2},{y:.2}") }).collect();
         s += &format!(r##"<polyline points="{}" fill="none" stroke="#000" stroke-width="0.6"/>"##, path.join(" "));
-        // Кромка: линия вдоль торца внутри детали и толщина у середины.
+        // Edge banding: a line along the edge inside the part and the thickness at the middle.
         if let Some(e) = p.edges.iter().find(|e| e.segment == i && e.thickness > 0.0) {
             let q = pts(sg);
             let (a, b) = (q[0], q[q.len() - 1]);
             let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
             let l = dx.hypot(dy).max(1e-9);
-            // Нормаль внутрь: проверяем по центру детали.
+            // Inward normal: checked against the part center.
             let (mut nx, mut ny) = (-dy / l, dx / l);
             let mid = [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0];
             if (w / 2.0 - mid[0]) * nx + (h / 2.0 - mid[1]) * ny < 0.0 {
@@ -81,7 +80,7 @@ pub fn part_svg(p: &Panel, qty: usize, number: &str, order: &str, sheet: (usize,
             s += &format!(r##"<text x="{tx:.2}" y="{ty:.2}" font-size="2.5" text-anchor="middle" font-family="Arial">{}</text>"##, n(e.thickness));
         }
     }
-    // Пазы — штрихом.
+    // Grooves are dashed.
     for g in &p.grooves {
         let [a, b] = g.path;
         let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
@@ -93,7 +92,7 @@ pub fn part_svg(p: &Panel, qty: usize, number: &str, order: &str, sheet: (usize,
             s += &format!(r##"<line x1="{x1:.2}" y1="{y1:.2}" x2="{x2:.2}" y2="{y2:.2}" stroke="#000" stroke-width="0.3" stroke-dasharray="4 1.5"/>"##);
         }
     }
-    // Габаритные размеры: ширина снизу, высота слева.
+    // Overall dimensions: width below, height on the left.
     let (x0, y0) = to([0.0, 0.0]);
     let (x1, y1) = to([w, h]);
     let dim = |s: &mut String, xa: f64, ya: f64, xb: f64, yb: f64, text: String, vertical: bool| {
@@ -112,13 +111,13 @@ pub fn part_svg(p: &Panel, qty: usize, number: &str, order: &str, sheet: (usize,
     let xd = x0 - 8.0;
     s += &format!(r##"<line x1="{x0:.2}" y1="{y0:.2}" x2="{:.2}" y2="{y0:.2}" stroke="#000" stroke-width="0.2"/><line x1="{x0:.2}" y1="{y1:.2}" x2="{:.2}" y2="{y1:.2}" stroke="#000" stroke-width="0.2"/>"##, xd - 1.0, xd - 1.0);
     dim(&mut s, xd, y0, xd, y1, n(h), true);
-    // Направление текстуры.
+    // Grain direction.
     if p.texture != Texture::Default {
         let (cx, cy) = (x1 + 6.0, (y0 + y1) / 2.0);
         let (dx, dy) = if p.texture == Texture::Horizontal { (8.0, 0.0) } else { (0.0, -8.0) };
         s += &format!(r##"<line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="#555" stroke-width="0.4" marker-start="url(#a)" marker-end="url(#a)"/><text x="{:.2}" y="{:.2}" font-size="2.2" fill="#555" font-family="Arial">текстура</text>"##, cx - dx / 2.0, cy - dy / 2.0, cx + dx / 2.0, cy + dy / 2.0, cx + 2.0, cy + 6.0);
     }
-    // Отверстия: номера на чертеже, координаты — в таблице.
+    // Holes: numbers on the drawing, coordinates in the table.
     let mut rows = String::new();
     for (i, hl) in p.holes.iter().enumerate() {
         let (x, y) = to([hl.pos[0], hl.pos[1]]);
@@ -150,7 +149,7 @@ pub fn part_svg(p: &Panel, qty: usize, number: &str, order: &str, sheet: (usize,
     s
 }
 
-/// Сборочный чертёж: вид спереди с номерами позиций и таблица позиций.
+/// Assembly drawing: front view with item numbers and an item table.
 pub fn assembly_svg(parts: &[Part], order: &str) -> String {
     let rects = crate::view::front_view(parts, true);
     let mut s = String::from(r##"<svg xmlns="http://www.w3.org/2000/svg" width="297mm" height="210mm" viewBox="0 0 297 210">"##);
@@ -170,7 +169,7 @@ pub fn assembly_svg(parts: &[Part], order: &str) -> String {
             };
             s += &format!(r##"<rect x="{x0:.2}" y="{y0:.2}" width="{:.2}" height="{:.2}" fill="{fill}" stroke="#000" stroke-width="0.3"/>"##, x1 - x0, y1 - y0);
         }
-        // Позиции: выноска к центру каждой детали, видимой спереди (уникальные номера).
+        // Items: a leader to the center of each part visible from the front (unique numbers).
         let mut seen = Vec::new();
         for r in rects.iter().rev() {
             let pos = &parts[r.part].panel.pos;
@@ -183,7 +182,7 @@ pub fn assembly_svg(parts: &[Part], order: &str) -> String {
         }
         s += &format!(r##"<text x="30" y="148" font-size="3" font-family="Arial">Вид спереди, М 1:{}</text>"##, n(scale));
     }
-    // Таблица позиций справа.
+    // Item table on the right.
     let rows = crate::panel::spec(&parts.iter().map(|p| p.panel.clone()).collect::<Vec<_>>());
     for (x, h) in [(200, "Поз."), (210, "Наименование"), (280, "Кол.")] {
         s += &format!(r##"<text x="{x}" y="15" font-size="2.8" font-weight="bold" font-family="Arial">{h}</text>"##);
@@ -197,7 +196,7 @@ pub fn assembly_svg(parts: &[Part], order: &str) -> String {
     s
 }
 
-/// Комплект: сборочный чертёж и рабочие чертежи — по одному на позицию (одинаковые детали сведены).
+/// Drawing set: the assembly drawing and working drawings — one per item (identical parts merged).
 pub fn drawings(parts: &[Part], order: &str) -> Vec<String> {
     let panels: Vec<Panel> = parts.iter().map(|p| p.panel.clone()).collect();
     let rows = crate::panel::spec(&panels);
@@ -224,7 +223,7 @@ mod tests {
         let parts = build(&s.project).unwrap();
         let side = parts.iter().find(|p| p.panel.name == "Боковина левая").unwrap();
         let svg = part_svg(&side.panel, 2, &side.panel.pos, "Заказ 7", (1, 5));
-        // Масштаб 1:20 (2000 мм в поле 115 мм), размеры 600 и 2000, кромка 2, отверстия в таблице.
+        // Scale 1:20 (2000 mm in a 115 mm area), dimensions 600 and 2000, edge banding 2, holes in the table.
         assert!(svg.contains(">1:20<") && svg.contains(">600<") && svg.contains(">2000<"), "{svg}");
         assert!(svg.contains(">2<"), "толщина кромки");
         assert!(svg.contains("пласть") && svg.contains("Ø8×16"), "сквозные Ø8 конфирматов в таблице");

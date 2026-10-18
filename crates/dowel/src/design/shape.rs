@@ -1,6 +1,6 @@
-//! Редактирование контура панели: замена контура, скругление и фаска угла, вырезы, размеры.
-//! После каждой правки контур проверяется ([`contour::validate`]) и сдвигается так, чтобы габарит
-//! начинался в (0, 0), а сама деталь в пространстве не сместилась.
+//! Panel contour editing: contour replacement, corner fillet and chamfer, cut-outs, resizing.
+//! After each edit the contour is validated ([`contour::validate`]) and shifted so that the bounding box
+//! starts at (0, 0) while the part itself doesn't move in space.
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -23,7 +23,7 @@ fn shift(s: Seg, d: [f64; 2]) -> Seg {
     }
 }
 
-/// Новый контур панели: проверка, сдвиг к (0, 0) с переносом начала осей, кромки несуществующих торцов снимаются.
+/// New panel contour: validate, shift to (0, 0) moving the axes origin, drop edge banding from edges that no longer exist.
 pub fn set_contour(fp: &mut FreePanel, segs: Vec<Seg>) -> Result<(), String> {
     contour::validate(&segs)?;
     let (lo, _) = contour::bounds(&segs).ok_or("пустой контур")?;
@@ -34,14 +34,14 @@ pub fn set_contour(fp: &mut FreePanel, segs: Vec<Seg>) -> Result<(), String> {
     Ok(())
 }
 
-/// Скругление (`radius`) или фаска (`chamfer` — катет) угла в вершине `at` между двумя отрезками.
-/// Новый торец получает кромку, если она одинакова на обоих соседних.
+/// Fillet (`radius`) or chamfer (`chamfer` — leg length) of the corner at vertex `at` between two line segments.
+/// The new edge gets edge banding if it is the same on both neighbours.
 pub fn corner(fp: &FreePanel, at: [f64; 2], radius: Option<f64>, chamfer: Option<f64>) -> Result<(Vec<Seg>, Vec<crate::panel::Edge>), String> {
     let size = radius.or(chamfer).ok_or("нужен radius или chamfer")?;
     if !(size > 0.0 && size.is_finite()) {
         return Err(format!("размер скругления/фаски {size} должен быть больше нуля"));
     }
-    // Порядок обхода: первый торец кончается в вершине, второй в ней начинается.
+    // Traversal order: the first edge ends at the vertex, the second starts there.
     let lp = contour::loops(&fp.segs)?.into_iter().find(|lp| lp.iter().any(|&(i, _)| {
         let (a, b) = contour::ends(&fp.segs[i]);
         near(a, at) || near(b, at)
@@ -67,7 +67,7 @@ pub fn corner(fp: &FreePanel, at: [f64; 2], radius: Option<f64>, chamfer: Option
     }
     let (p1, p2) = ([v[0] + u1[0] * d, v[1] + u1[1] * d], [v[0] + u2[0] * d, v[1] + u2[1] * d]);
     let mut segs = fp.segs.clone();
-    // Конец торца, лежащий в вершине, переносится на точку касания.
+    // The edge end lying at the vertex moves to the tangent point.
     let mv = |s: &mut Seg, to: [f64; 2]| if let Seg::Line { a, b } = s { if near(*a, v) { *a = to } else { *b = to } };
     mv(&mut segs[first.0], p1);
     mv(&mut segs[second.0], p2);
@@ -92,7 +92,7 @@ pub fn corner(fp: &FreePanel, at: [f64; 2], radius: Option<f64>, chamfer: Option
     Ok((segs, edges))
 }
 
-/// Вырез: окружность радиусом `radius` или прямоугольник `size` с центром `center`.
+/// Cut-out: a circle of radius `radius` or a rectangle `size` centered at `center`.
 pub fn cutout(fp: &FreePanel, center: [f64; 2], radius: Option<f64>, size: Option<[f64; 2]>) -> Result<Vec<Seg>, String> {
     let mut segs = fp.segs.clone();
     match (radius, size) {
@@ -107,8 +107,8 @@ pub fn cutout(fp: &FreePanel, center: [f64; 2], radius: Option<f64>, size: Optio
     Ok(segs)
 }
 
-/// Новые размеры прямоугольной панели: вершины на правой и верхней сторонах переносятся,
-/// порядок торцов и кромка сохраняются.
+/// New size of a rectangular panel: vertices on the right and top sides are moved,
+/// edge order and edge banding are preserved.
 pub fn resize(fp: &FreePanel, size: [f64; 2]) -> Result<Vec<Seg>, String> {
     let (lo, hi) = contour::bounds(&fp.segs).ok_or("пустой контур")?;
     let rect = fp.segs.len() == 4
@@ -127,9 +127,9 @@ pub fn resize(fp: &FreePanel, size: [f64; 2]) -> Result<Vec<Seg>, String> {
     }).collect())
 }
 
-/// Прямоугольная панель вдоль осей проекта занимает габарит [lo, hi] (маркеры размера): по осям контура —
-/// новые размеры, по толщине габарит должен совпадать с толщиной; начало осей сдвигается так, чтобы
-/// габарит лёг точно в [lo, hi].
+/// A rectangular axis-aligned panel occupies the bounding box [lo, hi] (dimension markers): along contour axes —
+/// new size; along the thickness the box must match the thickness; the axes origin shifts so that
+/// the bounding box lands exactly on [lo, hi].
 pub fn fit_box(fp: &mut FreePanel, thickness: f64, lo: [f64; 3], hi: [f64; 3]) -> Result<(), String> {
     let f = fp.frame;
     let axis = |v: [f64; 3]| (0..3).find(|&k| (v[k].abs() - 1.0).abs() < 1e-9).ok_or("панель не вдоль осей проекта");
@@ -139,10 +139,10 @@ pub fn fit_box(fp: &mut FreePanel, thickness: f64, lo: [f64; 3], hi: [f64; 3]) -
         return Err(format!("по толщине габарит {} ≠ толщине {thickness}", hi[az] - lo[az]));
     }
     let segs = resize(fp, size)?;
-    // Габарит: по каждой оси — от min до max проекций контура [0,size] и толщины [0,t].
+    // Bounding box: along each axis — from min to max of the projections of contour [0,size] and thickness [0,t].
     let mut origin = [0.0; 3];
     for (k, (ext, sign)) in [(ax, (size[0], f.x[ax])), (ay, (size[1], f.y[ay])), (az, (thickness, f.z[az]))] {
-        // Начало — на нижней границе, если ось смотрит в плюс, иначе — на верхней.
+        // The origin is at the lower bound if the axis points positive, otherwise at the upper one.
         origin[k] = if sign > 0.0 { lo[k] } else { lo[k] + ext };
     }
     fp.segs = segs;
@@ -150,7 +150,7 @@ pub fn fit_box(fp: &mut FreePanel, thickness: f64, lo: [f64; 3], hi: [f64; 3]) -
     Ok(())
 }
 
-/// Команды `panel.contour`, `panel.corner`, `panel.cutout`, `panel.resize`, `panel.box`.
+/// Commands `panel.contour`, `panel.corner`, `panel.cutout`, `panel.resize`, `panel.box`.
 pub fn command(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
     #[derive(Deserialize)]
     struct Args {

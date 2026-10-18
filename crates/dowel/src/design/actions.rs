@@ -1,6 +1,6 @@
-//! Действия с объектами (как гл. 14 руководства Базиса): сдвиг, поворот, зеркало, копирование массивом,
-//! удаление; создание и разрушение блоков. Объект — шаблон (корпус, угловой модуль, столешница) или
-//! объект дерева (панель, блок). Поворот и зеркало — только для объектов дерева: шаблон сначала «разрушают».
+//! Object actions (as in ch. 14 of the Bazis manual): move, rotate, mirror, array copy,
+//! delete; creating and exploding blocks. An object is a template (cabinet, corner unit, countertop) or
+//! a tree object (panel, block). Rotate and mirror apply only to tree objects: explode a template first.
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -44,8 +44,8 @@ fn axis_index(a: Option<char>) -> Result<usize, String> {
     }
 }
 
-/// Убирает шум float: значения, отличающиеся от целого меньше чем на 1e-9, становятся целыми
-/// (поворот на 90° даёт точные 0 и ±1, как у деталей вдоль осей).
+/// Removes float noise: values within 1e-9 of an integer become integers
+/// (a 90° rotation gives exact 0 and ±1, like axis-aligned parts).
 fn clean(v: f64) -> f64 {
     let r = v.round();
     if (v - r).abs() < 1e-9 { r } else { v }
@@ -55,7 +55,6 @@ fn clean3(v: [f64; 3]) -> [f64; 3] {
     v.map(clean)
 }
 
-/// Сдвиг объекта на `d`.
 fn shift(pr: &mut Project, id: u32, d: [f64; 3]) -> Result<(), String> {
     let add = |p: &mut [f64; 3]| (0..3).for_each(|k| p[k] = clean(p[k] + d[k]));
     if let Some(c) = pr.cabinets.iter_mut().find(|c| c.id == id) {
@@ -75,7 +74,7 @@ fn shift(pr: &mut Project, id: u32, d: [f64; 3]) -> Result<(), String> {
     Ok(())
 }
 
-/// Поворот положения вокруг оси `axis` на `deg` градусов относительно точки `center`.
+/// Rotates a frame about axis `axis` by `deg` degrees around point `center`.
 fn rotate_frame(f: &Frame, axis: usize, deg: f64, center: [f64; 3]) -> Frame {
     let (s, c) = deg.to_radians().sin_cos();
     let (s, c) = (clean(s), clean(c));
@@ -103,8 +102,8 @@ fn tree_frame(pr: &mut Project, id: u32) -> Result<&mut Frame, String> {
     }
 }
 
-/// Отражение панели плоскостью `axis = at` (в координатах родителя). Отражение меняет «руку» системы,
-/// поэтому контур панели отражается по своей оси X: x → ширина − x, а ось X панели разворачивается.
+/// Mirrors a panel in the plane `axis = at` (parent coordinates). Mirroring flips the handedness,
+/// so the panel contour is mirrored along its own X axis: x → width − x, and the panel X axis is reversed.
 fn mirror_panel(p: &mut FreePanel, axis: usize, at: f64) -> Result<(), String> {
     let w = contour::bounds(&p.segs).ok_or("пустой контур")?.1[0];
     let m = |v: [f64; 3]| { let mut r = v; r[axis] = -r[axis]; r };
@@ -123,7 +122,7 @@ fn mirror_panel(p: &mut FreePanel, axis: usize, at: f64) -> Result<(), String> {
         h.pos[0] = clean(w - h.pos[0]);
         h.dir[0] = -h.dir[0];
     }
-    // Паз: отражённая траектория в обратную сторону — чтобы сечение осталось с той же стороны.
+    // Groove: mirrored path reversed so the cross-section stays on the same side.
     for g in &mut p.grooves {
         let [a, b] = g.path;
         g.path = [[clean(w - b[0]), b[1]], [clean(w - a[0]), a[1]]];
@@ -134,9 +133,9 @@ fn mirror_panel(p: &mut FreePanel, axis: usize, at: f64) -> Result<(), String> {
 fn mirror_object(o: &mut Object, axis: usize, at: f64) -> Result<(), String> {
     match o {
         Object::Panel(p) => mirror_panel(p, axis, at),
-        // Зеркальная фурнитура — другое изделие (левое/правое): её ставят из библиотеки.
+        // Mirrored hardware is a different product (left/right): it is placed from the library.
         Object::Furniture(f) => Err(format!("«{}»: фурнитуру не отражают — поставьте зеркальное исполнение из библиотеки", f.name)),
-        // Блок: отражаются его панели в координатах проекта, положение блока становится нулевым.
+        // Block: its panels are mirrored in project coordinates, the block position becomes zero.
         Object::Block(b) => {
             let f = b.frame;
             b.frame = Frame::IDENTITY;
@@ -149,7 +148,7 @@ fn mirror_object(o: &mut Object, axis: usize, at: f64) -> Result<(), String> {
     }
 }
 
-/// Переносит объект из системы блока с положением `parent` в систему родителя блока.
+/// Moves an object from the system of a block positioned at `parent` into the block's parent system.
 fn compose(o: &mut Object, parent: &Frame) {
     match o {
         Object::Panel(p) => p.frame = parent.then(&p.frame),
@@ -158,7 +157,7 @@ fn compose(o: &mut Object, parent: &Frame) {
     }
 }
 
-/// Копия объекта (шаблона или объекта дерева) с новыми номерами; возвращает номер копии.
+/// Copies an object (template or tree object) with new ids; returns the copy's id.
 fn duplicate(pr: &mut Project, id: u32) -> Result<u32, String> {
     let new = pr.next_id();
     if let Some(c) = pr.cabinets.iter().find(|c| c.id == id).cloned() {
@@ -206,7 +205,7 @@ fn remove_any(pr: &mut Project, id: u32) -> Result<(), String> {
     }
 }
 
-/// Команды `object.*` и `block.create` / `block.explode`.
+/// Commands `object.*` and `block.create` / `block.explode`.
 pub fn command(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
     let a: Args = serde_json::from_value(p.clone()).map_err(|e| format!("{cmd}: {e}"))?;
     if a.ids.is_empty() && cmd != "block.explode" {
@@ -262,7 +261,7 @@ pub fn command(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> 
                 if pr.cabinets.iter().any(|c| c.id == id) || pr.corners.iter().any(|c| c.id == id) || pr.countertops.iter().any(|c| c.id == id) {
                     return Err(format!("объект {id} — шаблон: в блок его кладут после «Разрушить»"));
                 }
-                // shortcut: объект из вложенного блока переносится в новый блок без учёта положения прежнего блока.
+                // shortcut: an object from a nested block moves into the new block ignoring the old block's position.
                 children.push(remove(&mut pr.objects, id).ok_or_else(|| format!("нет объекта {id}"))?);
             }
             let id = pr.next_id();
@@ -278,7 +277,7 @@ pub fn command(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> 
             let Some(Object::Block(b)) = remove(&mut pr.objects, id) else {
                 return Err(format!("нет блока {id}"));
             };
-            // shortcut: содержимое вложенного блока выносится в корень проекта, а не в родительский блок.
+            // shortcut: a nested block's contents go to the project root, not to the parent block.
             for mut c in b.children {
                 compose(&mut c, &b.frame);
                 pr.objects.push(c);

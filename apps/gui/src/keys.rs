@@ -1,9 +1,9 @@
-//! Горячие клавиши: действие → сочетание («Ctrl+S», «Alt+1», «F7»). Свои назначения — в настройках
-//! (`Settings::keys`), остальное — по умолчанию. Окно «Настройки» меняет их нажатием клавиши.
+//! Hotkeys: action → shortcut ("Ctrl+S", "Alt+1", "F7"). Custom bindings live in settings
+//! (`Settings::keys`), the rest are defaults. The "Settings" window rebinds them by pressing a key.
 
 use eframe::egui::{Key, KeyboardShortcut, Modifiers};
 
-/// (действие, название, сочетание по умолчанию).
+/// (action, label, default shortcut).
 pub const ACTIONS: &[(&str, &str, &str)] = &[
     ("save", "Сохранить", "Ctrl+S"),
     ("undo", "Отменить", "Ctrl+Z"),
@@ -26,7 +26,7 @@ pub const ACTIONS: &[(&str, &str, &str)] = &[
     ("mode.textured", "Показ: в текстурах", "Alt+5"),
 ];
 
-/// «Ctrl+Shift+Z» → сочетание; `None` — пусто (клавиша снята) или не разобрать.
+/// "Ctrl+Shift+Z" → shortcut; `None` means empty (key unbound) or unparseable.
 pub fn parse(s: &str) -> Option<KeyboardShortcut> {
     let mut mods = Modifiers::NONE;
     let mut key = None;
@@ -41,7 +41,7 @@ pub fn parse(s: &str) -> Option<KeyboardShortcut> {
     Some(KeyboardShortcut::new(mods, key?))
 }
 
-/// Сочетание текстом, как его понимает `parse`.
+/// Shortcut as text, in the form `parse` understands.
 pub fn format(mods: Modifiers, key: Key) -> String {
     let mut s = String::new();
     for (on, name) in [(mods.command || mods.ctrl, "Ctrl+"), (mods.alt, "Alt+"), (mods.shift, "Shift+")] {
@@ -52,7 +52,7 @@ pub fn format(mods: Modifiers, key: Key) -> String {
     s + key.name()
 }
 
-/// Сколько клавиш-модификаторов: сочетания длиннее проверяются первыми, чтобы «1» не сработала на Alt+1.
+/// Number of modifier keys: longer shortcuts are checked first so that "1" doesn't fire on Alt+1.
 pub fn weight(sc: &KeyboardShortcut) -> usize {
     [sc.modifiers.command, sc.modifiers.alt, sc.modifiers.shift].into_iter().filter(|&b| b).count()
 }
@@ -69,7 +69,7 @@ mod tests {
         }
         assert!(parse("").is_none());
         assert!(parse("Ctrl+Непонятно").is_none());
-        // Все сочетания по умолчанию разбираются и не повторяются.
+        // All default shortcuts parse and are unique.
         let all: Vec<String> = ACTIONS.iter().map(|(_, _, k)| format(parse(k).unwrap().modifiers, parse(k).unwrap().logical_key)).collect();
         let mut uniq = all.clone();
         uniq.sort();

@@ -1,4 +1,4 @@
-//! Сервер как его видит MCP-клиент: initialize, список инструментов, сценарий проектирования.
+//! The server as an MCP client sees it: initialize, tool list, a design scenario.
 
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};

@@ -1,10 +1,10 @@
-//! Скрипты Базиса (BAZIS-Script) на движке boa (JavaScript на чистом Rust).
+//! Bazis scripts (BAZIS-Script) on the boa engine (JavaScript in pure Rust).
 //!
-//! Объекты Базиса (`Model`, панели, контуры, `Action`, `system`, `fs`, окна `NewForm`, модульное API
-//! `objects3d`, `panelOperations`) написаны на JavaScript в `prelude.js` поверх одного моста `__h(команда, JSON)`.
-//! Мост — к сессии проекта: модель читается из деталей, изменения идут командами `Session::execute`,
-//! поэтому скрипт не может сделать того, чего не умеет программа, и любое его изменение проверяется.
-//! Файлы скрипт пишет и читает только в своей папке-песочнице. Windows-объекты (COM) недоступны.
+//! Bazis objects (`Model`, panels, contours, `Action`, `system`, `fs`, `NewForm` windows, the modular API
+//! `objects3d`, `panelOperations`) are written in JavaScript in `prelude.js` on top of a single bridge `__h(command, JSON)`.
+//! The bridge goes to the project session: the model is read from parts, changes go through `Session::execute` commands,
+//! so a script cannot do anything the program cannot, and every change it makes is validated.
+//! Scripts read and write files only in their own sandbox folder. Windows objects (COM) are unavailable.
 
 use std::cell::RefCell;
 use std::path::{Component, Path, PathBuf};
@@ -14,29 +14,28 @@ use dowel::design::{self, Part, Session};
 use boa_engine::{Context, JsResult, JsString, JsValue, NativeFunction, Source, js_string};
 use serde_json::{Value, json};
 
-/// Итог выполнения скрипта.
+/// Result of running a script.
 #[derive(Debug, Default, Clone)]
 pub struct Run {
-    /// Сообщения скрипта (`alert`, `MessageBox`, `system.log`, `console.log`).
+    /// Script messages (`alert`, `MessageBox`, `system.log`, `console.log`).
     pub log: Vec<String>,
-    /// Ошибка выполнения; изменения модели при ошибке отменяются.
+    /// Execution error; model changes are rolled back on error.
     pub error: Option<String>,
-    /// Окна, которые скрипт показал (`NewForm().Show()`, `Action.Properties`) — описание в JSON.
+    /// Windows the script showed (`NewForm().Show()`, `Action.Properties`), described as JSON.
     pub forms: Vec<Value>,
-    /// Выполнено команд изменения модели.
+    /// Number of model-changing commands executed.
     pub changes: usize,
 }
 
-/// Настройки запуска.
 #[derive(Debug, Clone, Default)]
 pub struct Options {
-    /// Папка, внутри которой скрипт может читать и писать файлы.
+    /// Folder inside which the script may read and write files.
     pub sandbox: PathBuf,
-    /// Папка скрипта — для `system.include` и относительных путей чтения.
+    /// Script folder — for `system.include` and relative read paths.
     pub script_dir: PathBuf,
-    /// Выделенные детали: (номер объекта верхнего уровня, номер панели дерева, номер внутри объекта).
+    /// Selected parts: (top-level object index, tree panel index, index within the object).
     pub selection: Vec<(u32, u32, usize)>,
-    /// Предел числа итераций циклов (защита от зависания).
+    /// Loop iteration limit (protection against hangs).
     pub loop_limit: u64,
 }
 
@@ -54,7 +53,7 @@ impl Host {
         self.revision += 1;
     }
 
-    /// Ключ детали: объект верхнего уровня, панель дерева, номер внутри объекта.
+    /// Part key: top-level object, tree panel, index within the object.
     fn key(parts: &[Part], i: usize) -> Value {
         let p = &parts[i];
         let nth = parts[..i].iter().filter(|q| q.owner == p.owner && q.id == p.id).count();
@@ -78,14 +77,14 @@ impl Host {
         })
     }
 
-    /// Путь внутри песочницы: без «..» и абсолютных путей наружу.
+    /// Path inside the sandbox: no ".." and no absolute paths leading out.
     fn sandboxed(&self, path: &str) -> Result<PathBuf, String> {
         let p = Path::new(path);
         let rel: PathBuf = p.components().filter(|c| matches!(c, Component::Normal(_))).collect();
         if p.components().any(|c| matches!(c, Component::ParentDir)) {
             return Err(format!("путь «{path}» выходит из папки скрипта"));
         }
-        // Абсолютный путь внутри песочницы допустим, иначе — берётся имя относительно песочницы.
+        // An absolute path inside the sandbox is allowed; otherwise the name is taken relative to the sandbox.
         if p.is_absolute() && p.starts_with(&self.opts.sandbox) {
             return Ok(p.to_path_buf());
         }
@@ -163,7 +162,7 @@ impl Host {
     }
 }
 
-/// Текст скрипта: UTF-8 (с BOM или без) или windows-1251 — как сохраняет Базис.
+/// Script text: UTF-8 (with or without BOM) or windows-1251 — as Bazis saves it.
 pub fn read_script(path: &Path) -> Result<String, String> {
     let b = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&b);
@@ -187,17 +186,17 @@ fn bridge(_: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue>
     }
 }
 
-/// Живой скрипт: контекст JavaScript сохраняется, пока открыто окно скрипта — щелчки по кнопкам
-/// и ввод в поля вызывают обработчики скрипта. Изменения модели копятся и применяются в [`Runtime::finish`].
+/// Live script: the JavaScript context persists while the script window is open — button clicks
+/// and field input call the script's handlers. Model changes accumulate and are applied in [`Runtime::finish`].
 pub struct Runtime {
     ctx: Context,
     host: Rc<RefCell<Host>>,
-    /// Ошибка запуска или обработчика; после неё изменения не применяются.
+    /// Startup or handler error; after it changes are not applied.
     pub error: Option<String>,
 }
 
 impl Runtime {
-    /// Запустить скрипт: пролог, текст скрипта, отложенные задачи.
+    /// Start the script: prelude, script text, deferred jobs.
     pub fn start(session: &Session, source: &str, opts: Options) -> Runtime {
         let mut host = Host { session: Session::new(session.project.clone()), parts: Vec::new(), revision: 0, run: Run::default(), opts: opts.clone() };
         host.refresh();
@@ -220,7 +219,7 @@ impl Runtime {
         rt
     }
 
-    /// Выполнить код в контексте скрипта (обработчик окна и т.п.). Ошибка запоминается.
+    /// Evaluate code in the script context (a window handler etc.). The error is remembered.
     pub fn eval(&mut self, code: &str) {
         if self.error.is_some() {
             return;
@@ -231,7 +230,7 @@ impl Runtime {
         }
     }
 
-    /// Окна, показанные скриптом, в их текущем состоянии (JSON).
+    /// Windows shown by the script, in their current state (JSON).
     pub fn forms(&mut self) -> Vec<Value> {
         let r = self.ctx.eval(Source::from_bytes("JSON.stringify(__forms())"));
         r.ok()
@@ -240,23 +239,22 @@ impl Runtime {
             .unwrap_or_default()
     }
 
-    /// Щелчок по элементу окна.
     pub fn click(&mut self, id: i64) {
         self.eval(&format!("__click({id})"));
     }
 
-    /// Новое значение поля элемента (Text, Checked, Value, ItemIndex) — и его OnChange.
+    /// New value of an element field (Text, Checked, Value, ItemIndex) — and its OnChange.
     pub fn change(&mut self, id: i64, field: &str, value: &Value) {
         let f = serde_json::to_string(field).unwrap_or_default();
         self.eval(&format!("__change({id}, {f}, {value})"));
     }
 
-    /// Сообщения скрипта на данный момент.
+    /// Script messages so far.
     pub fn log(&self) -> Vec<String> {
         self.host.borrow().run.log.clone()
     }
 
-    /// Закончить: обработчики `Action.OnFinish`, затем изменения — в сессию (одна запись отмены).
+    /// Finish: `Action.OnFinish` handlers, then changes go to the session (one undo entry).
     pub fn finish(mut self, session: &mut Session) -> Run {
         self.eval("__finish()");
         let error = self.error.take();
@@ -276,7 +274,7 @@ impl Runtime {
     }
 }
 
-/// Выполнить скрипт без окна: запуск и сразу завершение. При ошибке модель не меняется.
+/// Run a script without a window: start and finish at once. On error the model is unchanged.
 pub fn run(session: &mut Session, source: &str, opts: Options) -> Run {
     Runtime::start(session, source, opts).finish(session)
 }

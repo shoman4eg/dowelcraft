@@ -1,9 +1,9 @@
-//! Проект для БАЗИС-Раскроя: XML `<PROJECT version="2" subver="7">` в windows-1251.
-//! Это формат, в котором Мебельщик передаёт заказ в Раскрой. Структура повторяет
-//! эталоны из `reference/raskroy-project-*.xml`.
+//! Project for BAZIS-Raskroy: XML `<PROJECT version="2" subver="7">` in windows-1251.
+//! This is the format in which Mebelshchik hands an order to Raskroy. The structure follows
+//! the references in `reference/raskroy-project-*.xml`.
 //!
-//! shortcut: не выгружаются сверловка, пазы, вырезы, фурнитура и цены (элементы пустые или QTY=0);
-//! у фигурных деталей контур заготовки равен контуру детали. Добавлять по мере появления эталонов.
+//! shortcut: drilling, grooves, cutouts, hardware and prices are not exported (elements empty or QTY=0);
+//! for shaped parts the blank contour equals the part contour. Add as references appear.
 
 use std::f64::consts::{FRAC_PI_2, TAU};
 use std::fmt::Write;
@@ -11,10 +11,10 @@ use std::fmt::Write;
 use crate::contour::Seg;
 use crate::panel::{Edge, Panel, RectSide, Texture};
 
-/// GUID профиля «Гладкий торец» из эталонов.
+/// GUID of the "smooth edge" profile from the references.
 const SMOOTH_EDGE: &str = "{5F07E058-1810-4848-ACE4-33BE7EF0C93E}";
 
-/// Число как в эталонах: не больше 7 знаков после точки, без хвостовых нулей.
+/// Number as in the references: at most 7 digits after the point, no trailing zeros.
 fn num(v: f64) -> String {
     let s = format!("{:.7}", v);
     let s = s.trim_end_matches('0').trim_end_matches('.');
@@ -25,7 +25,7 @@ fn esc(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-/// `Название\rАртикул` → (название, артикул).
+/// `Name\rArticle` → (name, article).
 fn split_mat(m: &str) -> (&str, &str) {
     m.split_once('\r').unwrap_or((m, ""))
 }
@@ -64,7 +64,7 @@ impl X {
     }
 }
 
-/// Общая часть описания материала. `sheet` — формат листа (для кромки — длина рулона и ширина ленты).
+/// Common part of a material description. `sheet` — sheet size (for edge banding — roll length and tape width).
 fn material_body(x: &mut X, full: &str, thickness: f64, sheet: (f64, f64), core: bool) {
     let (name, code) = split_mat(full);
     x.text("NAME", name);
@@ -101,8 +101,8 @@ fn len(p: [f64; 2], q: [f64; 2]) -> f64 {
     (q[0] - p[0]).hypot(q[1] - p[1])
 }
 
-/// Дуга в виде Раскроя: локальная система с центром в начале координат; дуга в ней всегда
-/// идёт против часовой стрелки, а обход по часовой задаётся зеркалом по X и Z.
+/// Arc as Raskroy sees it: a local system centered at the origin; the arc in it always
+/// goes counterclockwise, and clockwise traversal is set by mirroring in X and Z.
 fn arc(x: &mut X, i: usize, a: [f64; 2], b: Option<[f64; 2]>, c: [f64; 2], ccw: bool) -> f64 {
     let r = len(a, c);
     let sx = if ccw { 1.0 } else { -1.0 };
@@ -145,7 +145,7 @@ fn arc(x: &mut X, i: usize, a: [f64; 2], b: Option<[f64; 2]>, c: [f64; 2], ccw: 
 }
 
 fn contour(x: &mut X, tag: &str, segs: &[Seg]) {
-    // Периметр пишется до элементов — считаем его заранее во временный буфер.
+    // The perimeter is written before the elements — compute it ahead into a temporary buffer.
     let mut body = X { s: String::new(), depth: x.depth + 2 };
     let mut perimeter = 0.0;
     let mut n = 0;
@@ -182,8 +182,8 @@ fn contour(x: &mut X, tag: &str, segs: &[Seg]) {
     x.close(tag);
 }
 
-/// Присадка как в эталоне: по пласти (сверху вниз), с тыла (снизу вверх) и в торец; внутри — группы
-/// отверстий одного диаметра и глубины.
+/// Drilling as in the reference: face (top down), back (bottom up) and edge; inside — groups
+/// of holes with the same diameter and depth.
 fn drilling(x: &mut X, p: &Panel) {
     x.open("DRILLING");
     for (tag, kind) in [("FACEDRILLING", "FACETOBACKDIR"), ("BACKDRILLING", "BACKTOFACEDIR"), ("EDGEDRILLING", "EDGEDIR")] {
@@ -229,7 +229,7 @@ fn drilling(x: &mut X, p: &Panel) {
                 x.close("BASE");
                 x.open("DIR");
                 for (axis, v) in ["X", "Y", "Z"].into_iter().zip(h.dir) {
-                    // Направление — единичный вектор по оси; шум float округляем.
+                    // Direction is a unit vector along an axis; round off float noise.
                     x.leaf(axis, num((v * 1e6).round() / 1e6));
                 }
                 x.close("DIR");
@@ -283,7 +283,7 @@ fn board(x: &mut X, p: &Panel, sheet: (f64, f64)) {
         Texture::Default => {}
     }
     x.leaf("COREMATERIALSQUARE", format!("{:.3}", bx * by / 1e6));
-    // У прямоугольных деталей длина реза — всегда по X, у фигурных — вдоль текстуры.
+    // For rectangular parts the cut length is always along X, for shaped parts along the grain.
     let along_y = !rect && (p.texture == Texture::Vertical || (p.texture == Texture::Default && by > bx));
     let (l, w) = if along_y { (by, bx) } else { (bx, by) };
     x.leaf("LENGTHCORECUTTING", num(l));
@@ -294,7 +294,7 @@ fn board(x: &mut X, p: &Panel, sheet: (f64, f64)) {
     contour(x, "BOARDCONTOUR", &p.segs);
     drilling(x, p);
     if rect {
-        // Контур заготовки: тот же прямоугольник, стянутый до размеров заготовки.
+        // Blank contour: the same rectangle shrunk to the blank size.
         let fit = |q: [f64; 2]| [if q[0] > EPS_HALF { bx } else { 0.0 }, if q[1] > EPS_HALF { by } else { 0.0 }];
         let core: Vec<Seg> = p
             .segs
@@ -329,10 +329,10 @@ fn board(x: &mut X, p: &Panel, sheet: (f64, f64)) {
     x.close(tag);
 }
 
-/// Половина минимального размера — порог «эта вершина на дальней стороне габарита».
+/// Half the minimum size — threshold for "this vertex is on the far side of the bounding box".
 const EPS_HALF: f64 = 0.5;
 
-/// Проект Раскроя в виде строки (кодировку в windows-1251 делает [`project_xml`]).
+/// Raskroy project as a string (encoding to windows-1251 is done by [`project_xml`]).
 pub fn project_string(name: &str, panels: &[Panel], sheet: impl Fn(&str) -> (f64, f64)) -> String {
     let mut x = X { s: String::new(), depth: 0 };
     x.s.push_str("<?xml version=\"1.0\" encoding=\"windows-1251\"?>\r\n");
@@ -393,7 +393,7 @@ pub fn project_string(name: &str, panels: &[Panel], sheet: impl Fn(&str) -> (f64
     x.s
 }
 
-/// Проект Раскроя в windows-1251; символы вне кодировки заменяются числовыми ссылками XML.
+/// Raskroy project in windows-1251; characters outside the encoding become XML numeric references.
 pub fn project_xml(name: &str, panels: &[Panel], sheet: impl Fn(&str) -> (f64, f64)) -> Vec<u8> {
     encoding_rs::WINDOWS_1251.encode(&project_string(name, panels, sheet)).0.into_owned()
 }
@@ -412,7 +412,7 @@ mod tests {
 
     #[test]
     fn cw_arc_matches_reference() {
-        // Дуга из эталона «Стоевая с радиусом прав.»: центр (100.02, 976.667), от (0, 976.667) по часовой.
+        // Arc from the reference part "Stoevaya s radiusom prav.": center (100.02, 976.667), from (0, 976.667) clockwise.
         let mut x = X { s: String::new(), depth: 0 };
         let c = [100.02, 976.667];
         let end = [84.487, 1075.454];

@@ -1,16 +1,16 @@
-//! Контейнер BZ85: модели Базис-Мебельщика (`.b3d`) и фурнитура (`.fr3d`).
+//! BZ85 container: Bazis-Mebelshchik models (`.b3d`) and hardware (`.fr3d`).
 
 use std::fmt;
 use std::io::Read;
 
 const MAGIC: &[u8; 4] = b"BZ85";
 const SECTION: [u8; 4] = [0x01, 0x00, 0x00, 0xff];
-/// Защита от враждебных файлов: глубина дерева у реальных моделей < 30.
+/// Protection against hostile files: real models have tree depth < 30.
 const MAX_DEPTH: usize = 256;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
-    /// Тип 0: узел-контейнер, содержимое в `children`.
+    /// Type 0: container node, contents in `children`.
     Obj,
     True,
     False,
@@ -19,15 +19,15 @@ pub enum Value {
     F64(f64),
     Str(String),
     Blob(Vec<u8>),
-    /// Тип 8: пустое значение.
+    /// Type 8: empty value.
     Nil,
-    /// Тип 9: Delphi TDateTime (дни от 1899-12-30).
+    /// Type 9: Delphi TDateTime (days since 1899-12-30).
     DateTime(f64),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node {
-    /// Пустое имя у элементов списков.
+    /// Empty name for list elements.
     pub name: String,
     pub value: Value,
     pub children: Vec<Node>,
@@ -45,7 +45,7 @@ impl Node {
             _ => None,
         }
     }
-    /// Целые хранятся то как u8, то как i32 — в зависимости от величины.
+    /// Integers are stored either as u8 or as i32, depending on magnitude.
     pub fn int(&self, name: &str) -> Option<i64> {
         match self.get(name)?.value {
             Value::U8(v) => Some(v.into()),
@@ -82,9 +82,9 @@ impl std::error::Error for Error {}
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Файл: несжатая секция заголовка (`Header`: версия, превью, артикул),
-/// затем сжатая секция документа (`Document`: модель). Хвост после секций
-/// (64 байта у `.b3d`, вероятно подпись) не разбирается.
+/// File: an uncompressed header section (`Header`: version, preview, article number),
+/// then a compressed document section (`Document`: the model). The tail after the sections
+/// (64 bytes in `.b3d`, probably a signature) is not parsed.
 #[derive(Debug, Clone, PartialEq)]
 pub struct File {
     pub sections: Vec<Node>,
@@ -161,7 +161,7 @@ impl<'a> Reader<'a> {
         Ok(n)
     }
 
-    /// Словарь имён (u32 n, затем n × [u32 len, cp1251/ASCII]) и корневой узел.
+    /// Name dictionary (u32 n, then n × [u32 len, cp1251/ASCII]) and the root node.
     fn section(&mut self) -> Result<Node> {
         let n = self.len(4)?;
         let names = (0..n)
@@ -173,7 +173,7 @@ impl<'a> Reader<'a> {
         self.node(&names, 0)
     }
 
-    /// Узел: i32 индекс имени (-1 у элементов списка), u32 число детей, u8 тип, значение, дети.
+    /// Node: i32 name index (-1 for list elements), u32 child count, u8 type, value, children.
     fn node(&mut self, names: &[String], depth: usize) -> Result<Node> {
         if depth > MAX_DEPTH {
             return self.err("слишком глубокое дерево");
@@ -187,7 +187,7 @@ impl<'a> Reader<'a> {
                 None => return Err(Error { offset: at, msg: format!("индекс имени {ni} вне словаря") }),
             },
         };
-        // Каждый узел занимает минимум 9 байт — отсекаем фальшивые огромные счётчики.
+        // Every node takes at least 9 bytes — this rejects fake huge counts.
         let n = self.len(9)?;
         let value = match self.u8()? {
             0 => Value::Obj,
@@ -200,7 +200,7 @@ impl<'a> Reader<'a> {
                 let k = self.len(2)?;
                 let units: Vec<u16> =
                     self.take(2 * k)?.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
-                // В некоторых строках Базиса встречаются одиночные суррогаты.
+                // Some Bazis strings contain lone surrogates.
                 Value::Str(String::from_utf16_lossy(&units))
             }
             7 => {
@@ -216,9 +216,9 @@ impl<'a> Reader<'a> {
     }
 }
 
-/// Запись контейнера BZ85: секция `Header` — без сжатия, остальные — zlib (как у Базиса).
-/// Словарь имён строится заново; числа сохраняют свой вид (u8/i32/f64).
-/// shortcut: 64-байтный хвост (вероятно, подпись Базиса) не пишется — его устройство неизвестно.
+/// Writes a BZ85 container: the `Header` section uncompressed, the rest zlib (as Bazis does).
+/// The name dictionary is rebuilt; numbers keep their form (u8/i32/f64).
+/// shortcut: the 64-byte tail (probably a Bazis signature) is not written — its structure is unknown.
 pub fn write(file: &File) -> Vec<u8> {
     use std::io::Write;
     let mut out = MAGIC.to_vec();
@@ -250,14 +250,14 @@ fn section_bytes(root: &Node) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend_from_slice(&(names.len() as u32).to_le_bytes());
     for n in &names {
-        // Имена — латиница: символ = байт (так их и читает `section`).
+        // Names are Latin: one char = one byte (that is how `section` reads them).
         let bytes: Vec<u8> = n.chars().map(|c| c as u32 as u8).collect();
         out.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
         out.extend_from_slice(&bytes);
     }
     let index = |name: &str| -> i32 { if name.is_empty() { -1 } else { names.iter().position(|n| *n == name).expect("имя в словаре") as i32 } };
     fn node(n: &Node, index: &dyn Fn(&str) -> i32, out: &mut Vec<u8>, root: bool) {
-        // Корень секции записан с индексом своего имени; элементы списков — с −1.
+        // The section root is written with its own name index; list elements with −1.
         let i = if root && n.name.is_empty() { 0 } else { index(&n.name) };
         out.extend_from_slice(&i.to_le_bytes());
         out.extend_from_slice(&(n.children.len() as u32).to_le_bytes());

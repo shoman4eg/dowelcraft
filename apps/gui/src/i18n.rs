@@ -1,6 +1,6 @@
-//! Язык окна: русский (исходный текст — ключ) и английский (`i18n/en.tsv`: «русский<TAB>английский»).
-//! Строки с числами и именами переводятся по шаблону: в таблице `{}` — место для вставки,
-//! например «Удалить ({})» → «Delete ({})» переводит «Удалить (3)» в «Delete (3)».
+//! Window language: Russian (the source text is the key) and English (`i18n/en.tsv`: "russian<TAB>english").
+//! Strings with numbers and names are translated by template: in the table `{}` marks an insertion,
+//! e.g. "Delete ({})" (Russian key) → "Delete ({})" translates the Russian "Delete (3)" into "Delete (3)".
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 static ENGLISH: AtomicBool = AtomicBool::new(false);
 
-/// Таблица перевода: точные строки и шаблоны с `{}`.
+/// Translation table: exact strings and templates with `{}`.
 struct Table {
     exact: HashMap<&'static str, &'static str>,
     templates: Vec<(Vec<&'static str>, Vec<&'static str>)>,
@@ -30,13 +30,13 @@ fn table() -> &'static Table {
                 exact.insert(ru, en);
             }
         }
-        // Длинные шаблоны — первыми: «Удалить корпус ({})» раньше «Удалить ({})».
+        // Longer templates first: Russian "Delete cabinet ({})" before "Delete ({})".
         templates.sort_by_key(|(ru, _): &(Vec<&str>, Vec<&str>)| std::cmp::Reverse(ru.iter().map(|p| p.len()).sum::<usize>()));
         Table { exact, templates }
     })
 }
 
-/// Включить язык: "en" — английский, остальное — русский.
+/// Switch language: "en" — English, anything else — Russian.
 pub fn set_language(lang: &str) {
     ENGLISH.store(lang == "en", Ordering::Relaxed);
 }
@@ -45,7 +45,7 @@ pub fn english() -> bool {
     ENGLISH.load(Ordering::Relaxed)
 }
 
-/// Вставки шаблона `parts` в `text` (части между `{}`), если текст под него подходит.
+/// Insertions of template `parts` in `text` (the pieces between `{}`), if the text matches it.
 fn fill<'a>(parts: &[&str], text: &'a str) -> Option<Vec<&'a str>> {
     let rest = text.strip_prefix(parts[0])?;
     let mut rest = rest;
@@ -68,13 +68,13 @@ fn fill<'a>(parts: &[&str], text: &'a str) -> Option<Vec<&'a str>> {
     rest.is_empty().then_some(args)
 }
 
-/// Перевод строки на текущий язык (нет перевода — как есть).
+/// Translate a string into the current language (no translation — as is).
 pub fn t(text: impl AsRef<str>) -> String {
     let text = text.as_ref();
     if english() { en(text) } else { text.to_string() }
 }
 
-/// Перевод на английский (независимо от выбранного языка).
+/// Translate into English (regardless of the selected language).
 fn en(text: &str) -> String {
     let tb = table();
     if let Some(en) = tb.exact.get(text) {
@@ -84,7 +84,7 @@ fn en(text: &str) -> String {
         if let Some(args) = fill(ru, text) {
             let mut out = String::from(en_parts[0]);
             for (k, piece) in en_parts.iter().enumerate().skip(1) {
-                // Вставка тоже может быть русской фразой из таблицы.
+                // An insertion may itself be a Russian phrase from the table.
                 out.push_str(&args.get(k - 1).map(|a| en(a)).unwrap_or_default());
                 out.push_str(piece);
             }
@@ -100,12 +100,12 @@ mod tests {
 
     #[test]
     fn translates_exact_and_templates() {
-        // Без общего переключателя языка: тесты окна идут параллельно и меняют его.
+        // Without the global language switch: window tests run in parallel and change it.
         let t = en;
         assert_eq!(t("Новый проект"), "New project");
         assert_eq!(t("Удалить (3)"), "Delete (3)");
         assert_eq!(t("строка, которой нет в таблице"), "строка, которой нет в таблице");
-        // Вложенные шаблоны: вставка тоже переводится.
+        // Nested templates: the insertion is translated too.
         assert_eq!(t("Корпус: Корпус 2 (6)"), "Cabinet: Корпус 2 (6)");
         assert_eq!(t("600 × 400 × 16 мм"), "600 × 400 × 16 mm");
     }

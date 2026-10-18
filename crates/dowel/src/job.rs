@@ -1,5 +1,5 @@
-//! Общий сценарий для CLI и окна: открыть модель (`.b3d` Базиса или свой `.dcraft`),
-//! раскроить по материалам и собрать документы.
+//! Shared flow for CLI and window: open a model (Bazis `.b3d` or our `.dcraft`),
+//! nest by material and build documents.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -9,20 +9,20 @@ use crate::nest::{self, Item, Layout, Params};
 use crate::panel::{self, Panel, Side, material_name};
 use crate::report::{self, Card, Label};
 
-/// Открытая модель.
+/// Opened model.
 pub struct Job {
-    /// Имя заказа (по имени файла).
+    /// Order name (from the file name).
     pub name: String,
     pub panels: Vec<Panel>,
-    /// Плиты Базиса с неразобранным контуром.
+    /// Bazis panels with an unparsed contour.
     pub skipped: Vec<String>,
-    /// Фурнитура из модели Базиса: (наименование, количество).
+    /// Hardware from the Bazis model: (name, quantity).
     pub hardware: Vec<(String, usize)>,
-    /// Отверстия крепежа модели Базиса, не попавшие ни в одну плиту.
+    /// Fastener holes of the Bazis model that landed in no panel.
     pub holes_lost: usize,
-    /// Свой проект, если открыт `.dcraft`: из него берутся форматы листов и коэффициенты.
+    /// Our own project, if a `.dcraft` is open: sheet sizes and coefficients come from it.
     pub project: Option<Project>,
-    /// Блоки модели Базиса и блок каждой плиты (по порядку `panels`) — для импорта в свой проект.
+    /// Bazis model blocks and each panel's block (in `panels` order) — for import into our project.
     pub blocks: Vec<panel::BlockInfo>,
     pub panel_block: Vec<Option<usize>>,
 }
@@ -56,7 +56,7 @@ impl Job {
         Job { name: p.name.clone(), panels, skipped: Vec::new(), hardware, holes_lost: 0, project: Some(p), blocks: Vec::new(), panel_block: Vec::new() }
     }
 
-    /// Модель Базиса как свой проект: панели с точным положением, блоки Базиса — блоками.
+    /// Bazis model as our project: panels with exact placement, Bazis blocks as blocks.
     pub fn import(&self) -> Project {
         design::import(&self.name, &self.panels, &self.blocks, &self.panel_block)
     }
@@ -66,12 +66,12 @@ impl Job {
         self.project.as_ref()?.materials.iter().find(|m| m.name == name)
     }
 
-    /// Формат листа: из материала проекта, иначе `default`.
+    /// Sheet size: from the project material, otherwise `default`.
     pub fn sheet(&self, full: &str, default: (f64, f64)) -> (f64, f64) {
         self.material(full).map_or(default, |m| m.sheet)
     }
 
-    /// Параметры раскроя материала: формат, обрезка и пропил из проекта, недостающее — из `default`.
+    /// Material nesting parameters: size, trim and kerf from the project, the rest from `default`.
     pub fn params(&self, full: &str, default: Params) -> Params {
         match self.material(full) {
             Some(m) => Params { sheet: m.sheet, kerf: m.kerf.unwrap_or(default.kerf), trim: m.trim.unwrap_or(default.trim) },
@@ -79,27 +79,27 @@ impl Job {
         }
     }
 
-    /// Коэффициент расхода: из материала проекта, иначе `default`.
+    /// Usage coefficient: from the project material, otherwise `default`.
     pub fn coef(&self, full: &str, default: f64) -> f64 {
         self.material(full).map_or(default, |m| m.coef)
     }
 
-    /// Смета: плиты и кромка с коэффициентами (`default` — если в проекте нет своего), затем фурнитура в штуках.
+    /// Cost estimate: panels and edge banding with coefficients (`default` if the project has none), then hardware in pieces.
     pub fn estimate(&self, default: f64) -> Vec<panel::MaterialRow> {
         let mut rows = panel::materials(&self.panels, |m| self.coef(m, default));
         rows.extend(self.hardware.iter().map(|(n, q)| panel::MaterialRow { material: n.clone(), unit: "шт", coef: 1.0, qty: *q as f64 }));
         rows
     }
 
-    /// Номер детали: позиция из модели, а если её нет — порядковый номер.
+    /// Part number: position from the model, or the sequence number if there is none.
     pub fn number(&self, i: usize) -> String {
         let pos = self.panels[i].pos.trim();
         if pos.is_empty() { (i + 1).to_string() } else { pos.to_string() }
     }
 }
 
-/// Детали с положением в пространстве — для вида спереди.
-/// Свой проект строится заново; у модели Базиса берутся габариты плит.
+/// Parts placed in space — for the front view.
+/// Our own project is rebuilt; for a Bazis model the panel bounding boxes are used.
 pub fn parts(job: &Job) -> Result<Vec<Part>, String> {
     if let Some(p) = &job.project {
         return design::build(p);
@@ -114,14 +114,14 @@ pub fn parts(job: &Job) -> Result<Vec<Part>, String> {
         .collect())
 }
 
-/// Раскрой одного материала.
+/// Nesting of one material.
 pub struct MaterialCut {
     pub material: String,
     pub params: Params,
     pub layout: Layout,
 }
 
-/// Раскрой отдельно по каждому материалу и толщине. `params` — параметры для материала.
+/// Nesting separately per material and thickness. `params` — parameters for a material.
 pub fn cut(job: &Job, params: impl Fn(&str) -> Params) -> Vec<MaterialCut> {
     let mut groups: BTreeMap<(String, i64), Vec<usize>> = BTreeMap::new();
     for (i, p) in job.panels.iter().enumerate() {
@@ -151,7 +151,7 @@ pub fn label(job: &Job, id: usize) -> Label {
     Label { num: job.number(id), size: p.cut_size(), edges: [has(Side::L1), has(Side::L2), has(Side::W1), has(Side::W2)] }
 }
 
-/// Карты раскроя по всем материалам (SVG-страницы).
+/// Cutting maps for all materials (SVG pages).
 pub fn cards(job: &Job, cuts: &[MaterialCut]) -> Vec<String> {
     let mut out = Vec::new();
     for c in cuts {
@@ -164,7 +164,7 @@ pub fn cards(job: &Job, cuts: &[MaterialCut]) -> Vec<String> {
     out
 }
 
-/// Документ для печати: карты и «Панели в производство».
+/// Document for printing: maps and “Panels for production”.
 pub fn document(job: &Job, cuts: &[MaterialCut]) -> String {
     let rows = panel::spec(&job.panels);
     let prod = report::production_html(&job.name, &rows, |r| {
@@ -188,7 +188,7 @@ mod tests {
         let d = Params { sheet: (2800.0, 2070.0), kerf: 4.0, trim: 10.0 };
         assert_eq!(job.params("Столешница", d), Params { sheet: (3050.0, 600.0), kerf: 4.0, trim: 0.0 });
         assert_eq!(job.params("ЛДСП", d), d);
-        // Столешница во всю ширину листа помещается, раз обрезки нет.
+        // A countertop spanning the full sheet width fits, since there is no trim.
         let cuts = cut(&job, |m| job.params(m, d));
         assert!(cuts[0].layout.too_big.is_empty());
     }

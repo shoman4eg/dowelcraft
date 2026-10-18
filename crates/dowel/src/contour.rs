@@ -1,5 +1,5 @@
-//! Плоский контур детали (blob `Contour`): u32 n, n сегментов, затем
-//! необязательно n × u32 атрибутов сегментов (смысл не установлен).
+//! Flat part contour (blob `Contour`): u32 n, n segments, then
+//! optionally n × u32 segment attributes (meaning not established).
 
 use std::f64::consts::TAU;
 
@@ -7,9 +7,9 @@ use std::f64::consts::TAU;
 pub enum Seg {
     /// 0x10
     Line { a: [f64; 2], b: [f64; 2] },
-    /// 0x12: центр, начало, конец (6 × f64), байт направления: 1 — против часовой стрелки.
+    /// 0x12: center, start, end (6 × f64), direction byte: 1 — counterclockwise.
     Arc { a: [f64; 2], b: [f64; 2], c: [f64; 2], ccw: bool },
-    /// 0x11 и 0x14: окружность (центр, радиус); 0x14, видимо, отличается направлением обхода.
+    /// 0x11 and 0x14: circle (center, radius); 0x14 apparently differs in traversal direction.
     Circle { c: [f64; 2], r: f64 },
 }
 
@@ -42,7 +42,7 @@ pub fn parse(v: &[u8]) -> Option<Vec<Seg>> {
     (rest == 0 || rest == 4 * n).then_some(out)
 }
 
-/// Длина сегмента, мм.
+/// Segment length, mm.
 pub fn length(s: &Seg) -> f64 {
     match *s {
         Seg::Line { a, b } => (b[0] - a[0]).hypot(b[1] - a[1]),
@@ -55,7 +55,7 @@ pub fn length(s: &Seg) -> f64 {
     }
 }
 
-/// Начало и конец сегмента (у окружности — одна и та же точка на ней).
+/// Segment start and end (for a circle — the same point on it).
 pub fn ends(s: &Seg) -> ([f64; 2], [f64; 2]) {
     match *s {
         Seg::Line { a, b } | Seg::Arc { a, b, .. } => (a, b),
@@ -63,7 +63,7 @@ pub fn ends(s: &Seg) -> ([f64; 2], [f64; 2]) {
     }
 }
 
-/// Тот же сегмент, пройденный в обратную сторону.
+/// The same segment traversed in reverse.
 pub fn reversed(s: &Seg) -> Seg {
     match *s {
         Seg::Line { a, b } => Seg::Line { a: b, b: a },
@@ -72,11 +72,11 @@ pub fn reversed(s: &Seg) -> Seg {
     }
 }
 
-/// Замкнутый контур: индексы сегментов в порядке обхода и признак «пройден в обратную сторону».
+/// Closed contour: segment indices in traversal order and a "traversed in reverse" flag.
 pub type Loop = Vec<(usize, bool)>;
 
-/// Сцепляет сегменты в замкнутые контуры по совпадающим концам: Базис хранит сегменты
-/// не по порядку обхода, часть — развёрнутыми. Ошибка — если контур не замыкается.
+/// Chains segments into closed contours by matching endpoints: Bazis stores segments
+/// out of traversal order, some reversed. Error if a contour does not close.
 pub fn loops(segs: &[Seg]) -> Result<Vec<Loop>, String> {
     const EPS: f64 = 1e-3;
     let near = |p: [f64; 2], q: [f64; 2]| (p[0] - q[0]).abs() < EPS && (p[1] - q[1]).abs() < EPS;
@@ -110,7 +110,7 @@ pub fn loops(segs: &[Seg]) -> Result<Vec<Loop>, String> {
     Ok(out)
 }
 
-/// Точки сегмента от начала до конца (конец не включается); дуги — хордами с отклонением не больше `tol`.
+/// Segment points from start to end (end excluded); arcs as chords with deviation at most `tol`.
 pub fn tessellate(s: &Seg, tol: f64) -> Vec<[f64; 2]> {
     let steps = |r: f64, sweep: f64| -> usize {
         if r <= tol {
@@ -145,8 +145,8 @@ pub fn tessellate(s: &Seg, tol: f64) -> Vec<[f64; 2]> {
     }
 }
 
-/// Проверка контура, как при «Закончить редактирование» в Базисе: все контуры замкнуты, ни один
-/// не пересекает себя или другой, вырезы лежат внутри внешнего контура.
+/// Contour check, as on "Finish editing" in Bazis: all contours are closed, none
+/// intersects itself or another, cutouts lie inside the outer contour.
 pub fn validate(segs: &[Seg]) -> Result<(), String> {
     if segs.is_empty() {
         return Err("контур пуст".into());
@@ -159,13 +159,13 @@ pub fn validate(segs: &[Seg]) -> Result<(), String> {
     if rings.iter().any(|r| r.len() < 3 || area(r).abs() < 1e-6) {
         return Err("контур вырожден: нулевая площадь".into());
     }
-    // Рёбра всех контуров: (контур, номер, начало, конец).
+    // Edges of all contours: (contour, index, start, end).
     let edges: Vec<(usize, usize, [f64; 2], [f64; 2])> = rings.iter().enumerate().flat_map(|(r, pts)| (0..pts.len()).map(move |i| (r, i, pts[i], pts[(i + 1) % pts.len()]))).collect();
     let o = |p: [f64; 2], q: [f64; 2], r: [f64; 2]| (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
     for (x, &(ra, ia, a0, a1)) in edges.iter().enumerate() {
         for &(rb, ib, b0, b1) in &edges[x + 1..] {
             let n = rings[ra].len();
-            // Соседние рёбра одного контура касаются концами — это не пересечение.
+            // Adjacent edges of one contour touch at endpoints — that is not an intersection.
             if ra == rb && (ia + 1) % n == ib || ra == rb && (ib + 1) % n == ia {
                 continue;
             }
@@ -194,7 +194,7 @@ pub fn validate(segs: &[Seg]) -> Result<(), String> {
     Ok(())
 }
 
-/// Габарит [min, max] контура с учётом выпуклости дуг.
+/// Bounding box [min, max] of the contour, accounting for arc bulge.
 pub fn bounds(segs: &[Seg]) -> Option<([f64; 2], [f64; 2])> {
     let mut lo = [f64::INFINITY; 2];
     let mut hi = [f64::NEG_INFINITY; 2];
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn arc_bounds_follow_direction() {
-        // Полуокружность r=1 от (1,0) до (-1,0): против часовой идёт через верх.
+        // Half circle r=1 from (1,0) to (-1,0): counterclockwise goes over the top.
         let up = Seg::Arc { a: [1.0, 0.0], b: [-1.0, 0.0], c: [0.0, 0.0], ccw: true };
         let down = Seg::Arc { a: [1.0, 0.0], b: [-1.0, 0.0], c: [0.0, 0.0], ccw: false };
         let (lo, hi) = bounds(&[up]).unwrap();
@@ -256,7 +256,7 @@ mod tests {
 
     #[test]
     fn loops_join_unordered_and_reversed_segments() {
-        // Прямоугольник 10×5: сегменты вперемешку, два развёрнуты; плюс отдельная окружность-вырез.
+        // Rectangle 10×5: segments shuffled, two reversed; plus a separate circular cutout.
         let segs = [
             Seg::Line { a: [0.0, 0.0], b: [10.0, 0.0] },
             Seg::Line { a: [0.0, 5.0], b: [0.0, 0.0] },
@@ -283,7 +283,7 @@ mod tests {
         let mut outside = rect(100.0, 50.0, 0.0, 0.0);
         outside.push(Seg::Circle { c: [500.0, 25.0], r: 10.0 });
         assert!(validate(&outside).unwrap_err().contains("вне"));
-        // «Бабочка»: самопересечение.
+        // "Bow tie": self-intersection.
         let bow = [[0.0, 0.0], [10.0, 10.0], [10.0, 0.0], [0.0, 6.0]];
         let bow: Vec<Seg> = (0..4).map(|i| Seg::Line { a: bow[i], b: bow[(i + 1) % 4] }).collect();
         assert!(validate(&bow).unwrap_err().contains("пересекает"));

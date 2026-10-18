@@ -1,5 +1,5 @@
-//! Настройки окна между запусками: папки библиотеки фурнитуры, язык.
-//! Файл — `~/.config/dowel-craft/settings.json` (или `$XDG_CONFIG_HOME/dowel-craft`, в Windows — `%APPDATA%\dowel-craft`).
+//! Window settings kept between launches: fastener library folders, language.
+//! File: `~/.config/dowel-craft/settings.json` (or `$XDG_CONFIG_HOME/dowel-craft`, on Windows `%APPDATA%\dowel-craft`).
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -9,15 +9,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(default)]
 pub struct Settings {
-    /// Папки с моделями фурнитуры (.fr3d); пусто — папка примеров, если есть.
+    /// Folders with fastener models (.fr3d); empty means the examples folder, if present.
     pub library_dirs: Vec<String>,
-    /// Язык окна: "ru" или "en".
+    /// Window language: "ru" or "en".
     pub language: String,
-    /// Папки с картинками текстур (.jpg, .png); пусто — текстуры примеров, если есть.
+    /// Folders with texture images (.jpg, .png); empty means the example textures, if present.
     pub texture_dirs: Vec<String>,
-    /// Сетка (как «Настройки черчения» cadcraft): показывать, шаг в мм, основная линия — каждая N-я.
+    /// Grid (like cadcraft's "Drafting settings"): show, step in mm, every N-th line is a major one.
     pub grid: GridSettings,
-    /// Свои горячие клавиши: действие → сочетание («» — снята); остальные — по умолчанию (`keys::ACTIONS`).
+    /// Custom hotkeys: action → shortcut ("" means unbound); the rest use defaults (`keys::ACTIONS`).
     pub keys: BTreeMap<String, String>,
 }
 
@@ -35,12 +35,11 @@ impl Default for GridSettings {
     }
 }
 
-/// Папка настроек программы.
 pub fn config_dir() -> Option<PathBuf> {
-    // В Windows нет HOME — настройки в %APPDATA%.
+    // Windows has no HOME, so settings go to %APPDATA%.
     let base = std::env::var_os("XDG_CONFIG_HOME").or_else(|| std::env::var_os("APPDATA")).map(PathBuf::from).or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
     let dir = base.join("dowel-craft");
-    // Настройки, недавние файлы и т. п. от прежнего имени программы — переезжают один раз.
+    // Settings, recent files etc. from the program's former name are migrated once.
     let old = base.join("basis-craft");
     if !dir.exists() && old.is_dir() {
         let _ = std::fs::rename(&old, &dir);
@@ -53,7 +52,7 @@ fn file() -> Option<PathBuf> {
 }
 
 impl Settings {
-    /// Настройки с диска; нет файла или он испорчен — по умолчанию.
+    /// Settings from disk; missing or corrupt file means defaults.
     pub fn load() -> Settings {
         let mut s: Settings = file().and_then(|f| std::fs::read_to_string(f).ok()).and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
         if s.library_dirs.is_empty() && std::path::Path::new("example").exists() {
@@ -68,18 +67,18 @@ impl Settings {
         s
     }
 
-    /// Сочетание для действия: своё или по умолчанию; `None` — не назначено.
+    /// Shortcut for an action: custom or default; `None` means unassigned.
     pub fn shortcut(&self, action: &str) -> Option<eframe::egui::KeyboardShortcut> {
         let default = crate::keys::ACTIONS.iter().find(|(id, ..)| *id == action).map(|(.., k)| *k);
         crate::keys::parse(self.keys.get(action).map(String::as_str).or(default)?)
     }
 
-    /// Сочетание текстом для меню и подсказок («» — не назначено).
+    /// Shortcut as text for menus and tooltips ("" means unassigned).
     pub fn key_label(&self, action: &str) -> String {
         self.shortcut(action).map(|sc| crate::keys::format(sc.modifiers, sc.logical_key)).unwrap_or_default()
     }
 
-    /// Записать на диск; ошибка — в терминал (окну она не мешает).
+    /// Write to disk; errors go to the terminal (they don't disturb the window).
     pub fn save(&self) {
         let Some(f) = file() else { return };
         let res = f.parent().map(std::fs::create_dir_all).transpose().and_then(|_| std::fs::write(&f, serde_json::to_string_pretty(self).unwrap_or_default()));

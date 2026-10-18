@@ -1,14 +1,14 @@
-//! Панель «в проём» (как клавиша «~» в Базисе): по точке на виде спереди находятся ближайшие
-//! границы проёма, и панель занимает его целиком за вычетом отступов. Двери и фасады — не границы.
+//! Panel "into the opening" (like the "~" key in Bazis): from a point on the front view the nearest
+//! opening boundaries are found, and the panel fills it entirely minus the gaps. Doors and fronts are not boundaries.
 
 use super::{Kind, Part, Plane};
 
-/// Границы проёма вокруг точки и итоговая панель.
+/// Opening boundaries around a point and the resulting panel.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Fill {
-    /// Размеры контура (как у `panel.add`).
+    /// Contour size (as in `panel.add`).
     pub size: [f64; 2],
-    /// Минимальный угол габарита.
+    /// Bounding box min corner.
     pub position: [f64; 3],
 }
 
@@ -16,9 +16,9 @@ fn blocks(p: &Part) -> bool {
     !matches!(p.kind, Kind::Door | Kind::Drawer)
 }
 
-/// Ближайшие границы по оси `axis` (0 — X, 1 — Y) от `at` среди деталей, чья проекция на другую ось
-/// вида спереди накрывает точку. Детали, накрывающие точку по `axis`, — не границы (полка не ограничивает
-/// проём по ширине, задняя стенка — ни по чему). Возвращает (ближняя слева/снизу, ближняя справа/сверху).
+/// Nearest boundaries along axis `axis` (0 — X, 1 — Y) from `at` among parts whose projection on the other
+/// front-view axis covers the point. Parts covering the point along `axis` are not boundaries (a shelf doesn't bound
+/// the opening width, a back panel bounds nothing). Returns (nearest left/below, nearest right/above).
 fn bounds(parts: &[Part], at: [f64; 2], axis: usize) -> (Option<&Part>, Option<&Part>) {
     let other = 1 - axis;
     let across = |p: &&Part| p.origin[other] <= at[other] && at[other] <= p.origin[other] + p.size[other];
@@ -28,7 +28,7 @@ fn bounds(parts: &[Part], at: [f64; 2], axis: usize) -> (Option<&Part>, Option<&
     (lo.copied(), hi.copied())
 }
 
-/// Общий диапазон по Z двух границ — глубина проёма.
+/// Common Z range of two boundaries — the opening depth.
 fn depth(a: &Part, b: &Part) -> Result<(f64, f64), String> {
     let (z0, z1) = (a.origin[2].max(b.origin[2]), (a.origin[2] + a.size[2]).min(b.origin[2] + b.size[2]));
     if z1 > z0 { Ok((z0, z1)) } else { Err(format!("границы «{}» и «{}» не перекрываются по глубине", a.panel.name, b.panel.name)) }
@@ -38,10 +38,10 @@ fn need<'a>(b: Option<&'a Part>, side: &str, at: [f64; 2]) -> Result<&'a Part, S
     b.ok_or_else(|| format!("нет границы проёма {side} от точки {at:?}"))
 }
 
-/// Панель в проёме у точки `at` (X, Y на виде спереди, мм). `gaps` — отступы от границ в осях контура:
-/// горизонтальная — [слева, справа, сзади, спереди], вертикальная — [сзади, спереди, снизу, сверху],
-/// фронтальная — [слева, справа, снизу, сверху]. Горизонтальная ложится нижней пластью на высоту `at.y`,
-/// вертикальная — левой пластью на `at.x`, фронтальная — вровень с передом проёма.
+/// Panel in the opening at point `at` (X, Y on the front view, mm). `gaps` are offsets from the boundaries in contour axes:
+/// horizontal — [left, right, back, front], vertical — [back, front, bottom, top],
+/// front — [left, right, bottom, top]. A horizontal panel rests its bottom face at height `at.y`,
+/// a vertical one its left face at `at.x`, a front one is flush with the opening front.
 pub fn fill(parts: &[Part], plane: Plane, at: [f64; 2], thickness: f64, gaps: [f64; 4]) -> Result<Fill, String> {
     let [g0, g1, g2, g3] = gaps;
     let check = |size: [f64; 2]| {

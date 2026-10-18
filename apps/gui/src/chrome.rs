@@ -1,5 +1,5 @@
-//! Оболочка окна как в cadcraft: меню под строкой иконок, стартовая страница (открыть, новый,
-//! последние файлы), окно «Как пользоваться» и список последних файлов на диске.
+//! Window shell as in cadcraft: menu under the icon bar, start page (open, new,
+//! recent files), the "How to use" window and the on-disk recent files list.
 
 use std::path::{Path, PathBuf};
 
@@ -10,25 +10,24 @@ use crate::tools::Modify;
 use crate::viewport::Mode;
 use crate::{App, MenuAct, Pane};
 
-/// Текст справки (docs/help.md) — вшит в программу.
+/// Help text (docs/help.md), embedded into the binary.
 const HELP: &str = include_str!("../../../docs/help.md");
 const HELP_EN: &str = include_str!("../../../docs/help.en.md");
-/// Сколько последних файлов помнить.
 const RECENT_MAX: usize = 12;
-/// Примеры, которые предлагает стартовая страница (первый найденный).
+/// Samples offered by the start page (the first one found).
 const SAMPLES: [&str; 3] = ["example/Кухня Эл.b3d", "example/Детская кровать.b3d", "example/Витрина высокая.b3d"];
 
 fn recent_file() -> Option<PathBuf> {
     Some(crate::settings::config_dir()?.join("recent.json"))
 }
 
-/// Последние открытые и сохранённые файлы (новые сверху), только существующие.
+/// Recently opened and saved files (newest first), only those that still exist.
 pub fn recent() -> Vec<PathBuf> {
     let Some(text) = recent_file().and_then(|f| std::fs::read_to_string(f).ok()) else { return Vec::new() };
     serde_json::from_str::<Vec<PathBuf>>(&text).unwrap_or_default().into_iter().filter(|p| p.exists()).collect()
 }
 
-/// Запомнить файл в «Последних».
+/// Remember a file in "Recent".
 pub fn remember(path: &Path) {
     let Some(file) = recent_file() else { return };
     let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
@@ -42,7 +41,7 @@ pub fn remember(path: &Path) {
     }
 }
 
-/// Строка справки: **жирное** и `код` внутри обычного текста.
+/// Help line: **bold** and `code` inside plain text.
 fn rich_line(ui: &mut egui::Ui, text: &str) {
     let mut job = egui::text::LayoutJob::default();
     let body = ui.style().text_styles[&egui::TextStyle::Body].clone();
@@ -67,7 +66,7 @@ fn rich_line(ui: &mut egui::Ui, text: &str) {
     ui.label(job);
 }
 
-/// Простая разметка docs/help.md: заголовки `#`/`##`, списки `-` и `1.`, абзацы.
+/// Minimal docs/help.md markup: `#`/`##` headings, `-` and `1.` lists, paragraphs.
 fn markdown(ui: &mut egui::Ui, text: &str) {
     for line in text.lines() {
         let t = line.trim_end();
@@ -96,7 +95,7 @@ fn markdown(ui: &mut egui::Ui, text: &str) {
 }
 
 impl App {
-    /// Меню под строкой иконок: всё, что есть в программе, текстом.
+    /// Menu under the icon bar: everything the program has, as text.
     pub(crate) fn menu_bar(&mut self, ui: &mut egui::Ui) {
         let editable = self.session.is_some();
         let selected = !self.targets().is_empty();
@@ -243,7 +242,7 @@ impl App {
         });
     }
 
-    /// Строка документов под меню (как файловые вкладки cadcraft): «+» — новый проект, «Начало», текущий проект.
+    /// Document strip under the menu (like cadcraft's file tabs): "+" for a new project, "Start", the current project.
     pub(crate) fn doc_tabs(&mut self, ui: &mut egui::Ui) {
         let t = &crate::theme::T;
         let r = ui.max_rect();
@@ -258,7 +257,7 @@ impl App {
             self.new_project();
         }
         x += 26.0;
-        // «Начало» и по вкладке на каждый открытый проект; «*» — есть несохранённые изменения.
+        // "Start" plus one tab per open project; "*" means unsaved changes.
         let mut tabs: Vec<(String, Option<usize>, f32)> = vec![(crate::i18n::t("Начало"), None, 110.0)];
         for i in 0..self.docs.len() {
             let (title, dirty) = if i == self.active { (self.doc_title(), self.dirty) } else { (self.docs[i].title(), self.docs[i].dirty) };
@@ -306,7 +305,7 @@ impl App {
         }
     }
 
-    /// Стартовая страница на всё окно, как в cadcraft: слева название и кнопки в рамке, справа — последние файлы.
+    /// Full-window start page, as in cadcraft: title and framed buttons on the left, recent files on the right.
     pub(crate) fn start_page(&mut self, ui: &mut egui::Ui) {
         let t = &crate::theme::T;
         let r = ui.max_rect();
@@ -384,13 +383,13 @@ impl App {
         }
     }
 
-    /// После выбора на стартовой странице — к модели.
+    /// After a choice on the start page, go to the model.
     fn leave_start(&mut self) {
         self.start = false;
         self.show_pane(Pane::Model);
     }
 
-    /// Окна «Как пользоваться» и «О программе».
+    /// The "How to use" and "About" windows.
     pub(crate) fn help_windows(&mut self, ctx: &egui::Context) {
         let before = self.settings.grid;
         let mut open = self.drafting;
@@ -417,7 +416,7 @@ impl App {
             ui.weak(crate::i18n::t("При отдалении шаг сам укрупняется в 5 раз, чтобы линии не сливались."));
             ui.separator();
             ui.heading(crate::i18n::t("Горячие клавиши"));
-            // Ждём новое сочетание: Esc — отмена, Backspace — снять клавишу.
+            // Waiting for a new shortcut: Esc cancels, Backspace unbinds the key.
             if let Some(id) = self.key_capture {
                 let hit = ui.input_mut(|i| {
                     let found = i.events.iter().find_map(|e| match e {

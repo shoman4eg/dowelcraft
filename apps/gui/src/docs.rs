@@ -1,5 +1,5 @@
-//! Несколько открытых проектов (как вкладки чертежей в cadcraft): у каждого свой проект, файл,
-//! выделение и признак несохранённых изменений. Активный живёт в полях `App`, остальные — в `App::docs`.
+//! Several open projects (like drawing tabs in cadcraft): each has its own project, file,
+//! selection and unsaved-changes flag. The active one lives in `App` fields, the others in `App::docs`.
 
 use std::path::PathBuf;
 
@@ -8,7 +8,7 @@ use dowel::job::Job;
 
 use crate::{App, Sel};
 
-/// Неактивный документ.
+/// An inactive document.
 pub struct Doc {
     pub session: Option<Session>,
     pub job: Job,
@@ -25,20 +25,20 @@ impl Doc {
         Doc { session: Some(Session::new(Project::new("Новый проект"))), job: Job::from_project(Project::new("Новый проект")), path: None, selection: Vec::new(), furniture_sel: None, card: 0, dirty: false, hidden: Default::default() }
     }
 
-    /// Имя для вкладки.
+    /// Name for the tab.
     pub fn title(&self) -> String {
         self.session.as_ref().map_or_else(|| self.job.name.clone(), |s| s.project.name.clone())
     }
 }
 
-/// Что спросить перед закрытием вкладки с несохранёнными изменениями.
+/// What to ask before closing a tab with unsaved changes.
 pub struct CloseAsk {
     pub index: usize,
     pub title: String,
 }
 
 impl App {
-    /// Поменять местами активный документ (поля `App`) и `doc`.
+    /// Swap the active document (`App` fields) with `doc`.
     pub(crate) fn swap_doc(&mut self, doc: &mut Doc) {
         std::mem::swap(&mut self.session, &mut doc.session);
         std::mem::swap(&mut self.job, &mut doc.job);
@@ -50,7 +50,7 @@ impl App {
         std::mem::swap(&mut self.hidden, &mut doc.hidden);
     }
 
-    /// Сделать активным документ `i` (в `docs` активный лежит пустышкой на своём месте).
+    /// Make document `i` active (in `docs` the active one is a placeholder in its slot).
     pub(crate) fn switch_doc(&mut self, i: usize) {
         if i == self.active || i >= self.docs.len() {
             self.start = false;
@@ -58,13 +58,13 @@ impl App {
         }
         let mut cur = std::mem::replace(&mut self.docs[i], Doc::empty());
         self.swap_doc(&mut cur);
-        // В `cur` теперь бывший активный — на его место.
+        // `cur` now holds the former active one; put it back in its slot.
         self.docs[self.active] = cur;
         self.active = i;
         self.after_switch();
     }
 
-    /// Новый документ во вкладке.
+    /// A new document in a tab.
     pub(crate) fn add_doc(&mut self, mut doc: Doc) {
         self.swap_doc(&mut doc);
         self.docs[self.active] = doc;
@@ -73,12 +73,12 @@ impl App {
         self.after_switch();
     }
 
-    /// Текущий документ пуст и не сохранён — его можно заменить открываемым файлом.
+    /// The current document is empty and unsaved, so a file being opened can replace it.
     pub(crate) fn current_is_blank(&self) -> bool {
         !self.dirty && self.path.is_none() && self.session.as_ref().is_some_and(|s| s.project.materials.is_empty() && s.project.objects.is_empty() && s.project.cabinets.is_empty() && s.project.corners.is_empty() && s.project.countertops.is_empty())
     }
 
-    /// Закрыть вкладку `i` (без вопросов); последняя закрытая — пустой проект.
+    /// Close tab `i` (without asking); closing the last one leaves an empty project.
     pub(crate) fn close_doc(&mut self, i: usize) {
         if i >= self.docs.len() {
             return;
@@ -100,7 +100,7 @@ impl App {
         }
     }
 
-    /// Закрыть с вопросом, если есть несохранённые изменения.
+    /// Close, asking first if there are unsaved changes.
     pub(crate) fn request_close(&mut self, i: usize) {
         let (dirty, title) = if i == self.active { (self.dirty, self.doc_title()) } else { (self.docs[i].dirty, self.docs[i].title()) };
         if dirty {
@@ -129,7 +129,7 @@ impl App {
         }
     }
 
-    /// Окно «Сохранить изменения?» перед закрытием вкладки.
+    /// The "Save changes?" window before closing a tab.
     pub(crate) fn close_window(&mut self, ctx: &eframe::egui::Context) {
         let Some(ask) = &self.close_ask else { return };
         let (index, title) = (ask.index, ask.title.clone());
@@ -173,7 +173,7 @@ mod tests {
 
     use crate::App;
 
-    /// «Новый» не затирает открытый проект: он остаётся во вкладке со своим именем и изменениями.
+    /// "New" doesn't overwrite the open project: it stays in its tab with its name and changes.
     #[test]
     fn new_project_keeps_the_open_one() {
         let mut app = App::default();
@@ -189,13 +189,13 @@ mod tests {
         assert_eq!(app.doc_title(), "Кухня");
         assert!(app.dirty);
         assert_eq!(app.session.as_ref().map(|s| s.project.materials.len()), Some(1));
-        // Закрыть вкладку «Кухня» — останется новый проект.
+        // Close the "Kitchen" tab; the new project remains.
         app.close_doc(0);
         assert_eq!((app.docs.len(), app.active), (1, 0));
         assert_eq!(app.doc_title(), "Новый проект");
     }
 
-    /// Две отдельные панели подряд не ложатся друг на друга (раньше вторая вставала поверх первой).
+    /// Two individual panels in a row don't overlap (previously the second one landed on top of the first).
     #[test]
     fn added_panels_do_not_overlap() {
         let mut app = App::default();
@@ -215,7 +215,7 @@ mod tests {
         }
     }
 
-    /// Скрытая глазом деталь остаётся скрытой у своего проекта при переключении вкладок.
+    /// A part hidden with the eye icon stays hidden in its project when switching tabs.
     #[test]
     fn hidden_parts_belong_to_their_project() {
         let mut app = App::default();
@@ -231,7 +231,7 @@ mod tests {
         assert_eq!(app.hidden_parts().into_iter().collect::<Vec<_>>(), vec![0]);
     }
 
-    /// Несохранённые изменения — сначала вопрос, а не закрытие.
+    /// Unsaved changes: ask first instead of closing.
     #[test]
     fn closing_dirty_project_asks() {
         let mut app = App::default();
@@ -248,7 +248,7 @@ mod window_tests {
 
     use crate::App;
 
-    /// Ctrl+1–4 переключают вкладку: 3D, спереди, детали, раскрой; 1–4 без Ctrl — камеру 3D.
+    /// Ctrl+1–4 switch the tab: 3D, front, parts, cutting; 1–4 without Ctrl switch the 3D camera.
     #[test]
     fn number_keys_switch_the_view() {
         let ctx = egui::Context::default();
@@ -261,14 +261,14 @@ mod window_tests {
             out.textures_delta.clear();
             assert_eq!(app.view, pane);
         }
-        // Alt+4 — прозрачность; цифра с Alt вид не меняет.
+        // Alt+4 is x-ray; a digit with Alt doesn't change the view.
         let alt = egui::Event::Key { key: egui::Key::Num4, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::ALT };
         let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 900.0))), events: vec![alt], ..Default::default() };
         let mut out = ctx.run_ui(input, |ui| eframe::App::ui(&mut app, ui, &mut frame));
         out.textures_delta.clear();
         assert_eq!(app.viewport.mode, crate::viewport::Mode::XRay);
         assert_eq!(app.view, crate::Pane::Model);
-        // «3» без Ctrl — камера сверху, и из таблицы деталей сразу в 3D.
+        // "3" without Ctrl is the top camera, and from the parts table it jumps straight to 3D.
         app.view = crate::Pane::Parts;
         let three = egui::Event::Key { key: egui::Key::Num3, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
         let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 900.0))), events: vec![three], ..Default::default() };
@@ -280,7 +280,7 @@ mod window_tests {
         assert_eq!((app.viewport.camera.yaw, app.viewport.camera.pitch), (top.camera.yaw, top.camera.pitch));
     }
 
-    /// Всё окно программы: навести мышь на иконку палитры — должна открыться подсказка.
+    /// Whole program window: hovering an icon in the palette must open its tooltip.
     #[test]
     fn tool_icons_show_tooltips_in_the_app() {
         let ctx = egui::Context::default();
@@ -296,7 +296,7 @@ mod window_tests {
         for _ in 0..3 {
             run(&mut app, vec![], time);
         }
-        // Иконка «Напольный корпус» — первая в палитре слева: ищем точку, где мышь даёт её описание.
+        // The "Floor cabinet" icon is the first in the left palette: find the point where the mouse gets its description.
         let mut found = None;
         'scan: for y in (60..400).step_by(6) {
             for x in (10..280).step_by(6) {

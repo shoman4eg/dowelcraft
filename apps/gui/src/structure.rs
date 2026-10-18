@@ -1,5 +1,5 @@
-//! «Структура модели»: дерево как вложено в проекте (блоки в блоках), у корпуса — группы по назначению
-//! деталей; глаз у каждой строки и группы — скрыть/показать в 3D и на виде спереди; группировка выделенного.
+//! "Model structure": the tree as nested in the project (blocks inside blocks), cabinets grouped by part
+//! role; an eye on every row and group — hide/show in 3D and in the front view; grouping the selection.
 
 use std::collections::HashSet;
 
@@ -10,16 +10,15 @@ use serde_json::json;
 use crate::icons::{self, Icon};
 use crate::{App, MenuAct, Sel};
 
-/// Строка дерева.
 enum Row {
     Part(usize),
     Furniture(u32, String),
-    /// Группа: заголовок, ключ для состояния раскрытия, номер блока (если это блок проекта), содержимое.
+    /// Group: title, key for the expanded state, block number (if it's a project block), contents.
     Group { title: String, key: String, block: Option<u32>, rows: Vec<Row> },
 }
 
 impl Row {
-    /// Детали внутри (для глаза и выделения группы).
+    /// Parts inside (for the group's eye and selection).
     fn parts(&self, out: &mut Vec<usize>) {
         match self {
             Row::Part(i) => out.push(*i),
@@ -29,7 +28,7 @@ impl Row {
     }
 }
 
-/// Что сделали в дереве на этом кадре.
+/// What was done in the tree this frame.
 #[derive(Default)]
 struct Acts {
     select: Option<Vec<usize>>,
@@ -51,7 +50,7 @@ fn kind_title(k: Kind) -> &'static str {
     }
 }
 
-/// Детали шаблона (корпус, угловой модуль, столешница) по назначению; одна группа — без подгрупп.
+/// Template parts (cabinet, corner module, countertop) by role; a single group — without subgroups.
 fn template_rows(parts: &[Part], owner: u32) -> Vec<Row> {
     let mine: Vec<usize> = (0..parts.len()).filter(|&i| parts[i].owner == owner && parts[i].id == 0).collect();
     let kinds: Vec<Kind> = [Kind::Body, Kind::Back, Kind::Door, Kind::Drawer].into_iter().filter(|k| mine.iter().any(|&i| parts[i].kind == *k)).collect();
@@ -64,7 +63,7 @@ fn template_rows(parts: &[Part], owner: u32) -> Vec<Row> {
         .collect()
 }
 
-/// Дерево объектов проекта (блоки — вложенными группами).
+/// Project object tree (blocks as nested groups).
 fn object_rows(parts: &[Part], objects: &[Object]) -> Vec<Row> {
     objects
         .iter()
@@ -81,7 +80,7 @@ fn object_rows(parts: &[Part], objects: &[Object]) -> Vec<Row> {
 
 fn tree(parts: &[Part], project: Option<&Project>) -> Vec<Row> {
     let Some(pr) = project else {
-        // Модель Базиса без своего проекта: одной группой по объектам верхнего уровня.
+        // A Bazis model without its own project: one group per top-level object.
         let mut owners: Vec<u32> = Vec::new();
         for p in parts {
             if !owners.contains(&p.owner) {
@@ -203,7 +202,7 @@ impl App {
         self.apply_structure(acts);
     }
 
-    /// Выделенная группа-блок: все выделенные детали — ровно содержимое одного блока.
+    /// Selected block group: the selected parts are exactly the contents of one block.
     fn selected_block(&self) -> Option<u32> {
         let pr = &self.session.as_ref()?.project;
         let parts = self.parts.as_ref().ok()?;
@@ -282,7 +281,7 @@ impl App {
         }
     }
 
-    /// Детали, скрытые глазом: их номера в текущем списке.
+    /// Parts hidden by the eye: their indices in the current list.
     pub(crate) fn hidden_parts(&self) -> HashSet<usize> {
         let Ok(parts) = &self.parts else { return HashSet::new() };
         self.hidden.iter().filter_map(|s| s.find(parts)).collect()

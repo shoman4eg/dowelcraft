@@ -1,35 +1,34 @@
-//! Гильотинный раскрой листа: каждая деталь отрезается сквозным резом,
-//! остаток делится на два прямоугольника. Жадная укладка пробуется с разным порядком деталей,
-//! выбором остатка и направлением реза; берётся раскрой с наименьшим числом листов, а при равенстве —
-//! с самым большим цельным обрезком (меньше мелких обрезков).
+//! Guillotine sheet nesting: each part is cut off by a through cut,
+//! the remainder splits into two rectangles. The greedy layout is tried with different part orders,
+//! remainder choice and cut direction; the layout with the fewest sheets wins, and on a tie —
+//! the one with the largest single offcut (fewer small offcuts).
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Params {
-    /// Формат листа, мм: длина (вдоль текстуры листа) × ширина.
+    /// Sheet size, mm: length (along sheet grain) × width.
     pub sheet: (f64, f64),
-    /// Ширина пропила.
     pub kerf: f64,
-    /// Обрезка кромки листа с каждой стороны.
+    /// Edge trim of the sheet on each side.
     pub trim: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Item {
-    /// Индекс детали у вызывающего.
+    /// Part index on the caller's side.
     pub id: usize,
     pub length: f64,
     pub width: f64,
-    /// Есть текстура: длина детали обязана идти вдоль длины листа.
+    /// Has grain: the part length must run along the sheet length.
     pub grain: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Placed {
     pub id: usize,
-    /// Левый нижний угол на листе.
+    /// Bottom-left corner on the sheet.
     pub x: f64,
     pub y: f64,
-    /// Размер на листе (после возможного поворота).
+    /// Size on the sheet (after possible rotation).
     pub w: f64,
     pub h: f64,
     pub rotated: bool,
@@ -38,7 +37,7 @@ pub struct Placed {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Sheet {
     pub parts: Vec<Placed>,
-    /// Свободные остатки после раскроя (не пересекаются): обрезки и отход.
+    /// Free remainders after nesting (non-overlapping): offcuts and waste.
     pub free: Vec<Rect>,
 }
 
@@ -51,7 +50,7 @@ pub struct Rect {
 }
 
 impl Sheet {
-    /// Доля площади листа под деталями.
+    /// Fraction of sheet area under parts.
     pub fn usage(&self, p: &Params) -> f64 {
         self.parts.iter().map(|d| d.w * d.h).sum::<f64>() / (p.sheet.0 * p.sheet.1)
     }
@@ -60,7 +59,7 @@ impl Sheet {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Layout {
     pub sheets: Vec<Sheet>,
-    /// Детали, которые не помещаются на чистый лист.
+    /// Parts that don't fit on a clean sheet.
     pub too_big: Vec<usize>,
 }
 
@@ -74,7 +73,7 @@ pub fn nest(items: &[Item], p: &Params) -> Layout {
         for fit in 0..3 {
             for split in [false, true] {
                 let lay = greedy(&order, p, fit, split);
-                // Меньше листов, затем самый большой обрезок, затем меньше обрезков.
+                // Fewer sheets, then the largest offcut, then fewer offcuts.
                 let biggest = lay.sheets.iter().flat_map(|s| &s.free).map(|r| r.w * r.h).fold(0.0, f64::max);
                 let pieces = lay.sheets.iter().map(|s| s.free.len()).sum();
                 let score = (lay.sheets.len(), -biggest, pieces);
@@ -87,8 +86,8 @@ pub fn nest(items: &[Item], p: &Params) -> Layout {
     best.map(|b| b.0).unwrap_or_default()
 }
 
-/// Одна жадная укладка: `fit` — выбор остатка (0 — лучшая короткая сторона, 1 — наименьший лишний
-/// кусок по площади, 2 — лучшая длинная сторона); `split` — резать по длинному остатку, а не по короткому.
+/// One greedy layout: `fit` — remainder choice (0 — best short side, 1 — least leftover
+/// area, 2 — best long side); `split` — cut along the long remainder rather than the short one.
 fn greedy(order: &[&Item], p: &Params, fit: u8, split: bool) -> Layout {
     let usable = Rect { x: p.trim, y: p.trim, w: p.sheet.0 - 2.0 * p.trim, h: p.sheet.1 - 2.0 * p.trim };
     let fits = |f: &Rect, w: f64, h: f64| w <= f.w + 1e-9 && h <= f.h + 1e-9;
@@ -107,8 +106,8 @@ fn greedy(order: &[&Item], p: &Params, fit: u8, split: bool) -> Layout {
             out.too_big.push(it.id);
             continue;
         }
-        // Лучший свободный прямоугольник на уже открытых листах, иначе новый лист.
-        // (оценка, лист, свободный прямоугольник, (ширина, высота, повёрнута))
+        // Best free rectangle on already opened sheets, otherwise a new sheet.
+        // (score, sheet, free rectangle, (width, height, rotated))
         type Choice = (f64, usize, usize, (f64, f64, bool));
         let mut best: Option<Choice> = None;
         for (s, rects) in free.iter().enumerate() {
@@ -138,7 +137,7 @@ fn greedy(order: &[&Item], p: &Params, fit: u8, split: bool) -> Layout {
         };
         let f = free[s].swap_remove(r);
         out.sheets[s].parts.push(Placed { id: it.id, x: f.x, y: f.y, w, h, rotated });
-        // Рез по короткому остатку: больший кусок остаётся цельным.
+        // Cut along the short remainder: the larger piece stays whole.
         let (rw, rh) = (f.w - w - p.kerf, f.h - h - p.kerf);
         let (right, top) = if (f.w - w < f.h - h) != split {
             (Rect { x: f.x + w + p.kerf, y: f.y, w: rw, h }, Rect { x: f.x, y: f.y + h + p.kerf, w: f.w, h: rh })
@@ -153,7 +152,7 @@ fn greedy(order: &[&Item], p: &Params, fit: u8, split: bool) -> Layout {
     out
 }
 
-/// Склеивает соседние остатки одной высоты (или ширины), разделённые пропилом, в один обрезок.
+/// Merges adjacent remainders of the same height (or width), separated by a kerf, into one offcut.
 fn merge(mut rs: Vec<Rect>, kerf: f64) -> Vec<Rect> {
     let eq = |a: f64, b: f64| (a - b).abs() < 1e-6;
     let touch = |a: f64, b: f64| b >= a - 1e-6 && b <= a + kerf + 1e-6;
@@ -237,12 +236,12 @@ mod tests {
         let lay = nest(&items, &P);
         check(&items, &lay);
         assert!(lay.too_big.is_empty());
-        // 4 × 513 + пропилы = 2064 > 2050 полезной ширины: на один лист не войдёт.
+        // 4 × 513 + kerfs = 2064 > 2050 usable width: won't fit on one sheet.
         assert_eq!(lay.sheets.len(), 2);
     }
 
-    /// Шкаф и тумба для ванной на одном листе 2750×1830: детали собраны плотно, остаётся большой
-    /// цельный обрезок, а не россыпь мелких (раньше самый большой был 1058×948).
+    /// Bathroom cabinet and vanity on one 2750×1830 sheet: parts are packed tightly, leaving a large
+    /// single offcut rather than many small ones (previously the largest was 1058×948).
     #[test]
     fn leftover_stays_in_one_piece() {
         let p = Params { sheet: (2750.0, 1830.0), kerf: 4.0, trim: 10.0 };
@@ -269,7 +268,7 @@ mod tests {
 
     #[test]
     fn grain_blocks_rotation() {
-        // Без поворота 2000×100 по ширине листа не встанет, но с текстурой поворачивать нельзя.
+        // Without rotation 2000×100 won't fit across the sheet width, and with grain rotation is not allowed.
         let items = [item(0, 100.0, 2000.0, true)];
         let lay = nest(&items, &P);
         check(&items, &lay);

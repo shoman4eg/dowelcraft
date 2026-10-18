@@ -1,6 +1,6 @@
-//! Окно модели: 3D на видеокарте (wgpu), как в Базисе — режимы «Без невидимых», «Невидимые тонкие»,
-//! «Каркас», «Прозрачность»; виды спереди, слева, сверху, аксонометрия; ЛКМ вращает, ПКМ сдвигает,
-//! колесо масштабирует. Рисуется в свою текстуру (со сглаживанием и глубиной) и показывается картинкой.
+//! Model window: 3D on the GPU (wgpu), like in Bazis — modes "No hidden lines", "Hidden thin",
+//! "Wireframe", "Transparent"; front, left, top and axonometric views; LMB rotates, RMB pans,
+//! the wheel zooms. Renders into its own texture (with antialiasing and depth) and is shown as an image.
 
 use dowel::design::{Kind, Part};
 use dowel::mesh::{self, Mesh};
@@ -10,15 +10,15 @@ use wgpu::util::DeviceExt;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Mode {
-    /// «Без невидимых»: тела и видимые рёбра.
+    /// "No hidden lines": solids and visible edges.
     Solid,
-    /// «Невидимые тонкие»: плюс скрытые рёбра светлой линией.
+    /// "Hidden thin": plus hidden edges as a light line.
     Hidden,
-    /// «Каркас»: только рёбра.
+    /// "Wireframe": edges only.
     Wire,
-    /// «Прозрачность» (рентген): полупрозрачные тела, все рёбра, оси деталей.
+    /// "Transparent" (x-ray): translucent solids, all edges, part axes.
     XRay,
-    /// «В текстурах»: материалы картинками (Балтламинат и свои), с видимыми рёбрами.
+    /// "Textured": materials as images (Baltlaminat and custom), with visible edges.
     Textured,
 }
 
@@ -26,26 +26,26 @@ impl Mode {
     pub const ALL: [(Mode, &str); 5] = [(Mode::Solid, "Без невидимых"), (Mode::Hidden, "Невидимые тонкие"), (Mode::Wire, "Каркас"), (Mode::XRay, "Прозрачность"), (Mode::Textured, "В текстурах")];
 }
 
-/// Результат щелчка в окне модели.
+/// Result of a click in the model window.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Click {
     None,
-    /// Щелчок по детали (индекс в списке деталей).
+    /// Click on a part (index in the part list).
     Part(usize),
-    /// Щелчок по пустому месту — снять выделение.
+    /// Click on empty space — clear the selection.
     Empty,
-    /// Правая кнопка (без перетаскивания) — меню; деталь под курсором, если есть.
+    /// Right button (no drag) — menu; the part under the cursor, if any.
     Menu(Option<usize>),
-    /// Щелчок по фурнитуре (номер объекта); `true` — правой кнопкой.
+    /// Click on a fitting (object number); `true` — right button.
     Furniture(u32, bool),
-    /// Выделенное перетащили мышью: сдвиг в мм (по одной оси, целые мм).
+    /// The selection was dragged with the mouse: offset in mm (along one axis, whole mm).
     Move([f64; 3]),
-    /// Маркером изменили габарит выделенной панели: новый `lo`, `hi` в мм.
+    /// A handle changed the size of the selected panel: new `lo`, `hi` in mm.
     Resize([f64; 3], [f64; 3]),
 }
 
-/// Новый габарит панели `i`, когда маркер `h` (−1 — край `lo`, 1 — `hi`, 0 — не трогать) по осям
-/// `axes` сдвинули на `d` мм: края прилипают к краям других деталей ближе `tol` мм, целые мм.
+/// New bounds of panel `i` when handle `h` (−1 — edge `lo`, 1 — `hi`, 0 — leave) along axes
+/// `axes` moved by `d` mm: edges snap to edges of other parts closer than `tol` mm, whole mm.
 fn resized(parts: &[Part], i: usize, axes: [usize; 2], h: [i8; 2], d: [f64; 2], tol: f64) -> ([f64; 3], [f64; 3]) {
     let p = &parts[i];
     let (mut lo, mut hi) = (p.origin, std::array::from_fn(|k| p.origin[k] + p.size[k]));
@@ -63,7 +63,7 @@ fn resized(parts: &[Part], i: usize, axes: [usize; 2], h: [i8; 2], d: [f64; 2], 
     (lo, hi)
 }
 
-/// Фурнитура в окне: положение, габарит в своих осях, сетка модели (пустая — рисуется рамкой).
+/// A fitting in the window: position, bounds in its own axes, model mesh (empty — drawn as a box).
 #[derive(Clone, Debug)]
 pub struct FurnView {
     pub id: u32,
@@ -75,28 +75,28 @@ pub struct FurnView {
 }
 
 impl PartialEq for FurnView {
-    /// Сетки сравниваются по указателю: одна модель — одна загруженная сетка.
+    /// Meshes are compared by pointer: one model — one loaded mesh.
     fn eq(&self, o: &Self) -> bool {
         self.id == o.id && self.frame == o.frame && self.lo == o.lo && self.hi == o.hi && self.selected == o.selected && std::sync::Arc::ptr_eq(&self.mesh, &o.mesh)
     }
 }
 
-/// Камера: точка взгляда, углы и масштаб (мм на пиксель), параллельная проекция.
+/// Camera: look-at point, angles and scale (mm per pixel), parallel projection.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Camera {
     pub target: [f32; 3],
-    /// Поворот вокруг вертикали, радианы: 0 — смотрим спереди (вдоль −Z).
+    /// Rotation about the vertical, radians: 0 — looking from the front (along −Z).
     pub yaw: f32,
-    /// Наклон: положительный — смотрим сверху.
+    /// Tilt: positive — looking from above.
     pub pitch: f32,
     pub mm_per_px: f32,
 }
 
 impl Camera {
-    /// Аксонометрия Базиса по умолчанию: 20° вокруг OX и −20° вокруг OY.
+    /// Default Bazis axonometry: 20° about OX and −20° about OY.
     pub const AXON: (f32, f32) = (-20.0, 20.0);
 
-    /// Направление «от камеры к сцене», вправо и вверх экрана.
+    /// "Camera to scene" direction, screen right and up.
     fn basis(&self) -> ([f32; 3], [f32; 3], [f32; 3]) {
         let (sy, cy, sp, cp) = (self.yaw.sin(), self.yaw.cos(), self.pitch.sin(), self.pitch.cos());
         let forward = [sy * cp, -sp, -cy * cp];
@@ -105,15 +105,15 @@ impl Camera {
         (forward, right, up)
     }
 
-    /// Матрица «мир → клип» для окна `w`×`h` пикселей; `depth` — полудлина сцены вдоль взгляда.
+    /// "World → clip" matrix for a `w`×`h` pixel window; `depth` — half-length of the scene along the view.
     fn view_proj(&self, w: f32, h: f32, depth: f32) -> [[f32; 4]; 4] {
         let (f, r, u) = self.basis();
         let (sx, sy) = (2.0 / (w * self.mm_per_px), 2.0 / (h * self.mm_per_px));
         let t = self.target;
         let d = |a: [f32; 3]| -(a[0] * t[0] + a[1] * t[1] + a[2] * t[2]);
-        // Глубина 0..1: ближняя плоскость — на `depth` перед точкой взгляда.
+        // Depth 0..1: the near plane is `depth` in front of the look-at point.
         let sz = 0.5 / depth;
-        // Столбцы матрицы (WGSL — по столбцам).
+        // Matrix columns (WGSL is column-major).
         [
             [r[0] * sx, u[0] * sy, f[0] * sz, 0.0],
             [r[1] * sx, u[1] * sy, f[1] * sz, 0.0],
@@ -122,14 +122,14 @@ impl Camera {
         ]
     }
 
-    /// Луч взгляда через точку экрана, смещённую на `off` пикселей от центра: начало и направление.
+    /// View ray through a screen point offset by `off` pixels from the center: origin and direction.
     fn ray(&self, off: Vec2, depth: f32) -> ([f32; 3], [f32; 3]) {
         let (f, r, u) = self.basis();
         let o = std::array::from_fn(|k| self.target[k] + (off.x * r[k] - off.y * u[k]) * self.mm_per_px - f[k] * depth);
         (o, f)
     }
 
-    /// Сдвиг точки взгляда на `delta` пикселей экрана.
+    /// Move the look-at point by `delta` screen pixels.
     fn pan(&mut self, delta: Vec2) {
         let (_, r, u) = self.basis();
         for k in 0..3 {
@@ -142,7 +142,7 @@ fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
     [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
 }
 
-/// Пересечение луча с треугольником (Мёллер — Трумбор): расстояние вдоль луча.
+/// Ray-triangle intersection (Möller–Trumbore): distance along the ray.
 fn hit(o: [f32; 3], d: [f32; 3], t: &[[f32; 3]; 3]) -> Option<f32> {
     let sub = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
     let dot = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -160,17 +160,17 @@ fn hit(o: [f32; 3], d: [f32; 3], t: &[[f32; 3]; 3]) -> Option<f32> {
     ((0.0..=1.0).contains(&u) && v >= 0.0 && u + v <= 1.0 && dist > 0.0).then_some(dist)
 }
 
-/// Как красить сцену (см. `Scene::new`).
+/// How to color the scene (see `Scene::new`).
 enum Look<'a> {
     Plain,
     Wire,
     Textured(&'a [(String, String, [f64; 2])]),
 }
 
-/// Цвет выделенной детали.
+/// Color of the selected part.
 const SELECTED: [f32; 3] = [1.0, 0.62, 0.2];
 
-/// Цвет детали по назначению: корпус — бежевый, задняя стенка — серая, фасады — голубые.
+/// Part color by role: carcass — beige, back panel — gray, fronts — light blue.
 fn color(kind: Kind) -> [f32; 3] {
     match kind {
         Kind::Body => [0.93, 0.86, 0.75],
@@ -182,7 +182,7 @@ fn color(kind: Kind) -> [f32; 3] {
 const SAMPLES: u32 = 4;
 const COLOR: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-/// Байт на вершину: позиция, нормаль, цвет RGBA, координаты текстуры.
+/// Bytes per vertex: position, normal, RGBA color, texture coordinates.
 const STRIDE: u64 = 48;
 
 const SHADER: &str = r#"
@@ -205,20 +205,20 @@ struct VOut { @builtin(position) clip: vec4<f32>, @location(0) color: vec4<f32>,
 @vertex fn vs_line(v: VIn) -> VOut {
     var o: VOut;
     o.clip = u.view_proj * vec4<f32>(v.pos, 1.0);
-    // Рёбра чуть ближе к камере, чтобы не тонули в гранях своей детали.
+    // Edges slightly closer to the camera so they don't sink into their own part's faces.
     o.clip.z = o.clip.z - u.params.y * o.clip.w;
     o.color = v.color;
     o.uv = vec2<f32>(0.0, 0.0);
     return o;
 }
 
-// Цвет на текстуру: у материалов без картинки текстура — белая точка.
+// Color times texture: materials without an image get a white pixel texture.
 @fragment fn fs(i: VOut) -> @location(0) vec4<f32> { return i.color * textureSample(tex, samp, i.uv); }
 "#;
 
-/// Бесконечная сетка (как холст cadcraft): треугольник на весь экран; для каждого пикселя — точка
-/// на плоскости сетки (перпендикулярной оси, ближе всего к направлению взгляда), линии через
-/// `minor` и `major` мм со сглаживанием, оси через начало координат; глубина — настоящая, детали закрывают сетку.
+/// Infinite grid (like the cadcraft canvas): one full-screen triangle; for each pixel — a point
+/// on the grid plane (perpendicular to the axis closest to the view direction), lines every
+/// `minor` and `major` mm with antialiasing, axes through the origin; depth is real, parts occlude the grid.
 const GRID_SHADER: &str = r#"
 struct G { eye: vec4<f32>, r: vec4<f32>, u: vec4<f32>, f: vec4<f32>, half: vec4<f32>, grid: vec4<f32>, minor_c: vec4<f32>, major_c: vec4<f32> };
 @group(0) @binding(0) var<uniform> g: G;
@@ -243,7 +243,7 @@ fn line(c: f32, step: f32) -> f32 {
 @fragment fn fs(v: VOut) -> FOut {
     let n = u32(g.grid.z);
     let f = g.f.xyz;
-    // Точка на ближней плоскости под пикселем и луч вдоль взгляда.
+    // Point on the near plane under the pixel and a ray along the view.
     let o = g.eye.xyz + v.ndc.x * g.half.x * g.r.xyz + v.ndc.y * g.half.y * g.u.xyz - f * g.half.z;
     let fn_ = f[n];
     if (abs(fn_) < 1e-4) { discard; }
@@ -254,7 +254,7 @@ fn line(c: f32, step: f32) -> f32 {
     let b = (n + 2u) % 3u;
     let minor = max(line(p[a], g.grid.x), line(p[b], g.grid.x));
     let major = max(line(p[a], g.grid.y), line(p[b], g.grid.y));
-    // Оси через начало: X — красная, Y — зелёная, Z — синяя (тёмные, как в cadcraft).
+    // Axes through the origin: X — red, Y — green, Z — blue (dark, as in cadcraft).
     let axis_colors = array<vec3<f32>, 3>(vec3<f32>(0.34, 0.16, 0.16), vec3<f32>(0.16, 0.29, 0.18), vec3<f32>(0.16, 0.22, 0.38));
     let ax_a = 1.0 - min(abs(p[b]) / max(fwidth(p[b]), 1e-6), 1.0);
     let ax_b = 1.0 - min(abs(p[a]) / max(fwidth(p[a]), 1e-6), 1.0);
@@ -271,13 +271,13 @@ fn line(c: f32, step: f32) -> f32 {
 }
 "#;
 
-/// Где лежит сетка по оси взгляда: через начало координат, но не перед моделью — иначе при взгляде
-/// сзади, слева или снизу она закрывает модель. `f` — направление взгляда по этой оси.
+/// Where the grid lies along the view axis: through the origin, but not in front of the model — otherwise when looking
+/// from behind, left or below it covers the model. `f` — view direction along this axis.
 fn grid_plane(f: f32, lo: f32, hi: f32) -> f32 {
     if f > 0.0 { hi.max(0.0) } else { lo.min(0.0) }
 }
 
-/// Сетка окна: включена, шаг (мм), основная линия — каждая N-я.
+/// Window grid: enabled, step (mm), major line — every N-th.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Grid {
     pub on: bool,
@@ -291,7 +291,7 @@ impl Default for Grid {
     }
 }
 
-/// Шаг сетки под масштаб, как в cadcraft: умножать на 5, пока линии не окажутся не ближе `min_px`.
+/// Grid step for the zoom, as in cadcraft: multiply by 5 until lines are no closer than `min_px`.
 pub fn adaptive(step: f64, px_per_mm: f64, min_px: f64) -> f64 {
     let mut s = step.max(1e-6);
     for _ in 0..40 {
@@ -303,24 +303,24 @@ pub fn adaptive(step: f64, px_per_mm: f64, min_px: f64) -> f64 {
     s
 }
 
-/// Буферы сцены на видеокарте.
+/// Scene buffers on the GPU.
 struct Scene {
     tris: wgpu::Buffer,
     indices: wgpu::Buffer,
     index_count: u32,
-    /// Треугольники по картинкам: (номер текстуры в `Viewport::textures` или нет, диапазон индексов).
+    /// Triangles grouped by image: (texture index in `Viewport::textures` or none, index range).
     batches: Vec<(Option<usize>, std::ops::Range<u32>)>,
-    /// Рёбра, оси проекта и оси деталей (рентген).
+    /// Edges, project axes and part axes (x-ray).
     lines: wgpu::Buffer,
     line_count: u32,
     axes_count: u32,
     part_axes_count: u32,
-    /// Отверстия присадки: линия сверления от входа на глубину.
+    /// Drilling holes: a line from the entry point to the drilling depth.
     holes_count: u32,
-    /// Габарит сцены.
+    /// Scene bounds.
     lo: [f32; 3],
     hi: [f32; 3],
-    /// Треугольники фурнитуры в координатах проекта — для выбора щелчком: (треугольник, номер объекта).
+    /// Fitting triangles in project coordinates — for click picking: (triangle, object number).
     furniture: Vec<(dowel::panel::Tri, u32)>,
 }
 
@@ -347,39 +347,38 @@ struct Gpu {
     tex_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     white: wgpu::BindGroup,
-    /// Загруженные картинки: путь → привязка (нет — картинку не прочитать).
+    /// Loaded images: path → bind group (none — image unreadable).
     images: Vec<(String, Option<wgpu::BindGroup>)>,
 }
 
 pub struct Viewport {
     pub camera: Camera,
-    /// Сетка (настройки черчения).
+    /// Grid (drawing settings).
     pub grid: Grid,
     pub mode: Mode,
-    /// Фурнитура: сетка модели или рамка по габариту.
+    /// Fittings: model mesh or a box by bounds.
     pub furniture: Vec<FurnView>,
-    /// Фурнитура, с которой построена сцена.
     furniture_built: Vec<FurnView>,
     gpu: Option<Gpu>,
     scene: Option<Scene>,
-    /// Сетка на процессоре: для выбора деталей щелчком и перекраски выделения.
+    /// CPU-side mesh: for click-picking parts and recoloring the selection.
     mesh: Mesh,
-    /// Ревизия деталей, по которой построена сетка, и выделение, с которым построена сцена.
+    /// Part revision the mesh was built from, and the selection the scene was built with.
     revision: Option<u64>,
     selected: Option<Vec<usize>>,
-    /// Детали, контур которых не построился: (имя, причина).
+    /// Parts whose contour failed to build: (name, reason).
     pub errors: Vec<(String, String)>,
     fitted: bool,
-    /// Подпись вида в углу окна («Спереди», «Сверху»…).
+    /// View caption in the window corner ("Front", "Top"…).
     pub label: Option<&'static str>,
-    /// Текстуры материалов: (полное имя материала, путь к картинке, плитка мм вдоль волокон × поперёк).
+    /// Material textures: (full material name, image path, tile mm along grain × across).
     pub textures: Vec<(String, String, [f64; 2])>,
     textures_built: Vec<(String, String, [f64; 2])>,
     mode_built: Option<Mode>,
-    /// Перетаскивание выделенного: накопленный сдвиг мыши (пиксели экрана) и сдвиг, с которым построена сцена.
+    /// Dragging the selection: accumulated mouse offset (screen pixels) and the offset the scene was built with.
     dragging: Option<Vec2>,
     offset_built: [f32; 3],
-    /// Тянут маркер размера: какой (по осям экрана) и накопленный сдвиг мыши (пиксели).
+    /// A size handle is being dragged: which one (by screen axes) and the accumulated mouse offset (pixels).
     resize: Option<([i8; 2], Vec2)>,
 }
 
@@ -458,7 +457,7 @@ fn pipeline(device: &wgpu::Device, layout: &wgpu::PipelineLayout, module: &wgpu:
     })
 }
 
-/// Конвейер бесконечной сетки: свой шейдер и свои 128 байт параметров.
+/// Infinite grid pipeline: its own shader and its own 128 bytes of parameters.
 fn grid_pipeline(device: &wgpu::Device) -> (wgpu::RenderPipeline, wgpu::Buffer, wgpu::BindGroup) {
     let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("grid"), source: wgpu::ShaderSource::Wgsl(GRID_SHADER.into()) });
     let buffer = device.create_buffer(&wgpu::BufferDescriptor { label: Some("grid"), size: 128, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
@@ -558,12 +557,12 @@ impl Gpu {
         }
     }
 
-    /// Уже загруженная картинка (иначе — белая).
+    /// An already loaded image (otherwise white).
     fn image_ref(&self, path: &str) -> &wgpu::BindGroup {
         self.images.iter().find(|(p, _)| p == path).and_then(|(_, b)| b.as_ref()).unwrap_or(&self.white)
     }
 
-    /// Привязка картинки по пути (читается один раз; нечитаемая — белая).
+    /// Image bind group by path (read once; unreadable — white).
     fn image(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, path: &str) -> &wgpu::BindGroup {
         if !self.images.iter().any(|(p, _)| p == path) {
             let bg = image::open(path).ok().map(|img| {
@@ -576,7 +575,7 @@ impl Gpu {
         self.images[i].1.as_ref().unwrap_or(&self.white)
     }
 
-    /// Текстуры под размер окна; при изменении размера — новые, под тем же номером текстуры egui.
+    /// Textures sized to the window; on resize — new ones, under the same egui texture id.
     fn ensure_target(&mut self, rs: &egui_wgpu::RenderState, size: [u32; 2]) {
         if self.target.as_ref().is_none_or(|t| t.size != size) {
             let tex = |samples: u32, format: wgpu::TextureFormat, usage: wgpu::TextureUsages| {
@@ -609,7 +608,7 @@ impl Gpu {
     }
 }
 
-/// Картинка RGBA → текстура видеокарты и её привязка.
+/// RGBA image → GPU texture and its bind group.
 fn upload(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout, sampler: &wgpu::Sampler, w: u32, h: u32, rgba: &[u8]) -> wgpu::BindGroup {
     let size = wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 };
     let tex = device.create_texture(&wgpu::TextureDescriptor {
@@ -618,8 +617,8 @@ fn upload(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLa
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        // Без пересчёта из sRGB: цвета сцены и так в sRGB (как и цвета деталей), иначе декор темнеет
-        // и становится насыщеннее (светло-жёлтый — оранжевым).
+        // No sRGB conversion: scene colors are already sRGB (like part colors), otherwise the decor gets darker
+        // and more saturated (light yellow turns orange).
         format: wgpu::TextureFormat::Rgba8Unorm,
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
@@ -639,14 +638,14 @@ fn upload(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLa
 }
 
 impl Scene {
-    /// `look` — как красить: «В текстурах» — картинка материала детали (номер, плитка мм), «Каркас» — рёбра цветом детали.
+    /// `look` — how to color: "Textured" — the part's material image (index, tile mm), "Wireframe" — edges in part color.
     fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: &[usize], furniture: &[FurnView], look: Look, offset: [f32; 3]) -> Scene {
         let (textures, wire) = match look {
             Look::Textured(t) => (Some(t), false),
             Look::Wire => (None, true),
             Look::Plain => (None, false),
         };
-        // Пока выделенное тащат мышью — оно рисуется со сдвигом `offset`.
+        // While the selection is being dragged it is drawn shifted by `offset`.
         let moved = |part: usize, p: [f32; 3]| if selected.contains(&part) { std::array::from_fn(|k| p[k] + offset[k]) } else { p };
         let mut tris = Vec::with_capacity(m.vertices.len() * STRIDE as usize);
         let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
@@ -661,7 +660,7 @@ impl Scene {
             } else {
                 color(m.kinds[part])
             };
-            // Волокна — вдоль длины плитки: у вертикальной текстуры — вдоль Y контура.
+            // Grain runs along the tile length: for a vertical texture — along contour Y.
             let uv = match (tex, textures) {
                 (Some(i), Some(t)) => {
                     let tile = t[i].2;
@@ -677,7 +676,7 @@ impl Scene {
                 hi[k] = hi[k].max(v.pos[k]);
             }
         }
-        // Габарит с фурнитурой — до осей проекта, их длина от габарита.
+        // Bounds including fittings — up to the project axes, their length derived from the bounds.
         for f in furniture {
             for p in f.mesh.iter().flatten() {
                 let w = f.frame.apply(p.map(f64::from));
@@ -691,7 +690,7 @@ impl Scene {
             (lo, hi) = ([0.0; 3], [1000.0; 3]);
         }
         let mut lines = Vec::new();
-        // Рёбра тёмные поверх граней; в «Каркасе» граней нет, фон тёмный — рёбра цвета детали.
+        // Dark edges over faces; in "Wireframe" there are no faces and the background is dark — edges in part color.
         let edge_of = |part: usize| match (wire, selected.contains(&part)) {
             (false, _) => [0.15, 0.15, 0.15, 1.0],
             (true, true) => [SELECTED[0], SELECTED[1], SELECTED[2], 1.0],
@@ -706,14 +705,14 @@ impl Scene {
             push_vertex(&mut lines, moved(*part as usize, *b), [0.0; 3], edge);
         }
         let line_count = m.lines.len() as u32 * 2;
-        // Оси проекта в начале координат: X — красная, Y — зелёная, Z — синяя.
+        // Project axes at the origin: X — red, Y — green, Z — blue.
         let len = (0..3).map(|k| hi[k] - lo[k]).fold(0.0, f32::max) * 0.15;
         let axes = [([len, 0.0, 0.0], [0.85, 0.1, 0.1, 1.0]), ([0.0, len, 0.0], [0.1, 0.6, 0.1, 1.0]), ([0.0, 0.0, len], [0.1, 0.25, 0.9, 1.0])];
         for (end, c) in axes {
             push_vertex(&mut lines, [0.0; 3], [0.0; 3], c);
             push_vertex(&mut lines, end, [0.0; 3], c);
         }
-        // Оси каждой детали (для рентгена): от начала её системы координат, 60 мм.
+        // Each part's axes (for x-ray): from its coordinate origin, 60 mm.
         let mut part_axes = 0;
         for p in parts {
             let Some(f) = p.panel.frame else { continue };
@@ -724,7 +723,7 @@ impl Scene {
                 part_axes += 2;
             }
         }
-        // Отверстия: красная линия от входа вдоль сверления на глубину.
+        // Holes: a red line from the entry along the drilling direction to the depth.
         let mut holes = 0;
         for p in parts {
             let Some(f) = p.panel.frame else { continue };
@@ -736,7 +735,7 @@ impl Scene {
                 holes += 2;
             }
         }
-        // Фурнитура без сетки — рамкой по габариту (выделенная — оранжевой).
+        // Fittings without a mesh — a box by bounds (selected — orange).
         for FurnView { frame: fr, lo, hi, selected: sel, .. } in furniture.iter().filter(|f| f.mesh.is_empty()) {
             let c = if *sel { [1.0, 0.55, 0.1, 1.0] } else { [0.15, 0.35, 0.85, 1.0] };
             let corner = |i: usize| fr.apply(std::array::from_fn(|k| if i >> k & 1 == 0 { lo[k] } else { hi[k] })).map(|v| v as f32);
@@ -746,7 +745,7 @@ impl Scene {
                 holes += 2;
             }
         }
-        // Треугольники — пачками по картинке.
+        // Triangles — in batches per image.
         let mut order: Vec<usize> = (0..m.indices.len() / 3).collect();
         order.sort_by_key(|&t| tex_of(m.vertices[m.indices[3 * t] as usize].part as usize).map_or(0, |i| i + 1));
         let mut batches: Vec<(Option<usize>, std::ops::Range<u32>)> = Vec::new();
@@ -760,7 +759,7 @@ impl Scene {
             }
             sorted.extend_from_slice(&m.indices[3 * t..3 * t + 3]);
         }
-        // Фурнитура с сеткой — своими треугольниками (металл серый, выделенная — оранжевая), без картинки.
+        // Fittings with a mesh — their own triangles (metal gray, selected — orange), no image.
         let mut furn_tris = Vec::new();
         let mut next = m.vertices.len() as u32;
         let start = sorted.len() as u32;
@@ -792,7 +791,7 @@ impl Scene {
         }
         let index_bytes: Vec<u8> = sorted.iter().flat_map(|i| i.to_le_bytes()).collect();
         let buf = |data: &[u8], usage| {
-            // Пустой буфер wgpu не создаёт — кладём хотя бы 4 байта.
+            // wgpu doesn't create an empty buffer — put at least 4 bytes.
             let data = if data.is_empty() { &[0u8; 4][..] } else { data };
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("3d"), contents: data, usage })
         };
@@ -814,7 +813,7 @@ impl Scene {
 }
 
 impl Viewport {
-    /// Вписать сцену в окно размером `size` пикселей.
+    /// Fit the scene into a window of `size` pixels.
     fn fit(&mut self, size: Vec2) {
         let Some(s) = &self.scene else { return };
         self.camera.target = std::array::from_fn(|k| (s.lo[k] + s.hi[k]) / 2.0);
@@ -822,7 +821,7 @@ impl Viewport {
         self.camera.mm_per_px = diag / size.x.min(size.y).max(50.0) * 1.1;
     }
 
-    /// Окно с заданным видом (для «4 окон»): угол в градусах, подпись в углу.
+    /// A window with a fixed view (for "4 windows"): angle in degrees, corner caption.
     pub fn with_view(yaw: f32, pitch: f32, label: &'static str) -> Viewport {
         let mut v = Viewport::default();
         (v.camera.yaw, v.camera.pitch) = (yaw.to_radians(), pitch.to_radians());
@@ -830,22 +829,22 @@ impl Viewport {
         v
     }
 
-    /// Вписать сцену заново при следующем показе.
+    /// Refit the scene on the next show.
     pub fn refit(&mut self) {
         self.fitted = false;
     }
 
-    /// Ждёт ли окно вписывания (нажали «Показать всё»).
+    /// Whether the window is waiting for a fit ("Show all" was pressed).
     pub fn needs_fit(&self) -> bool {
         !self.fitted
     }
 
-    /// Камера под углами (градусы): поворот вокруг вертикали и наклон.
+    /// Camera at angles (degrees): rotation about the vertical and tilt.
     pub fn set_view(&mut self, yaw: f32, pitch: f32) {
         (self.camera.yaw, self.camera.pitch) = (yaw.to_radians(), pitch.to_radians());
     }
 
-    /// Панель видов и режимов над окном модели — иконки, как в cadcraft.
+    /// View and mode bar above the model window — icons, as in cadcraft.
     pub fn toolbar(&mut self, ui: &mut egui::Ui) {
         use crate::icons::{Icon, button};
         const S: f32 = 26.0;
@@ -877,15 +876,15 @@ impl Viewport {
         }
     }
 
-    /// Сдвиг выделенного при перетаскивании: по оси проекта, вдоль которой на экране идёт мышь, целые мм.
-    /// Мировые оси вправо и вверх по экрану у вида без поворота («Спереди», «Слева», «Сверху»).
+    /// Offset of the dragged selection: along the project axis the mouse moves along on screen, whole mm.
+    /// World axes pointing right and up on screen for an unrotated view ("Front", "Left", "Top").
     fn screen_axes(&self) -> Option<[usize; 2]> {
         let (_, r, u) = self.camera.basis();
         let axis = |v: [f32; 3]| (0..3).find(|&k| v[k].abs() > 0.999);
         Some([axis(r)?, axis(u)?])
     }
 
-    /// Точка проекта на экране: смещение от центра окна, точки egui.
+    /// Project point on screen: offset from the window center, egui points.
     fn to_screen(&self, p: [f64; 3]) -> Vec2 {
         let (_, r, u) = self.camera.basis();
         let d: [f32; 3] = std::array::from_fn(|k| p[k] as f32 - self.camera.target[k]);
@@ -893,7 +892,7 @@ impl Viewport {
         Vec2::new(dot(r), -dot(u)) / self.camera.mm_per_px
     }
 
-    /// Сдвиг мыши `m` (пиксели) в мм вдоль осей экрана `axes`.
+    /// Mouse offset `m` (pixels) to mm along screen axes `axes`.
     fn screen_mm(&self, axes: [usize; 2], m: Vec2) -> [f64; 2] {
         let (_, r, u) = self.camera.basis();
         let k = f64::from(self.camera.mm_per_px);
@@ -903,7 +902,7 @@ impl Viewport {
     fn drag_offset(&self) -> [f64; 3] {
         let Some(d) = self.dragging else { return [0.0; 3] };
         let (_, r, u) = self.camera.basis();
-        // Экранное направление оси k на 1 мм (пиксели, y вниз).
+        // Screen direction of axis k per 1 mm (pixels, y down).
         let screen = |k: usize| Vec2::new(r[k], -u[k]) / self.camera.mm_per_px;
         let best = (0..3).filter(|&k| screen(k).length() > 0.25 / self.camera.mm_per_px).max_by(|&a, &b| {
             let c = |k: usize| (d.dot(screen(k)) / screen(k).length()).abs();
@@ -917,8 +916,8 @@ impl Viewport {
         out
     }
 
-    /// Деталь под точкой экрана (смещение от центра окна в точках egui).
-    /// Ближайшее под точкой экрана: деталь (`Ok`) или фурнитура (`Err` — номер объекта).
+    /// Part under a screen point (offset from the window center in egui points).
+    /// Nearest thing under a screen point: a part (`Ok`) or a fitting (`Err` — object number).
     fn pick(&self, off: Vec2) -> Option<Result<usize, u32>> {
         let s = self.scene.as_ref()?;
         let depth = (0..3).map(|k| (s.hi[k] - s.lo[k]).abs()).sum::<f32>() * 4.0 + 1000.0;
@@ -932,8 +931,8 @@ impl Viewport {
         parts.chain(furniture).min_by(|a, b| a.0.total_cmp(&b.0)).map(|(_, h)| h)
     }
 
-    /// Окно модели. `revision` меняется, когда меняются детали — тогда сетка строится заново.
-    /// Возвращает щелчок (по детали, по пустому месту, правой кнопкой) и отклик окна — к нему цепляется меню.
+    /// Model window. `revision` changes when parts change — then the mesh is rebuilt.
+    /// Returns the click (on a part, on empty space, right button) and the window response — the menu attaches to it.
     pub fn show(&mut self, ui: &mut egui::Ui, frame: &eframe::Frame, parts: &[Part], revision: u64, selected: &[usize], skip: impl Fn(&Part) -> bool) -> (Click, Option<egui::Response>) {
         let Some(rs) = frame.wgpu_render_state() else {
             ui.label(crate::i18n::t("3D недоступно: окно запущено без видеокарты (wgpu)."));
@@ -972,7 +971,7 @@ impl Viewport {
             self.fit(rect.size());
             self.fitted = true;
         }
-        // ЛКМ — вращение, ПКМ — сдвиг, колесо — масштаб относительно точки под курсором.
+        // LMB — rotate, RMB — pan, wheel — zoom about the point under the cursor.
         let mut click = Click::None;
         if resp.clicked()
             && let Some(pos) = resp.interact_pointer_pos()
@@ -991,7 +990,7 @@ impl Viewport {
                 hit => Click::Menu(hit.and_then(Result::ok)),
             };
         }
-        // Маркеры размера, как на виде спереди: в окнах без поворота у одной выделенной прямоугольной панели.
+        // Size handles, as in the front view: in unrotated windows, for a single selected rectangular panel.
         let sized = match (self.label, self.screen_axes(), selected) {
             (Some(_), Some(axes), &[i]) if parts[i].id != 0 && parts[i].panel.is_rect() => Some((i, axes)),
             _ => None,
@@ -1003,7 +1002,7 @@ impl Viewport {
             let (lo, hi) = resized(parts, i, axes, self.resize.map_or([0; 2], |(h, _)| h), d, 10.0 * f64::from(self.camera.mm_per_px));
             for hx in [-1i8, 0, 1] {
                 for hy in [-1i8, 0, 1] {
-                    // По толщине размер не тянется.
+                    // Size can't be dragged along the thickness.
                     if (hx, hy) == (0, 0) || (hx != 0 && f.z[axes[0]].abs() > 0.5) || (hy != 0 && f.z[axes[1]].abs() > 0.5) {
                         continue;
                     }
@@ -1012,7 +1011,7 @@ impl Viewport {
                         let k = axes[n];
                         p[k] = match h { -1 => lo[k], 1 => hi[k], _ => (lo[k] + hi[k]) / 2.0 };
                     }
-                    // Деталь тащат — маркеры едут вместе с ней.
+                    // The part is being dragged — handles move with it.
                     let mv = self.drag_offset();
                     markers.push(([hx, hy], rect.center() + self.to_screen(std::array::from_fn(|k| p[k] + mv[k]))));
                 }
@@ -1042,7 +1041,7 @@ impl Viewport {
         } else {
             self.resize = None;
         }
-        // Начали тянуть по выделенной детали — двигаем её, по пустому месту или другой детали — вращаем вид.
+        // Drag started on a selected part — move it; on empty space or another part — rotate the view.
         if self.resize.is_none()
             && resp.drag_started_by(egui::PointerButton::Primary)
             && let Some(o) = ui.input(|i| i.pointer.press_origin())
@@ -1063,7 +1062,7 @@ impl Viewport {
             }
         } else if self.resize.is_some() {
         } else if resp.dragged_by(egui::PointerButton::Primary) && self.label.is_some() {
-            // Окна «Спереди», «Слева», «Сверху» (4 вида) не поворачиваются: тянуть — двигать вид.
+            // "Front", "Left", "Top" windows (4 views) don't rotate: dragging pans the view.
             self.camera.pan(resp.drag_delta());
         } else if resp.dragged_by(egui::PointerButton::Primary) {
             let d = resp.drag_delta();
@@ -1078,7 +1077,7 @@ impl Viewport {
             if scroll != 0.0 {
                 let k = (-scroll * 0.002).exp();
                 let off = pos - rect.center();
-                // Точка под курсором остаётся на месте: сдвиг на долю смещения от центра.
+                // The point under the cursor stays put: pan by a fraction of the offset from the center.
                 self.camera.pan(-off * (1.0 - k));
                 self.camera.mm_per_px *= k;
             }
@@ -1150,7 +1149,7 @@ impl Viewport {
             let axes = scene.line_count..scene.line_count + scene.axes_count;
             let part_axes = axes.end..axes.end + scene.part_axes_count;
             let holes = part_axes.end..part_axes.end + scene.holes_count;
-            // Сетка — первой и с глубиной: детали её закрывают.
+            // Grid first and with depth: parts occlude it.
             if self.grid.on {
                 pass.set_pipeline(&gpu.grid_pipe);
                 pass.set_bind_group(0, &gpu.grid_bind, &[]);
@@ -1165,7 +1164,7 @@ impl Viewport {
                     pass.draw_indexed(0..scene.index_count, 0, 0..1);
                     pass.set_vertex_buffer(0, scene.lines.slice(..));
                     if self.mode == Mode::Hidden {
-                        // shortcut: скрытые рёбра — светлой сплошной линией, не штрихом.
+                        // shortcut: hidden edges as a light solid line, not dashed.
                         pass.set_pipeline(&gpu.lines_hidden);
                         pass.draw(edges.clone(), 0..1);
                     }
@@ -1243,17 +1242,17 @@ mod tests {
         v.drag_offset()
     }
 
-    /// Сетка — всегда за моделью: спереди — плоскость через начало (зад шкафа), сзади — за его передом.
+    /// The grid is always behind the model: from the front — the plane through the origin (cabinet back), from behind — behind its front.
     #[test]
     fn grid_stays_behind_the_model() {
-        // Шкаф по глубине 0…300. Взгляд спереди (к −Z): сетка на 0. Сзади (к +Z): на 300.
+        // Cabinet depth 0…300. Looking from the front (towards −Z): grid at 0. From behind (towards +Z): at 300.
         assert_eq!(grid_plane(-1.0, 0.0, 300.0), 0.0);
         assert_eq!(grid_plane(1.0, 0.0, 300.0), 300.0);
-        // Модель целиком за началом — сетка остаётся на нуле.
+        // Model entirely behind the origin — the grid stays at zero.
         assert_eq!(grid_plane(1.0, -500.0, -100.0), 0.0);
     }
 
-    /// Маркер размера: край тянется на сдвиг мыши и прилипает к краю соседней детали.
+    /// Size handle: the edge follows the mouse offset and snaps to a neighbouring part's edge.
     #[test]
     fn marker_resizes_and_snaps() {
         let mut s = dowel::design::Session::new(dowel::design::Project::new("т"));
@@ -1261,25 +1260,25 @@ mod tests {
         s.execute("panel.add", &serde_json::json!({"material": "ЛДСП 16", "plane": "front", "size": [400, 600], "position": [0, 0, 0]})).unwrap();
         s.execute("panel.add", &serde_json::json!({"material": "ЛДСП 16", "plane": "vertical", "size": [300, 700], "position": [500, 0, 0]})).unwrap();
         let parts = dowel::design::build(&s.project).unwrap();
-        // Правый край первой панели (X) на +93 мм: 493 прилипает к 500 (ближе 10 мм).
+        // Right edge of the first panel (X) by +93 mm: 493 snaps to 500 (within 10 mm).
         let (lo, hi) = resized(&parts, 0, [0, 1], [1, 0], [93.0, 0.0], 10.0);
         assert_eq!((lo, hi), ([0.0, 0.0, 0.0], [500.0, 600.0, 16.0]));
-        // Верх на +50,4 мм: соседей рядом нет — целые мм.
+        // Top by +50.4 mm: no neighbours nearby — whole mm.
         let (_, hi) = resized(&parts, 0, [0, 1], [0, 1], [0.0, 50.4], 10.0);
         assert_eq!(hi[1], 650.0);
     }
 
-    /// Тянем выделенное: сдвиг идёт по одной оси проекта — той, вдоль которой на экране движется мышь.
+    /// Dragging the selection: offset goes along one project axis — the one the mouse moves along on screen.
     #[test]
     fn drag_moves_along_the_screen_axis() {
-        // Спереди: вправо — +X, вверх — +Y; 100 пикселей при 2 мм/пиксель — 200 мм.
+        // Front: right — +X, up — +Y; 100 pixels at 2 mm/pixel — 200 mm.
         assert_eq!(drag(0.0, 0.0, Vec2::new(100.0, 0.0)), [200.0, 0.0, 0.0]);
         assert_eq!(drag(0.0, 0.0, Vec2::new(5.0, -100.0)), [0.0, 200.0, 0.0]);
-        // Сверху: вниз по экрану — к зрителю, +Z.
+        // Top: down the screen — towards the viewer, +Z.
         let top = drag(0.0, 89.9, Vec2::new(0.0, 50.0));
         assert_eq!((top[0], top[1]), (0.0, 0.0));
         assert!(top[2] > 0.0, "{top:?}");
-        // Аксонометрия: горизонтально вправо — по X.
+        // Axonometry: horizontally right — along X.
         let iso = drag(Camera::AXON.0, Camera::AXON.1, Vec2::new(80.0, 0.0));
         assert!(iso[0] > 0.0 && iso[1] == 0.0 && iso[2] == 0.0, "{iso:?}");
     }

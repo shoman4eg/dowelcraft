@@ -1,17 +1,17 @@
-//! Числовые поля с вычислением выражений: можно набрать `600-4`, `720+18`, `(800-36)/2`, «600 мм + 100»,
-//! а в редакторе корпуса — его размеры буквами: `W/2`, `H-100`, `D-T` (русские `Ш`, `В`, `Г`, `Т` — синонимы).
-//! Вычислитель взят из QuadFurn (github.com/rbm13s/QuadFurn, `src/ui_panels.rs`) с разрешения автора.
+//! Numeric fields that evaluate expressions: you can type `600-4`, `720+18`, `(800-36)/2`, "600 mm + 100",
+//! and in the cabinet editor its dimensions as letters: `W/2`, `H-100`, `D-T` (single-letter Russian names are aliases).
+//! The evaluator is taken from QuadFurn (github.com/rbm13s/QuadFurn, `src/ui_panels.rs`) with the author's permission.
 
 use std::cell::RefCell;
 
 use eframe::egui;
 
 thread_local! {
-    /// Переменные формул текущего редактора: (имена, значение, пояснение).
+    /// Formula variables of the current editor: (names, value, description).
     static VARS: RefCell<Vec<(&'static [&'static str], f64, &'static str)>> = const { RefCell::new(Vec::new()) };
 }
 
-/// Переменные для формул на время `body` (редактор корпуса: ширина, высота…).
+/// Formula variables for the duration of `body` (cabinet editor: width, height…).
 pub fn with_vars<R>(vars: Vec<(&'static [&'static str], f64, &'static str)>, body: impl FnOnce() -> R) -> R {
     VARS.with(|v| *v.borrow_mut() = vars);
     let r = body();
@@ -19,7 +19,7 @@ pub fn with_vars<R>(vars: Vec<(&'static [&'static str], f64, &'static str)>, bod
     r
 }
 
-/// Подставить переменные и убрать «мм»; неизвестное слово — ошибка (а не тихий пропуск).
+/// Substitute variables and strip "mm"; an unknown word is an error (not silently skipped).
 fn substitute(input: &str) -> Option<String> {
     let mut out = String::new();
     let mut word = String::new();
@@ -47,9 +47,9 @@ fn substitute(input: &str) -> Option<String> {
     Some(out)
 }
 
-/// Подсказка к числовому полю: что можно написать.
+/// Hint for a numeric field: what can be typed.
 fn formula_help() -> String {
-    // Основное имя — английское, русское — в скобках как синоним: «W (Ш) — ширина (800)».
+    // The primary name is English, the Russian one is in parentheses as an alias: "W (<ru>) — width (800)".
     let vars = VARS.with(|v| v.borrow().iter().map(|(names, x, what)| {
         let alias = if names.len() > 1 { format!(" ({})", names[1..].join(", ")) } else { String::new() };
         format!("{}{alias} — {} ({x})", names[0], crate::i18n::t(what))
@@ -63,9 +63,9 @@ fn formula_help() -> String {
     s
 }
 
-/// Вычисляет математическое выражение в числовом поле ввода (поддерживает `+`, `-`, `*`, `/`, скобки `(...)`,
-/// точку и запятую в качестве десятичного разделителя, а также пробелы и суффиксы единиц измерения).
-/// Примеры: `"600+100"` -> `700.0`, `"600-4"` -> `596.0`, `"800-18-18"` -> `764.0`, `"(800-36)/2"` -> `382.0`.
+/// Evaluates a math expression in a numeric input field (supports `+`, `-`, `*`, `/`, parentheses `(...)`,
+/// dot and comma as decimal separator, plus spaces and unit suffixes).
+/// Examples: `"600+100"` -> `700.0`, `"600-4"` -> `596.0`, `"800-18-18"` -> `764.0`, `"(800-36)/2"` -> `382.0`.
 pub fn eval_math_expression(input: &str) -> Option<f64> {
     let input = substitute(input)?;
     let cleaned: String = input
@@ -192,21 +192,21 @@ pub fn eval_math_expression(input: &str) -> Option<f64> {
     }
 }
 
-/// `DragValue`, понимающий выражения.
+/// `DragValue` that understands expressions.
 pub fn drag<N: egui::emath::Numeric>(value: &mut N) -> egui::DragValue<'_> {
-    // Не больше двух знаков после запятой: хвосты вычислений (118.00000000000786) не показываются, значение не меняется.
+    // At most two decimals: calculation tails (118.00000000000786) aren't shown, the value is unchanged.
     egui::DragValue::new(value).custom_parser(eval_math_expression).max_decimals(2)
 }
 
-/// Числовое поле, которое можно тянуть мышью, даже если значение каждый кадр берётся заново из проекта:
-/// пока тянут, промежуточное число хранится в памяти egui и подставляется вместо значения из проекта.
-/// Без этого сдвиг мыши за кадр терялся и поле «не тянулось». Команду вызывающий шлёт, когда отпустили.
+/// A numeric field that can be dragged with the mouse even if its value is re-read from the project every frame:
+/// while dragging, the intermediate number is kept in egui memory and used instead of the project value.
+/// Without this the per-frame mouse delta was lost and the field "wouldn't drag". The caller sends the command on release.
 pub fn add<N: egui::emath::Numeric + Send + Sync + 'static>(ui: &mut egui::Ui, value: &mut N, style: impl FnOnce(egui::DragValue<'_>) -> egui::DragValue<'_>) -> egui::Response {
     let id = ui.next_auto_id().with("drag_in_progress");
     if let Some(v) = ui.data(|d| d.get_temp::<N>(id)) {
         *value = v;
     }
-    // Поле пошире, чтобы набирать формулу было удобно.
+    // Wider field so typing a formula is comfortable.
     let r = ui.scope(|ui| {
         let w = ui.spacing().interact_size.x.max(80.0);
         ui.spacing_mut().interact_size.x = w;
@@ -237,8 +237,8 @@ mod tests {
         assert_eq!(eval_math_expression("abc"), None);
     }
 
-    /// Значение каждый кадр берётся «из проекта» (10), а мышь тянет поле на 60 точек:
-    /// после отпускания должно получиться 10 + 60, а не 10 + сдвиг последнего кадра.
+    /// The value is re-read "from the project" every frame (10), and the mouse drags the field by 60 points:
+    /// after release it must be 10 + 60, not 10 + the last frame's delta.
     #[test]
     fn drag_survives_value_from_project() {
         let ctx = egui::Context::default();
@@ -271,7 +271,7 @@ mod tests {
         assert!((v - 70.0).abs() < 2.0, "получилось {v}, ждали около 70");
     }
 
-    /// Переменные редактора: Ш/2, В-100, «ш» строчной; неизвестное слово — ошибка.
+    /// Editor variables via Russian aliases (`<ru>/2`, `<ru>-100`, lowercase too); an unknown word is an error.
     #[test]
     fn variables_in_formulas() {
         with_vars(vec![(&["W", "Ш"][..], 800.0, "ширина"), (&["T", "Т"][..], 16.0, "толщина")], || {
@@ -280,7 +280,7 @@ mod tests {
             assert_eq!(eval_math_expression("(W - T) / 2 мм"), Some(392.0));
             assert_eq!(eval_math_expression("Х+1"), None);
         });
-        // Вне редактора букв нет.
+        // Outside the editor there are no letters.
         assert_eq!(eval_math_expression("Ш/2"), None);
         assert_eq!(eval_math_expression("600 мм + 100"), Some(700.0));
     }

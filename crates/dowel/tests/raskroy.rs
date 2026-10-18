@@ -1,8 +1,8 @@
-//! Структура выгрузки для Раскроя совпадает с эталонами из `reference/`.
+//! The Raskroy export structure matches the references in `reference/`.
 
 use std::path::Path;
 
-/// Последовательность прямых потомков первого элемента `<tag>` (только имена тегов).
+/// Sequence of direct children of the first `<tag>` element (tag names only).
 fn children(xml: &str, tag: &str) -> Vec<String> {
     let open = xml.find(&format!("<{tag}>")).or_else(|| xml.find(&format!("<{tag} "))).expect(tag);
     let start = open + xml[open..].find('>').unwrap() + 1;
@@ -23,11 +23,11 @@ fn children(xml: &str, tag: &str) -> Vec<String> {
             if depth == 0 {
                 out.push(t.to_string());
             }
-            // Лист вида <A>1</A>: следующий тег — его же закрывающий.
+            // Leaf like <A>1</A>: the next tag is its own closing tag.
             let after = &rest[end + 1..];
             let next = after.find('<').map(|j| &after[j + 1..]).unwrap_or("");
             if next.starts_with(&format!("/{t}>")) {
-                // Пропускаем закрывающий тег листа целиком.
+                // Skip the leaf's closing tag entirely.
                 rest = &next[t.len() + 2..];
                 continue;
             }
@@ -60,12 +60,12 @@ fn structure_matches_reference() {
     };
     for tag in ["PROJECT", "MATERIALROOTNODE", "BOARDROOTNODE", "BINDINGROOTNODE", "MATERIALCORE", "MATERIALOUTER", "BOARDSMP", "EDGEBOT", "CONTITEMPLINE"] {
         let mut want = children(&r, tag);
-        // COMMENT — необязательный комментарий, сверловку не выгружаем.
+        // COMMENT is an optional comment; drilling is not exported.
         want.retain(|t| t != "COMMENT");
         let mut got = children(&o, tag);
         got.retain(|t| t != "COMMENT");
         if tag == "EDGEBOT" {
-            // Сторона без кромки выгружается без MATERIAL — в эталоне есть оба варианта.
+            // A side without edge banding is exported without MATERIAL — the reference has both variants.
             want.retain(|t| t != "MATERIAL");
             got.retain(|t| t != "MATERIAL");
         }

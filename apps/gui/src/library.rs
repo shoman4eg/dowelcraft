@@ -1,5 +1,5 @@
-//! Вкладка «Фурнитура»: модели .fr3d деревом папок, как они лежат на диске (раздел → производитель → модель).
-//! С поиском — плоский список найденного с путём папки.
+//! "Fittings" tab: .fr3d models as a folder tree, as laid out on disk (section → manufacturer → model).
+//! With a search — a flat list of matches with the folder path.
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
@@ -7,10 +7,10 @@ use std::path::{Path, PathBuf};
 use dowel::library::ModelInfo;
 use eframe::egui::{self, Color32, Vec2};
 
-/// Превью моделей: путь → текстура egui.
+/// Model previews: path → egui texture.
 pub type Thumbs = HashMap<PathBuf, egui::TextureHandle>;
 
-/// Папка дерева: подпапки и номера моделей в ней.
+/// Tree folder: subfolders and indices of models in it.
 #[derive(Default)]
 struct Folder {
     dirs: BTreeMap<String, Folder>,
@@ -23,7 +23,7 @@ impl Folder {
     }
 }
 
-/// Папки модели: имя папки библиотеки, в которой она лежит, и подпапки внутри неё.
+/// Model folders: name of the library folder it lives in, and the subfolders inside it.
 fn folders(roots: &[PathBuf], m: &ModelInfo) -> Vec<String> {
     let dir = m.path.parent().unwrap_or(Path::new(""));
     let Some(root) = roots.iter().filter(|r| dir.starts_with(r)).max_by_key(|r| r.components().count()) else {
@@ -33,7 +33,7 @@ fn folders(roots: &[PathBuf], m: &ModelInfo) -> Vec<String> {
     std::iter::once(name).chain(dir.strip_prefix(root).unwrap_or(dir).components().map(|c| c.as_os_str().to_string_lossy().into_owned())).collect()
 }
 
-/// Строка модели: превью, название, вид и размер, «Поставить». Возвращает true, если нажали «Поставить».
+/// Model row: preview, name, kind and size, "Place". Returns true if "Place" was clicked.
 fn row(ui: &mut egui::Ui, m: &ModelInfo, thumbs: &mut Thumbs, editable: bool, path: Option<&str>) -> bool {
     let mut place = false;
     ui.horizontal(|ui| {
@@ -69,7 +69,7 @@ fn show_folder(ui: &mut egui::Ui, id: &str, f: &Folder, models: &[ModelInfo], th
     }
 }
 
-/// Дерево (или найденное по `query`); возвращает файл, который надо поставить.
+/// Tree (or matches for `query`); returns the file to place.
 pub fn show(ui: &mut egui::Ui, roots: &[PathBuf], models: &[ModelInfo], thumbs: &mut Thumbs, editable: bool, query: &str) -> Option<PathBuf> {
     let q = query.trim().to_lowercase();
     let mut place = None;

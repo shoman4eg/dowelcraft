@@ -1,7 +1,7 @@
-//! Двери и ящики в проём (как «Установка дверей» и «Установка ящиков» в Базисе). Проём — по точке
-//! на виде спереди ([`super::fill`]). Дверь с петлями и ящики с направляющими — блоки; петли и
-//! направляющие — фурнитура, их отверстия садятся в двери, стойки и короба.
-//! Размеры петли — по «Петля накладная с доводчиком» из моделей Базиса (`FurnList`).
+//! Doors and drawers in an opening (like "Door installation" and "Drawer installation" in Bazis). The opening
+//! is found by a front-view point ([`super::fill`]). A door with hinges and drawers with runners are blocks; hinges and
+//! drawer runners are hardware, their holes are drilled into doors, uprights and drawer boxes.
+//! Hinge dimensions follow the overlay soft-close hinge from the Bazis models (`FurnList`).
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -13,15 +13,15 @@ use crate::panel::{Texture, WorldHole};
 #[derive(Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "lowercase")]
 enum Mount {
-    /// Накладная: закрывает торцы стоек.
+    /// Overlay: covers the upright edges.
     Overlay,
-    /// Полунакладная: до середины толщины стоек.
+    /// Half-overlay: up to the middle of the upright thickness.
     Half,
-    /// Вкладная: внутри проёма, вровень с передом.
+    /// Inset: inside the opening, flush with the front.
     Inset,
 }
 
-/// Границы проёма у точки: левая, правая, нижняя, верхняя детали.
+/// Opening boundaries at a point: left, right, bottom, top parts.
 fn opening<'a>(parts: &'a [Part], at: [f64; 2]) -> Result<[&'a Part; 4], String> {
     let blocks = |p: &&Part| !matches!(p.kind, Kind::Door | Kind::Drawer);
     let side = |axis: usize, lo: bool| -> Option<&'a Part> {
@@ -37,8 +37,8 @@ fn opening<'a>(parts: &'a [Part], at: [f64; 2]) -> Result<[&'a Part; 4], String>
     Ok([need(side(0, true), "слева")?, need(side(0, false), "справа")?, need(side(1, true), "снизу")?, need(side(1, false), "сверху")?])
 }
 
-/// Края фасада по оси между границами `lo` и `hi`: накладной — по внешним граням, полунакладной — по серединам,
-/// вкладной — по внутренним; минус зазор.
+/// Front edges along an axis between boundaries `lo` and `hi`: overlay — at outer faces, half-overlay — at middles,
+/// inset — at inner faces; minus the gap.
 fn span(lo: &Part, hi: &Part, axis: usize, mount: Mount, gap: f64) -> (f64, f64) {
     let (lmin, lmax, hmin, hmax) = (lo.origin[axis], lo.origin[axis] + lo.size[axis], hi.origin[axis], hi.origin[axis] + hi.size[axis]);
     let (a, b) = match mount {
@@ -49,7 +49,7 @@ fn span(lo: &Part, hi: &Part, axis: usize, mount: Mount, gap: f64) -> (f64, f64)
     (a + gap, b - gap)
 }
 
-/// Проём уже закрыт: двери или ящики, чей фасад на виде спереди перекрывает новый `[x0, x1] × [y0, y1]`.
+/// The opening is already closed: doors or drawers whose front on the front view overlaps the new `[x0, x1] × [y0, y1]`.
 fn occupied(parts: &[Part], x: (f64, f64), y: (f64, f64)) -> Result<(), String> {
     let hit = parts.iter().filter(|p| matches!(p.kind, Kind::Door | Kind::Drawer)).find(|p| {
         p.origin[0] < x.1 - 1.0 && x.0 + 1.0 < p.origin[0] + p.size[0] && p.origin[1] < y.1 - 1.0 && y.0 + 1.0 < p.origin[1] + p.size[1]
@@ -60,9 +60,9 @@ fn occupied(parts: &[Part], x: (f64, f64), y: (f64, f64)) -> Result<(), String> 
     }
 }
 
-/// Петля: чашка ⌀35×11,5 в тыльной пласти двери, центр в 22 мм от края; планка — 2 отверстия ⌀2×12 в стойке
-/// в 37 мм от её переднего края, через 32 мм. Положение — на кромке двери (`edge_x`), на высоте петли,
-/// на тыльной пласти (`door_back`); `inward` — +1, если дверь от кромки идёт вправо (петли слева).
+/// Hinge: cup ⌀35×11.5 in the door's back face, center 22 mm from the edge; mounting plate — 2 holes ⌀2×12 in the upright
+/// 37 mm from its front edge, 32 mm apart. Placed at the door edge (`edge_x`), at hinge height,
+/// on the back face (`door_back`); `inward` is +1 if the door extends right from the edge (hinges on the left).
 fn hinge(edge_x: f64, inward: f64, y: f64, door_back: f64, stand_face: f64, stand_front: f64) -> Furniture {
     let hole = |pos: [f64; 3], dir: [f64; 3], diameter: f64, depth: f64| WorldHole { pos, dir, diameter, depth };
     let (px, pz) = (stand_face - edge_x, stand_front - 37.0 - door_back);
@@ -83,12 +83,12 @@ fn hinge(edge_x: f64, inward: f64, y: f64, door_back: f64, stand_face: f64, stan
     }
 }
 
-/// Число петель по высоте двери (практика производителей: до 900 — 2, до 1600 — 3, до 2000 — 4, выше — 5).
+/// Number of hinges by door height (manufacturer practice: up to 900 — 2, up to 1600 — 3, up to 2000 — 4, above — 5).
 fn hinge_count(h: f64) -> usize {
     if h <= 900.0 { 2 } else if h <= 1600.0 { 3 } else if h <= 2000.0 { 4 } else { 5 }
 }
 
-/// `door.add {at, material, mount?, double?, gap?, edge?, hinges?: "left"|"right"|"none"}` → {id блока}.
+/// `door.add {at, material, mount?, double?, gap?, edge?, hinges?: "left"|"right"|"none"}` → {block id}.
 pub fn door(pr: &mut Project, p: &Value) -> Result<Value, String> {
     #[derive(Deserialize)]
     struct A {
@@ -136,7 +136,7 @@ pub fn door(pr: &mut Project, p: &Value) -> Result<Value, String> {
             id, name: "Дверь".into(), pos: String::new(), designation: String::new(), material: m.name.clone(),
             segs: panel.segs, texture: Texture::Vertical, edges: panel.edges, holes: Vec::new(), grooves: Vec::new(), kind: Kind::Door, frame,
         }));
-        // Петли: у двойной двери — у каждой створки со своей стороны, иначе — по выбору.
+        // Hinges: on a double door each leaf on its own side, otherwise as chosen.
         let side_left = match (leaves, i, a.hinges.as_str()) {
             (2, 0, _) => Some(true),
             (2, _, _) => Some(false),
@@ -146,7 +146,7 @@ pub fn door(pr: &mut Project, p: &Value) -> Result<Value, String> {
         };
         if let Some(left_side) = side_left {
             let (edge_x, inward, stand) = if left_side { (x, 1.0, l) } else { (x + w, -1.0, r) };
-            // Планка — на внутренней пласти стойки.
+            // Mounting plate goes on the upright's inner face.
             let face = if left_side { stand.origin[0] + stand.size[0] } else { stand.origin[0] };
             let stand_front = stand.origin[2] + stand.size[2];
             let n = hinge_count(h);
@@ -164,8 +164,8 @@ pub fn door(pr: &mut Project, p: &Value) -> Result<Value, String> {
     Ok(json!({ "id": id }))
 }
 
-/// `drawers.add {at, material, heights: [высоты фасадов снизу вверх], mount?, gap?, depth?, bottom?, edge?}` → {id блока}.
-/// Короб под шариковые направляющие (13 мм на сторону), как у ящиков корпуса.
+/// `drawers.add {at, material, heights: [front heights bottom to top], mount?, gap?, depth?, bottom?, edge?}` → {block id}.
+/// Box for ball-bearing drawer runners (13 mm per side), as in cabinet drawers.
 pub fn drawers(pr: &mut Project, p: &Value) -> Result<Value, String> {
     #[derive(Deserialize)]
     struct A {
@@ -237,7 +237,7 @@ pub fn drawers(pr: &mut Project, p: &Value) -> Result<Value, String> {
         add("Передняя стенка ящика", Kind::Body, &m, bw - 2.0 * tt, bh, Texture::Horizontal, &[2], [bx + tt, by, front_z - tt], [bw - 2.0 * tt, bh, tt])?;
         add("Задняя стенка ящика", Kind::Body, &m, bw - 2.0 * tt, bh, Texture::Horizontal, &[2], [bx + tt, by, bz], [bw - 2.0 * tt, bh, tt])?;
         add("Дно ящика", Kind::Body, &bm, bw, depth, Texture::Default, &[], [bx, by - bm.thickness, bz], [bw, bm.thickness, depth])?;
-        // Направляющие (пара): шурупы ⌀4×12 в стойки на 37 и 261 мм от переднего края, на 10 мм выше низа короба.
+        // Drawer runners (pair): ⌀4×12 screws into the uprights at 37 and 261 mm from the front edge, 10 mm above the box bottom.
         for (stand_face, dir) in [(inner0, -1.0), (inner1, 1.0)] {
             let holes = [37.0, 261.0f64.min(depth - 20.0)]
                 .map(|d| WorldHole { pos: [stand_face, by - bm.thickness + 10.0, front_z - d], dir: [dir, 0.0, 0.0], diameter: 4.0, depth: 12.0 })

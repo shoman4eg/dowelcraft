@@ -1,14 +1,14 @@
-//! PDF без браузера: листы A4 альбомные из наших SVG (карты раскроя, чертежи) с встроенным шрифтом
-//! TrueType (кириллица). Шрифт и сборка PDF перенесены из QuadFurn (github.com/rbm13s/QuadFurn,
-//! `src/export.rs`) с разрешения автора; перевод SVG в команды PDF — свой, для подмножества SVG,
-//! которое генерируют `report` и `drawing` (rect, line, polyline, circle, text, g, штриховка).
+//! PDF without a browser: A4 landscape pages from our SVG (cutting maps, drawings) with an embedded
+//! TrueType font (Cyrillic). Font handling and PDF assembly are ported from QuadFurn (github.com/rbm13s/QuadFurn,
+//! `src/export.rs`) with the author's permission; the SVG → PDF translation is our own, for the SVG subset
+//! that `report` and `drawing` generate (rect, line, polyline, circle, text, g, hatching).
 
 use std::collections::BTreeMap;
 
 use ab_glyph::{Font, FontArc, GlyphId};
 
-/// Если передан файл TrueType Collection (`.ttc`, заголовок `ttcf`), извлекает первое начертание (face 0)
-/// в автономный буфер TrueType (`.ttf`), пригодный для `ab_glyph::FontArc`, `egui::FontData` и `/FontFile2` в PDF.
+/// If given a TrueType Collection (`.ttc`, `ttcf` header), extracts the first face (face 0)
+/// into a standalone TrueType (`.ttf`) buffer usable for `ab_glyph::FontArc`, `egui::FontData` and `/FontFile2` in PDF.
 pub fn ensure_ttf_bytes(bytes: Vec<u8>) -> Vec<u8> {
     if bytes.len() < 16 || &bytes[0..4] != b"ttcf" {
         return bytes;
@@ -68,7 +68,7 @@ pub fn ensure_ttf_bytes(bytes: Vec<u8>) -> Vec<u8> {
     out
 }
 
-/// Шрифт TrueType для PDF: встраивается целиком, текст пишется номерами глифов (Identity-H).
+/// TrueType font for PDF: embedded whole, text is written as glyph numbers (Identity-H).
 struct PdfTrueTypeFont {
     raw_bytes: Vec<u8>,
     font: FontArc,
@@ -76,7 +76,7 @@ struct PdfTrueTypeFont {
     used_glyphs: BTreeMap<u16, (char, i32)>,
 }
 
-/// Системные шрифты с кириллицей: Windows, macOS, Linux.
+/// System fonts with Cyrillic: Windows, macOS, Linux.
 const REGULAR: &[&str] = &[
     "C:\\Windows\\Fonts\\arial.ttf",
     "C:\\Windows\\Fonts\\segoeui.ttf",
@@ -123,7 +123,7 @@ impl PdfTrueTypeFont {
         ((self.font.h_advance_unscaled(gid) * 1000.0) / self.upm).round() as i32
     }
 
-    /// Измеряет ширину строки в пунктах (pt) для заданного кегля
+    /// Measures string width in points (pt) for the given font size
     fn measure_text_pt(&self, text: &str, font_size_pt: f32) -> f32 {
         let mut total_1000 = 0i32;
         for ch in text.chars() {
@@ -133,8 +133,8 @@ impl PdfTrueTypeFont {
         (total_1000 as f32) * (font_size_pt / 1000.0)
     }
 
-    /// Кодирует строку в 16-битные шестнадцатеричные Glyph ID (`<001A002B...>`) для оператора `Tj` в PDF
-    /// и регистрирует использованные глифы для таблиц `/W` и `/ToUnicode`
+    /// Encodes a string as 16-bit hex Glyph IDs (`<001A002B...>`) for the PDF `Tj` operator
+    /// and records used glyphs for the `/W` and `/ToUnicode` tables
     fn encode_hex_gids(&mut self, text: &str) -> String {
         let mut hex = String::with_capacity(text.len() * 4 + 2);
         hex.push('<');
@@ -148,7 +148,7 @@ impl PdfTrueTypeFont {
         hex
     }
 
-    /// Формирует массив ширин глифов `/W [ gid [w] ... ]` для словаря `/CIDFontType2`
+    /// Builds the glyph widths array `/W [ gid [w] ... ]` for the `/CIDFontType2` dictionary
     fn build_widths_array(&self) -> String {
         let mut out = String::from("[");
         for (&gid, &(_, w)) in &self.used_glyphs {
@@ -158,7 +158,7 @@ impl PdfTrueTypeFont {
         out
     }
 
-    /// Формирует поток `/ToUnicode` CMap для корректного копирования и поиска текста в PDF
+    /// Builds the `/ToUnicode` CMap stream for correct text copying and search in PDF
     fn build_tounicode_cmap(&self) -> Vec<u8> {
         let mut cmap = String::new();
         cmap.push_str("/CIDInit /ProcSet findresource begin\n");
@@ -204,12 +204,12 @@ impl PdfTrueTypeFont {
     }
 }
 
-/// A4 альбомный, пункты; листы SVG — в мм (viewBox 0 0 297 210).
+/// A4 landscape, points; SVG pages are in mm (viewBox 0 0 297 210).
 const PAGE_W: f32 = 841.89;
 const PAGE_H: f32 = 595.28;
 const K: f32 = PAGE_W / 297.0;
 
-/// Элемент SVG: имя, атрибуты, текст (у `<text>`); закрывающий тег — `close`.
+/// SVG element: name, attributes, text (for `<text>`); closing tag — `close`.
 struct Tag {
     name: String,
     attrs: BTreeMap<String, String>,
@@ -221,7 +221,7 @@ fn unescape(s: &str) -> String {
     s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'").replace("&amp;", "&")
 }
 
-/// Разбор тега `<name a="v" …>` из среза между `<` и `>`.
+/// Parses a tag `<name a="v" …>` from the slice between `<` and `>`.
 fn tag(body: &str) -> Tag {
     let close = body.starts_with('/');
     let self_closing = body.ends_with('/');
@@ -249,12 +249,12 @@ fn color(v: &str) -> Option<[f32; 3]> {
     }
 }
 
-/// Лист SVG → поток команд PDF. Шрифты: /F1 обычный, /F2 жирный.
+/// SVG page → PDF command stream. Fonts: /F1 regular, /F2 bold.
 fn page(svg: &str, reg: &mut PdfTrueTypeFont, bold: &mut PdfTrueTypeFont) -> String {
     let mut out = String::new();
     let px = |x: f32| x * K;
     let py = |y: f32| PAGE_H - y * K;
-    // Наследуемые атрибуты групп (<svg>, <g>): жирность и т.п.
+    // Inherited group attributes (<svg>, <g>): bold, etc.
     let mut stack: Vec<BTreeMap<String, String>> = vec![BTreeMap::new()];
     let mut in_defs = false;
     let mut i = 0;
@@ -287,7 +287,7 @@ fn page(svg: &str, reg: &mut PdfTrueTypeFont, bold: &mut PdfTrueTypeFont) -> Str
                 if let Some(c) = color(&fill) {
                     out += &format!("{:.3} {:.3} {:.3} rg {r} f\n", c[0], c[1], c[2]);
                 } else if fill.starts_with("url(#") {
-                    // Штриховка под 45° с шагом 2 мм, обрезанная прямоугольником (как pattern в SVG).
+                    // 45° hatching with 2 mm spacing, clipped to the rectangle (like a pattern in SVG).
                     let c = if fill.contains("offcut") { [0.2, 0.2, 0.8] } else { [0.9, 0.2, 0.2] };
                     out += &format!("q {r} W n {:.3} {:.3} {:.3} RG {:.2} w\n", c[0], c[1], c[2], 0.25 * K);
                     let mut s = -h;
@@ -318,7 +318,7 @@ fn page(svg: &str, reg: &mut PdfTrueTypeFont, bold: &mut PdfTrueTypeFont) -> Str
                     out += &format!(" {:.2} {:.2} l", px(p.0), py(p.1));
                 }
                 out += " S [] 0 d\n";
-                // Стрелки размерных линий (marker-start / marker-end).
+                // Dimension line arrows (marker-start / marker-end).
                 let arrow = |tip: (f32, f32), from: (f32, f32)| {
                     let (dx, dy) = (tip.0 - from.0, tip.1 - from.1);
                     let l = (dx * dx + dy * dy).sqrt().max(1e-6);
@@ -361,11 +361,11 @@ fn page(svg: &str, reg: &mut PdfTrueTypeFont, bold: &mut PdfTrueTypeFont) -> Str
                     Some("end") => -width,
                     _ => 0.0,
                 };
-                // dominant-baseline="middle": базовая линия ниже на треть кегля.
+                // dominant-baseline="middle": baseline is a third of the font size lower.
                 let down = if t.attrs.get("dominant-baseline").is_some_and(|v| v == "middle") { size * 0.35 } else { 0.0 };
                 let fill = t.attrs.get("fill").and_then(|v| color(v)).unwrap_or([0.0; 3]);
                 let (x, y) = (px(f("x")), py(f("y")));
-                // rotate(a cx cy): в PDF ось Y вверх — угол меняет знак.
+                // rotate(a cx cy): PDF Y axis points up — the angle flips sign.
                 let angle = t.attrs.get("transform").and_then(|tr| tr.strip_prefix("rotate(")).and_then(|r| r.split_whitespace().next()).and_then(|a| a.parse::<f32>().ok()).unwrap_or(0.0);
                 let (s, c) = (-angle.to_radians()).sin_cos();
                 let (ox, oy) = (x + c * shift + s * down, y + s * shift - c * down);
@@ -378,7 +378,7 @@ fn page(svg: &str, reg: &mut PdfTrueTypeFont, bold: &mut PdfTrueTypeFont) -> Str
     out
 }
 
-/// Листы SVG (A4 альбомный) → один PDF со встроенными шрифтами.
+/// SVG pages (A4 landscape) → one PDF with embedded fonts.
 pub fn from_svg_pages(pages: &[String]) -> Result<Vec<u8>, String> {
     let mut reg = PdfTrueTypeFont::load(REGULAR)?;
     let mut bold = PdfTrueTypeFont::load(BOLD).or_else(|_| PdfTrueTypeFont::load(REGULAR))?;
@@ -436,7 +436,7 @@ mod tests {
     #[test]
     fn svg_page_becomes_pdf() {
         let svg = r##"<svg viewBox="0 0 297 210"><g font-weight="bold"><text x="10" y="12" font-size="6">Заказ «1»</text></g><rect x="10" y="20" width="50" height="30" fill="url(#waste)" stroke="#000" stroke-width="0.3"/><line x1="0" y1="0" x2="10" y2="0" stroke="#000" stroke-width="0.2" marker-end="url(#a)"/><circle cx="5" cy="5" r="2" fill="none" stroke="#000"/><text x="50" y="50" font-size="3" text-anchor="middle" transform="rotate(-90 50 50)">500</text></svg>"##;
-        let Ok(pdf) = from_svg_pages(&[svg.to_string(), svg.to_string()]) else { return }; // нет системного шрифта — нечего проверять
+        let Ok(pdf) = from_svg_pages(&[svg.to_string(), svg.to_string()]) else { return }; // no system font — nothing to check
         assert!(pdf.starts_with(b"%PDF-1.4") && pdf.ends_with(b"%%EOF\n"));
         let s = String::from_utf8_lossy(&pdf);
         assert!(s.contains("/Count 2") && s.contains("BT /F2 17.01 Tf") && s.contains(" re W n"), "жирный текст и штриховка");

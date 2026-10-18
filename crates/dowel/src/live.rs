@@ -1,5 +1,5 @@
-//! Связь с открытым окном: MCP шлёт команды в проект, открытый на экране. Unix-сокет, по строке JSON
-//! на запрос `{command, params}` и ответ `{ok}` или `{error}`.
+//! Link to an open window: MCP sends commands to the project open on screen. Unix socket, one JSON line
+//! per request `{command, params}` and response `{ok}` or `{error}`.
 
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
@@ -7,13 +7,13 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
-/// Сокет окна: в личной папке сеанса (`XDG_RUNTIME_DIR`), иначе в домашней — не в общей `/tmp`,
-/// где чужой пользователь мог бы занять имя первым.
+/// Window socket: in the session's private directory (`XDG_RUNTIME_DIR`), otherwise in home — not in shared `/tmp`,
+/// where another user could grab the name first.
 pub fn socket_path() -> PathBuf {
     std::env::var_os("XDG_RUNTIME_DIR").or_else(|| std::env::var_os("HOME")).map(PathBuf::from).unwrap_or_default().join(".dowel-craft.sock")
 }
 
-/// Подключение к окну.
+/// Connection to a window.
 pub struct Client {
     read: BufReader<UnixStream>,
     write: UnixStream,
@@ -26,7 +26,7 @@ impl Client {
         Ok(Client { read, write: s })
     }
 
-    /// Команда в окно; ошибка связи начинается с «связь с окном».
+    /// Command to the window; a link error starts with the Russian "connection to window" prefix.
     pub fn call(&mut self, command: &str, params: &Value) -> Result<Value, String> {
         writeln!(self.write, "{}", json!({ "command": command, "params": params })).map_err(|e| format!("связь с окном: {e}"))?;
         let mut line = String::new();

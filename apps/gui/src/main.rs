@@ -1,7 +1,7 @@
-//! Окно dowel-craft: проект слева, вид спереди / детали / раскрой в центре.
-//! Все изменения проекта идут через `Session::execute` — те же команды, что у CLI и будущего MCP.
+//! dowel-craft window: project on the left, front view / parts / cutting in the center.
+//! All project changes go through `Session::execute`, the same commands as the CLI and the future MCP.
 
-// Release в Windows — без чёрного окна консоли (debug оставляет её для вывода `--screenshot` и ошибок).
+// Windows release builds have no black console window (debug keeps it for `--screenshot` output and errors).
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
@@ -38,7 +38,7 @@ fn main() -> eframe::Result {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let screenshot = args.iter().position(|a| a == "--screenshot").and_then(|i| args.get(i + 1)).map(PathBuf::from);
     let tab = args.iter().position(|a| a == "--tab").and_then(|i| args.get(i + 1)).cloned();
-    // Режим 3D для снимков: solid | hidden | wire | xray.
+    // 3D mode for screenshots: solid | hidden | wire | xray.
     let mode = args.iter().position(|a| a == "--mode").and_then(|i| args.get(i + 1)).cloned();
     let file = args.iter().enumerate().find(|(i, a)| !a.starts_with("--") && (*i == 0 || !args[i - 1].starts_with("--"))).map(|(_, a)| a);
     let mut app = App::default();
@@ -61,20 +61,20 @@ fn main() -> eframe::Result {
         Some("project") => Pane::Project,
         _ => Pane::Model,
     };
-    // Без файла — стартовая страница на всё окно, как в cadcraft.
+    // No file means a full-window start page, as in cadcraft.
     app.start = (file.is_none() && tab.is_none()) || tab.as_deref() == Some("start");
     app.show_pane(pane);
     app.quad = args.iter().any(|a| a == "--quad");
-    // Для снимков: окно выбора текстуры нового материала.
+    // For screenshots: the texture picker for a new material.
     if let Some(i) = args.iter().position(|a| a == "--pick-texture") {
         app.textures.open_for = Some(textures::Target::New);
         if let Some(q) = args.get(i + 1).filter(|q| !q.starts_with("--")) {
             app.textures.set_search(q);
         }
     }
-    // Для снимков: сколько кадров ждать (фоновые превью успевают загрузиться).
+    // For screenshots: how many frames to wait (so background previews have time to load).
     app.shot_frames = args.iter().position(|a| a == "--frames").and_then(|i| args.get(i + 1)).and_then(|v| v.parse().ok()).unwrap_or(5);
-    // Для снимков: включить инструмент «в проём» (horizontal | vertical | front | door | drawers) или изменения (move).
+    // For screenshots: enable the "into opening" tool (horizontal | vertical | front | door | drawers) or a modify tool (move).
     match args.iter().position(|a| a == "--tool").and_then(|i| args.get(i + 1)).map(String::as_str) {
         Some("move") => app.modify = Some(tools::Modify::Move),
         Some("fasten") => app.fastening = true,
@@ -84,7 +84,7 @@ fn main() -> eframe::Result {
         }
         _ => {}
     }
-    // Для снимков: выделить деталь по номеру.
+    // For screenshots: select a part by number.
     if let Some(i) = args.iter().position(|a| a == "--select").and_then(|i| args.get(i + 1)).and_then(|v| v.parse().ok()) {
         app.select(Some(i));
     }
@@ -96,9 +96,9 @@ fn main() -> eframe::Result {
         "dowel-craft",
         options,
         Box::new(move |cc| {
-            // Тема cadcraft; подсказки к иконкам — почти сразу.
+            // cadcraft theme; icon tooltips appear almost immediately.
             theme::apply(&cc.egui_ctx);
-            // Команды MCP — в открытую вкладку (не для снимков).
+            // MCP commands go to the open tab (not for screenshots).
             #[cfg(unix)]
             if app.screenshot.is_none() {
                 app.live = live::listen(&dowel::live::socket_path(), cc.egui_ctx.clone());
@@ -108,7 +108,7 @@ fn main() -> eframe::Result {
     )
 }
 
-/// Панели окна (раскладка — craft-ui docking).
+/// Window panes (layout via craft-ui docking).
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 enum Pane {
     Tools,
@@ -138,9 +138,9 @@ impl Pane {
     }
 }
 
-/// Раскладка по умолчанию (как в cadcraft): слева стопка палитр «Инструменты», «Проект», «Фурнитура»;
-/// в центре начало, 3D и вкладки; справа стопка «Структура модели» над «Свойствами». Палитры
-/// сворачиваются кнопкой в заголовке, тянутся за заголовок в другое место или наружу окном.
+/// Default layout (as in cadcraft): on the left a stack of the "Tools", "Project", "Fasteners" palettes;
+/// in the center Start, 3D and the tabs; on the right "Model structure" stacked above "Properties". Palettes
+/// collapse with a button in the header, and can be dragged by the header elsewhere or out as a window.
 fn default_layout() -> Layout<Pane> {
     let tabs = |panels: Vec<Pane>| Box::new(Node::Tabs { panels, active: 0 });
     let stack = |entries: Vec<(Pane, bool, Option<f32>)>| Box::new(Node::Stack { entries: entries.into_iter().map(|(panel, open, height)| StackEntry { panel, open, height }).collect() });
@@ -160,27 +160,27 @@ fn default_layout() -> Layout<Pane> {
     }
 }
 
-/// Панели не закрываются (иначе их не вернуть), но двигаются и отрываются.
+/// Panes can't be closed (there'd be no way to bring them back), but they move and detach.
 fn permissions(p: &Pane) -> Permissions {
-    // Холст в центре — без строки вкладок и неподвижный, как в cadcraft; вид выбирается в верхней строке.
+    // The center canvas has no tab strip and is fixed, as in cadcraft; the view is chosen in the top bar.
     if *p == Pane::Model { Permissions::PROTECTED } else { Permissions { closable: false, ..Permissions::default() } }
 }
 
-/// Скрипт Базиса с открытыми окнами.
+/// A Bazis script with open windows.
 struct ScriptWin {
     name: String,
     rt: Option<script::Runtime>,
-    /// Итог, когда скрипт завершён (сообщения, ошибка).
+    /// Result once the script has finished (messages, error).
     done: Option<script::Run>,
 }
 
-/// Событие окна скрипта: щелчок или новое значение поля.
+/// Script window event: a click or a new field value.
 enum ScriptEvent {
     Click(i64),
     Change(i64, &'static str, Value),
 }
 
-/// Элемент окна скрипта по его описанию (JSON из `__forms()`).
+/// Script window control from its description (JSON from `__forms()`).
 fn script_control(ui: &mut egui::Ui, c: &Value, ev: &mut Vec<ScriptEvent>) {
     let id = c["__id"].as_i64().unwrap_or(-1);
     let caption = c["Caption"].as_str().unwrap_or("");
@@ -246,7 +246,7 @@ fn script_control(ui: &mut egui::Ui, c: &Value, ev: &mut Vec<ScriptEvent>) {
             }
         }
         _ => {
-            // Текстовые поля и всё прочее с текстом.
+            // Text fields and everything else with text.
             ui.horizontal(|ui| {
                 if !caption.is_empty() {
                     ui.label(caption);
@@ -261,29 +261,29 @@ fn script_control(ui: &mut egui::Ui, c: &Value, ev: &mut Vec<ScriptEvent>) {
     }
 }
 
-/// Библиотека моделей фурнитуры в окне.
+/// Fastener model library in the window.
 struct Library {
-    /// Папки с моделями; дерево — по каждой. Запоминаются в настройках.
+    /// Model folders; one tree per folder. Remembered in settings.
     dirs: Vec<String>,
     models: Vec<dowel::library::ModelInfo>,
     errors: Vec<String>,
     search: String,
     thumbs: library::Thumbs,
-    /// Папки уже просмотрены (иначе — просмотреть при показе вкладки).
+    /// Folders already scanned (otherwise scan when the tab is shown).
     scanned: bool,
-    /// Идёт просмотр папок в фоне: результат придёт сюда (окно не замирает на сотнях моделей).
+    /// Background folder scan in progress: the result arrives here (the window doesn't freeze on hundreds of models).
     pending: Option<std::sync::mpsc::Receiver<(Vec<dowel::library::ModelInfo>, Vec<String>)>>,
 }
 
 impl Library {
     fn new(dirs: Vec<String>) -> Self {
         let mut lib = Library { dirs, models: Vec::new(), errors: Vec::new(), search: String::new(), thumbs: Default::default(), scanned: false, pending: None };
-        // Сразу при запуске — в фоне, чтобы к открытию вкладки всё было готово.
+        // Right at startup, in the background, so everything is ready when the tab opens.
         lib.scan();
         lib
     }
 
-    /// Просмотреть все папки заново — в фоновом потоке.
+    /// Rescan all folders on a background thread.
     fn scan(&mut self) {
         let dirs = self.dirs.clone();
         let (tx, rx) = std::sync::mpsc::channel();
@@ -303,7 +303,7 @@ impl Library {
         self.scanned = true;
     }
 
-    /// Забрать результат фонового просмотра, если готов; true — ещё идёт.
+    /// Collect the background scan result if ready; true means still running.
     fn poll(&mut self) -> bool {
         let Some(rx) = &self.pending else { return false };
         match rx.try_recv() {
@@ -322,7 +322,7 @@ impl Library {
     }
 }
 
-/// PNG → картинка egui.
+/// PNG → egui image.
 fn decode_png(data: &[u8]) -> Option<egui::ColorImage> {
     let mut dec = png::Decoder::new(std::io::Cursor::new(data));
     dec.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
@@ -340,34 +340,34 @@ fn decode_png(data: &[u8]) -> Option<egui::ColorImage> {
     Some(egui::ColorImage::from_rgba_unmultiplied([info.width as usize, info.height as usize], &rgba))
 }
 
-/// Что делает щелчок по схеме контура панели.
+/// What a click on the panel contour diagram does.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum ContourTool {
-    /// Нанести или снять кромку на торце.
+    /// Apply or remove edge banding on an edge.
     Edge,
-    /// Скруглить угол в вершине.
+    /// Round the corner at a vertex.
     Round,
-    /// Срезать угол фаской.
+    /// Chamfer the corner.
     Chamfer,
-    /// Круглый вырез в точке.
+    /// Round cutout at a point.
     Hole,
 }
 
-/// Режим установки панели в проём (как «~» в Базисе).
+/// Mode for placing a panel into an opening (like "~" in Bazis).
 struct FillTool {
-    /// horizontal | vertical | front — панель; door — дверь; drawers — ящики.
+    /// horizontal | vertical | front: a panel; door: a door; drawers: drawers.
     plane: &'static str,
     material: String,
-    /// Отступы от границ в осях контура (см. команду `panel.fill`).
+    /// Gaps from the boundaries in contour axes (see the `panel.fill` command).
     gaps: [f64; 4],
-    /// Двери и ящики: накладная, полунакладная, вкладная.
+    /// Doors and drawers: overlay, half-overlay, inset.
     mount: &'static str,
     double: bool,
-    /// Высоты фасадов ящиков снизу вверх, через пробел.
+    /// Drawer front heights from bottom to top, space-separated.
     heights: String,
 }
 
-/// Выделение: объект верхнего уровня, панель дерева (0 — деталь шаблона) и номер детали внутри объекта.
+/// Selection: top-level object, tree panel (0 means a template part) and part number within the object.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 struct Sel {
     owner: u32,
@@ -382,20 +382,20 @@ impl Sel {
         Sel { owner: p.owner, id: p.id, nth }
     }
 
-    /// Индекс выделенной детали в текущем списке деталей.
+    /// Index of the selected part in the current parts list.
     fn find(&self, parts: &[Part]) -> Option<usize> {
         parts.iter().enumerate().filter(|(_, p)| p.owner == self.owner && p.id == self.id).nth(self.nth).map(|(i, _)| i)
     }
 }
 
-/// Размер для показа: до десятых мм, без хвостов вычислений (2341.9999999999927 → 2342) и «-0».
+/// Number for display: to tenths of a mm, without computation noise (2341.9999999999927 → 2342) and "-0".
 fn num(v: f64) -> String {
     let r = (v * 10.0).round() / 10.0;
     let r = if r == 0.0 { 0.0 } else { r };
     if r.fract() == 0.0 { format!("{r:.0}") } else { format!("{r:.1}") }
 }
 
-/// Виды экспорта: (что, пункт меню).
+/// Export kinds: (what, menu item).
 const EXPORTS: [(&str, &str); 8] = [
     ("html", "Карты раскроя и «Панели в производство» (HTML)…"),
     ("xml", "Проект для БАЗИС-Раскроя (XML)…"),
@@ -407,21 +407,21 @@ const EXPORTS: [(&str, &str); 8] = [
     ("cards_pdf", "Карты раскроя (PDF)…"),
 ];
 
-/// Боковая панель: отступ от краёв и прокрутка.
+/// Side panel: margin from the edges and scrolling.
 fn side(ui: &mut egui::Ui, id: &str, body: impl FnOnce(&mut egui::Ui)) {
     egui::ScrollArea::vertical().id_salt(id).auto_shrink([false, false]).show(ui, |ui| {
         egui::Frame::new().inner_margin(egui::Margin { left: 10, right: 10, top: 6, bottom: 8 }).show(ui, body);
     });
 }
 
-/// Свободное название: `base`, а если занято — «base (2)», «base (3)»…
+/// A free name: `base`, or if taken, "base (2)", "base (3)"…
 fn free_name(base: &str, taken: &[&str]) -> String {
     let base = base.trim();
     let stem = base.rsplit_once(" (").filter(|(_, n)| n.trim_end_matches(')').parse::<u32>().is_ok()).map_or(base, |(s, _)| s);
     std::iter::once(base.to_string()).chain((2..).map(|k| format!("{stem} ({k})"))).find(|n| !taken.contains(&n.as_str())).unwrap_or_default()
 }
 
-/// Пункт меню правой кнопки (и клавиша Delete).
+/// Right-click menu item (and the Delete key).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum MenuAct {
     Delete,
@@ -430,31 +430,31 @@ enum MenuAct {
     Deselect,
 }
 
-/// Поля формы нового материала / кромки.
+/// Fields of the new material / edge banding form.
 struct NewMaterial {
     name: String,
     thickness: f64,
     sheet: (f64, f64),
     coef: f64,
-    /// Картинка текстуры (выбирается в библиотеке текстур).
+    /// Texture image (chosen in the texture library).
     texture: Option<String>,
 }
 
 struct App {
-    /// Свой проект; нет — открыт файл Базиса только для просмотра.
+    /// Our own project; none means a Bazis file is open read-only.
     session: Option<Session>,
     job: Job,
     path: Option<PathBuf>,
     layout: Layout<Pane>,
-    /// Выделенные детали; последняя — основная (её свойства показываются).
+    /// Selected parts; the last one is the primary (its properties are shown).
     selection: Vec<Sel>,
-    /// Параметры действий с выделенным: сдвиг/копия (dx, dy, dz), ось, угол, число копий.
+    /// Parameters of actions on the selection: move/copy (dx, dy, dz), axis, angle, number of copies.
     actions: ([f64; 3], char, f64, u32),
-    /// Перетаскивание на виде спереди: сдвиг в мм.
+    /// Dragging in the front view: offset in mm.
     drag: Option<[f64; 2]>,
-    /// Маркер размера на виде спереди: (какой край X: −1/0/1, Y: −1/0/1) и сдвиг в мм.
+    /// Resize handle in the front view: (which edge X: −1/0/1, Y: −1/0/1) and offset in mm.
     handle: Option<([i8; 2], [f64; 2])>,
-    /// Нажат Ctrl (на этом кадре): щелчок добавляет к выделению.
+    /// Ctrl is held (this frame): a click adds to the selection.
     ctx_ctrl: bool,
     params: Params,
     cuts: Vec<MaterialCut>,
@@ -464,73 +464,73 @@ struct App {
     status: String,
     new_material: NewMaterial,
     new_edge: (String, f64, f64),
-    /// Открыты формы «Новый материал», «Новая кромка» (по кнопке).
+    /// The "New material" and "New edge banding" forms are open (via the button).
     adding: (bool, bool),
-    /// Новая панель: плоскость и размеры контура.
+    /// New panel: plane and contour dimensions.
     new_panel: (&'static str, f64, f64),
-    /// Режим «Панель в проём» на виде спереди: плоскость, материал, отступы.
+    /// "Panel into opening" mode in the front view: plane, material, gaps.
     fill: Option<FillTool>,
-    /// Все открытые проекты; на месте активного (`active`) — пустышка, сам он — в полях окна.
+    /// All open projects; the active slot (`active`) holds a placeholder, the active one itself lives in the window fields.
     docs: Vec<docs::Doc>,
     active: usize,
-    /// В активном проекте есть несохранённые изменения.
+    /// The active project has unsaved changes.
     dirty: bool,
-    /// Спросить «Сохранить изменения?» перед закрытием вкладки.
+    /// Ask "Save changes?" before closing a tab.
     close_ask: Option<docs::CloseAsk>,
-    /// Открыто окно «Настройки» (язык, сетка).
+    /// The "Settings" window is open (language, grid).
     drafting: bool,
-    /// Показана стартовая страница (вместо рабочих панелей), как вкладка «Start» в cadcraft.
+    /// The start page is shown (instead of the work panes), like the "Start" tab in cadcraft.
     start: bool,
-    /// Скрытые глазом в «Структуре модели» детали (не рисуются в 3D и на виде спереди).
+    /// Parts hidden with the eye icon in "Model structure" (not drawn in 3D or the front view).
     hidden: std::collections::HashSet<Sel>,
-    /// Вид на холсте: 3D, вид спереди, таблица деталей или раскрой (переключатель в верхней строке).
+    /// Canvas view: 3D, front view, parts table or cutting (switched in the top bar).
     view: Pane,
-    /// Включён инструмент «Крепёж» (параметры под палитрой).
+    /// The "Fasteners" tool is active (parameters below the palette).
     fastening: bool,
-    /// Открыты окна «Как пользоваться» и «О программе».
+    /// The "How to use" and "About" windows are open.
     help: bool,
     about: bool,
-    /// Включённый инструмент изменения выделенного (палитра «Инструменты»).
+    /// The active selection-modifying tool (the "Tools" palette).
     modify: Option<tools::Modify>,
-    /// Облицовка: кромка, «Подрезать», припуск.
+    /// Edging: edge banding, "Trim", allowance.
     edging: (Option<String>, bool, f64),
-    /// Библиотека моделей фурнитуры: папка, найденные модели, превью (текстуры по пути), строка поиска.
+    /// Fastener model library: folder, found models, previews (textures by path), search string.
     library: Library,
-    /// «Анализ модели»: найденные проблемы (окно открыто, пока Some).
+    /// "Model analysis": problems found (the window is open while Some).
     problems: Option<Vec<design::analysis::Problem>>,
-    /// Выполняемый скрипт Базиса и его окна.
+    /// The running Bazis script and its windows.
     script: Option<ScriptWin>,
-    /// Папка текстур (как «Пути к файлам → Текстуры» в Базисе).
+    /// Texture folder (like "File paths → Textures" in Bazis).
     textures: textures::TextureLib,
-    /// Выделенная фурнитура (у неё нет деталей — выделяется отдельно).
+    /// Selected furniture (it has no parts, so it is selected separately).
     furniture_sel: Option<u32>,
-    /// Настройки между запусками (папки фурнитуры, язык).
+    /// Settings kept between launches (fastener folders, language).
     settings: settings::Settings,
-    /// Загруженные сетки фурнитуры: файл → треугольники.
+    /// Loaded fastener meshes: file → triangles.
     meshes: std::collections::HashMap<String, std::sync::Arc<Vec<dowel::panel::Tri>>>,
-    /// Крепёж для установки между панелями.
+    /// Fastener to place between panels.
     fastener_kind: String,
-    /// Чашка эксцентрика снаружи корпуса (по умолчанию внутри).
+    /// Cam lock (Minifix) cup outside the cabinet (inside by default).
     fastener_outside: bool,
-    /// Действие щелчка по схеме контура и его размер (радиус, катет фаски, радиус выреза), мм.
+    /// Contour diagram click action and its size (radius, chamfer leg, cutout radius), mm.
     contour_tool: (ContourTool, f64),
     screenshot: Option<PathBuf>,
     frames: u32,
-    /// На каком кадре снимать окно (`--frames`).
+    /// Frame on which to capture the window (`--frames`).
     shot_frames: u32,
-    /// Запросы MCP к открытой вкладке (`live`).
+    /// MCP requests to the open tab (`live`).
     #[cfg(unix)]
     live: Option<std::sync::mpsc::Receiver<live::Request>>,
-    /// Детали изделия с положением (или ошибка сборки) — пересобираются в `refresh`.
+    /// Product parts with positions (or a build error), rebuilt in `refresh`.
     parts: Result<Vec<Part>, String>,
-    /// Растёт при каждом изменении деталей или их видимости: окно модели перестраивает сетку.
+    /// Bumped on every change to parts or their visibility: the model view rebuilds its mesh.
     revision: u64,
     viewport: viewport::Viewport,
-    /// «4 окна» (как «Проекции» в Базисе): спереди, слева, сверху и основное окно — аксонометрия.
+    /// "4 views" (like "Projections" in Bazis): front, left, top, and the main view is axonometric.
     quad: bool,
-    /// В «4 видах» одно окно развёрнуто на всю область: 0 спереди, 1 слева, 2 сверху, 3 — 3D.
+    /// In "4 views" one view is maximized to the whole area: 0 front, 1 left, 2 top, 3 is 3D.
     quad_max: Option<usize>,
-    /// В настройках ждут нажатия: новое сочетание для этого действия.
+    /// Waiting for a key press in settings: the new shortcut for this action.
     key_capture: Option<&'static str>,
     views: [viewport::Viewport; 3],
 }
@@ -606,7 +606,7 @@ impl App {
     fn open(&mut self, path: PathBuf) {
         match Job::open(&path) {
             Ok(job) => {
-                // Пустой несохранённый проект заменяется файлом, иначе файл — в новой вкладке.
+                // An empty unsaved project is replaced by the file, otherwise the file opens in a new tab.
                 if !self.current_is_blank() {
                     self.add_doc(docs::Doc::empty());
                 }
@@ -628,7 +628,7 @@ impl App {
         }
     }
 
-    /// Пересобрать детали и раскрой после изменения.
+    /// Rebuild parts and the cutting layout after a change.
     fn refresh(&mut self) {
         if let Some(s) = &self.session {
             self.job = Job::from_project(s.project.clone());
@@ -639,12 +639,12 @@ impl App {
         self.revision += 1;
     }
 
-    /// Команда над проектом; каждая пишется в терминал (stderr), ошибка — ещё и в строку состояния.
+    /// Command on the project; each is logged to the terminal (stderr), errors also to the status bar.
     fn exec(&mut self, cmd: &str, p: Value) {
         self.exec_ret(cmd, p);
     }
 
-    /// То же, с ответом команды (например `{id}` нового объекта); `None` — ошибка.
+    /// Same, returning the command's response (e.g. `{id}` of the new object); `None` on error.
     fn exec_ret(&mut self, cmd: &str, p: Value) -> Option<Value> {
         let Some(s) = &mut self.session else {
             eprintln!("[команда] {cmd}: нет своего проекта (открыт файл Базиса только для просмотра)");
@@ -668,7 +668,7 @@ impl App {
         }
     }
 
-    /// Окно библиотеки текстур: выбранная картинка — в материал или в форму нового.
+    /// Texture library window: the chosen image goes into the material or the new-material form.
     fn texture_window(&mut self, ctx: &egui::Context) {
         let current = match &self.textures.open_for {
             Some(textures::Target::New) => self.new_material.texture.clone(),
@@ -688,7 +688,7 @@ impl App {
         }
     }
 
-    /// Сделать вкладку видимой (активной в своей группе).
+    /// Make a tab visible (active in its group).
     fn show_pane(&mut self, pane: Pane) {
         if matches!(pane, Pane::Model | Pane::Front | Pane::Parts | Pane::Cut) {
             self.view = pane;
@@ -697,7 +697,7 @@ impl App {
         }
     }
 
-    /// «Анализ модели»: окно с проблемами.
+    /// "Model analysis": a window with the problems.
     fn analyze(&mut self) {
         let project = self.session.as_ref().map(|s| s.project.clone()).unwrap_or_else(|| self.job.import());
         match design::analysis::analyze(&project) {
@@ -706,7 +706,7 @@ impl App {
         }
     }
 
-    /// Выбрать и запустить скрипт Базиса.
+    /// Pick and run a Bazis script.
     fn pick_script(&mut self) {
         if self.session.is_some()
             && let Some(p) = rfd::FileDialog::new().add_filter("BAZIS-Script", &["js"]).pick_file()
@@ -715,20 +715,19 @@ impl App {
         }
     }
 
-    /// Новый пустой проект (параметры раскроя сохраняются).
-    /// Новый проект — в новой вкладке, открытые не трогаются.
+    /// New empty project (cutting parameters are kept).
+    /// The new project opens in a new tab; open ones are left untouched.
     fn new_project(&mut self) {
         self.add_doc(docs::Doc::empty());
     }
 
-    /// Открыть файл через диалог.
     fn open_dialog(&mut self) {
         if let Some(p) = rfd::FileDialog::new().add_filter("Модели", &["dcraft", "b3d", "fr3d"]).pick_file() {
             self.open(p);
         }
     }
 
-    /// Модель Базиса (только просмотр) → свой проект.
+    /// Bazis model (read-only) → our own project.
     fn make_editable(&mut self) {
         let p = self.job.import();
         self.status = format!("Импортировано деталей: {}", p.panels().len());
@@ -753,7 +752,7 @@ impl App {
         }
     }
 
-    /// Записать свой проект в файл; он становится файлом вкладки.
+    /// Write our project to a file; it becomes the tab's file.
     fn save_to(&mut self, p: PathBuf) -> Result<(), String> {
         let s = self.session.as_ref().ok_or("Модель Базиса открыта только для просмотра")?;
         std::fs::write(&p, s.project.save()).map_err(|e| format!("{}: {e}", p.display()))?;
@@ -823,7 +822,7 @@ impl eframe::App for App {
         self.serve_live();
         let ctx = ui.ctx().clone();
         self.top_bar(ui);
-        // Esc — выйти из инструмента, а без инструмента — снять выделение.
+        // Esc leaves the tool, and with no tool active, clears the selection.
         if !ctx.text_edit_focused() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             if self.fill.is_some() || self.modify.is_some() || self.fastening {
                 (self.fill, self.modify, self.fastening) = (None, None, false);
@@ -831,8 +830,8 @@ impl eframe::App for App {
                 self.menu_apply(MenuAct::Deselect);
             }
         }
-        // Горячие клавиши (настраиваются в «Правка → Настройки»). Пока назначают новую — не срабатывают.
-        // Без Ctrl/Alt — только не в поле ввода; длинные сочетания первыми: «1» не съест Alt+1.
+        // Hotkeys (configured in "Edit → Settings"). They don't fire while a new one is being assigned.
+        // Without Ctrl/Alt only outside text fields; longer shortcuts first so "1" doesn't eat Alt+1.
         if self.key_capture.is_none() {
             let editing = ctx.text_edit_focused();
             let mut list: Vec<(&str, egui::KeyboardShortcut)> = keys::ACTIONS.iter().filter_map(|(id, ..)| Some((*id, self.settings.shortcut(id)?))).collect();
@@ -850,7 +849,7 @@ impl eframe::App for App {
                         ui.colored_label(Color32::from_rgb(220, 70, 70), i18n::t(e));
                     }
                     None => match &hover {
-                        // Мышь над иконкой — что она делает.
+                        // Mouse over an icon: what it does.
                         Some(tip) => {
                             ui.label(egui::RichText::new(format!("🛈 {tip}")).color(Color32::from_rgb(0xf5, 0xd0, 0x8a)));
                         }
@@ -860,7 +859,7 @@ impl eframe::App for App {
                     },
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // Как переключатели строки состояния cadcraft: сетка (F7) и настройки черчения.
+                    // Like cadcraft's status bar toggles: grid (F7) and drafting settings.
                     if icons::button(ui, icons::Icon::Gear, 20.0, "Настройки: язык, сетка", self.drafting).clicked() {
                         self.drafting = !self.drafting;
                     }
@@ -879,7 +878,7 @@ impl eframe::App for App {
         } else {
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(theme::T.chrome_dark)).show(ui, |ui| {
             let layout = self.layout.clone();
-            // Цвета палитр — как в cadcraft: заголовки светлее фона, активная вкладка — синеватая.
+            // Palette colors as in cadcraft: headers lighter than the background, the active tab bluish.
             let mut style = DockStyle::from_ui(ui);
             style.min_pane = 96.0;
             let t = &theme::T;
@@ -888,7 +887,7 @@ impl eframe::App for App {
             style.border = Stroke::new(1.0, t.border);
             let out = DockArea::new(egui::Id::new("dock")).show(ui, &layout, &style, |p| i18n::t(p.label()), permissions, |ui, pane| match pane {
                 Pane::Tools => side(ui, "tools", |ui| self.tools_panel(ui)),
-                // Холст: вид, выбранный в верхней строке.
+                // Canvas: the view chosen in the top bar.
                 Pane::Model | Pane::Front | Pane::Parts | Pane::Cut => match self.view {
                     Pane::Front => self.front_view(ui),
                     Pane::Parts => egui::Frame::new().inner_margin(egui::Margin::symmetric(12, 8)).show(ui, |ui| self.parts_table(ui)).inner,
@@ -907,7 +906,7 @@ impl eframe::App for App {
             }
         });
         }
-        // Настройки сетки — во все окна модели.
+        // Grid settings go to all model views.
         let g = self.settings.grid;
         for v in std::iter::once(&mut self.viewport).chain(self.views.iter_mut()) {
             v.grid = viewport::Grid { on: g.on, step: g.step, major: g.major };
@@ -922,7 +921,7 @@ impl eframe::App for App {
 }
 
 impl App {
-    /// Верхняя строка иконок (как в cadcraft): файл, отмена, экспорт, проверка; название проекта.
+    /// Top icon bar (as in cadcraft): file, undo, export, check; project name.
     fn top_bar(&mut self, ui: &mut egui::Ui) {
         use icons::{Icon, labeled, labeled_if};
         egui::Panel::top("toolbar").exact_size(34.0).frame(egui::Frame::NONE.fill(theme::T.chrome).inner_margin(egui::Margin::symmetric(10, 0))).show(ui, |ui| {
@@ -964,7 +963,7 @@ impl App {
                     self.pick_script();
                 }
                 ui.separator();
-                // Вид на холсте — как вкладки, но в строке иконок.
+                // Canvas view: like tabs, but in the icon bar.
                 for (pane, icon, text, tip) in [
                     (Pane::Model, Icon::ViewIso, "3D", "Модель в 3D (Ctrl+1); на панели вида — «4 окна»: спереди, слева, сверху и 3D"),
                     (Pane::Front, Icon::ViewFront, "Спереди", "Вид спереди (Ctrl+2): ставить полки, двери и ящики в проём, двигать мышью"),
@@ -991,7 +990,7 @@ impl App {
         egui::Panel::top("doc_tabs").exact_size(26.0).frame(egui::Frame::NONE.fill(theme::T.chrome_dark)).show(ui, |ui| self.doc_tabs(ui));
     }
 
-    /// Действие горячей клавиши (`keys::ACTIONS`).
+    /// Hotkey action (`keys::ACTIONS`).
     fn hotkey(&mut self, id: &str) {
         let (undo, redo) = self.session.as_ref().map_or((false, false), |s| (s.can_undo(), s.can_redo()));
         match id {
@@ -1015,7 +1014,7 @@ impl App {
             "cam.front" | "cam.left" | "cam.top" | "cam.iso" | "cam.fit" => {
                 self.start = false;
                 self.view = Pane::Model;
-                // В «4 окнах» три окна и так спереди, слева, сверху: камера — в одно большое окно.
+                // In "4 views" three views are already front, left, top: the camera applies to the one big view.
                 if id != "cam.fit" {
                     self.quad = false;
                 }
@@ -1047,7 +1046,7 @@ impl App {
 
         egui::CollapsingHeader::new(crate::i18n::t(format!("Материалы ({})", project.materials.len()))).default_open(true).show(ui, |ui| {
             for m in &project.materials {
-                // Каждый материал — в своей рамке, чтобы не сливался с формой нового.
+                // Each material in its own frame so it doesn't blend with the new-material form.
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
@@ -1079,7 +1078,7 @@ impl App {
                         }
                     });
                     ui.horizontal(|ui| {
-                        // Пусто — общие параметры раскроя со вкладки «Раскрой».
+                        // Empty means the general cutting parameters from the "Cutting" tab.
                         for (key, label, value, general) in [("trim", "обрезка", m.trim, self.params.trim), ("kerf", "пропил", m.kerf, self.params.kerf)] {
                             let mut v = value.unwrap_or(general);
                             ui.label(crate::i18n::t(label));
@@ -1094,7 +1093,7 @@ impl App {
             let nm = &mut self.new_material;
             let name_id = egui::Id::new("new_material_name");
             let names: Vec<&str> = project.materials.iter().map(|m| m.name.as_str()).collect();
-            // Занятое название, которое сейчас не вводят, сразу меняется на свободное («ЛДСП 16 (2)»).
+            // A taken name not currently being edited is immediately replaced with a free one ("Chipboard 16 (2)").
             if names.contains(&nm.name.trim()) && !ui.memory(|m| m.has_focus(name_id)) {
                 nm.name = free_name(&nm.name, &names);
             }
@@ -1212,7 +1211,7 @@ impl App {
 
         for (cmd, p) in cmds {
             let added = self.exec_ret(cmd, p).is_some();
-            // После добавления в форме — следующее свободное название, чтобы второй раз не упереться в «уже есть».
+            // After adding via the form, use the next free name so the second add doesn't hit "already exists".
             let Some(s) = self.session.as_ref().filter(|_| added) else { continue };
             if cmd == "material.add" {
                 self.adding.0 = false;
@@ -1226,8 +1225,7 @@ impl App {
         }
     }
 
-    /// Выделить деталь по индексу (или снять выделение).
-    /// Выделить деталь (или снять выделение). С Ctrl — добавить к выделению или убрать из него.
+    /// Select a part (or clear the selection). With Ctrl, add it to or remove it from the selection.
     fn select(&mut self, part: Option<usize>) {
         let add = self.ctx_ctrl;
         let Ok(parts) = &self.parts else { return };
@@ -1252,18 +1250,17 @@ impl App {
         }
     }
 
-    /// Основная выделенная деталь.
+    /// The primary selected part.
     fn selected(&self) -> Option<usize> {
         self.selection.last().and_then(|s| s.find(self.parts.as_ref().ok()?))
     }
 
-    /// Все выделенные детали.
     fn selected_all(&self) -> Vec<usize> {
         let Ok(parts) = &self.parts else { return Vec::new() };
         self.selection.iter().filter_map(|s| s.find(parts)).collect()
     }
 
-    /// Объекты для действий: панель дерева — сама, деталь шаблона — весь шаблон.
+    /// Objects to act on: a tree panel itself, a template part means the whole template.
     fn targets(&self) -> Vec<u32> {
         let Ok(parts) = &self.parts else { return Vec::new() };
         let mut ids: Vec<u32> = Vec::new();
@@ -1276,7 +1273,7 @@ impl App {
         ids
     }
 
-    /// Габарит выделенного: (мин, макс).
+    /// Bounding box of the selection: (min, max).
     fn selection_bounds(&self) -> Option<([f64; 3], [f64; 3])> {
         let parts = self.parts.as_ref().ok()?;
         self.selected_all().iter().map(|&i| &parts[i]).fold(None, |acc, p| {
@@ -1285,7 +1282,7 @@ impl App {
         })
     }
 
-    /// Сетка модели фурнитуры по файлу-источнику (читается один раз; не прочиталась — пустая, рисуется рамкой).
+    /// Fastener model mesh by source file (read once; if it fails to read, empty and drawn as a box).
     fn furniture_mesh(&mut self, source: &str) -> std::sync::Arc<Vec<dowel::panel::Tri>> {
         if let Some(m) = self.meshes.get(source) {
             return m.clone();
@@ -1302,7 +1299,7 @@ impl App {
         m
     }
 
-    /// Команда «Разрушить» для объекта: блок, корпус, угловой модуль или столешница.
+    /// The "Explode" command for an object: block, cabinet, corner module or countertop.
     fn explode_cmd(&self, id: u32) -> Option<&'static str> {
         let pr = &self.session.as_ref()?.project;
         if pr.cabinets.iter().any(|c| c.id == id) {
@@ -1316,13 +1313,13 @@ impl App {
         }
     }
 
-    /// Объекты, которые удалит Delete: выделенные детали или выделенная фурнитура.
+    /// Objects that Delete removes: selected parts or the selected furniture.
     fn delete_targets(&self) -> Vec<u32> {
         let ids = self.targets();
         if ids.is_empty() { self.furniture_sel.into_iter().collect() } else { ids }
     }
 
-    /// Пункты меню правой кнопки; возвращает выбранный.
+    /// Right-click menu items; returns the chosen one.
     fn menu_items(&self, ui: &mut egui::Ui) -> Option<MenuAct> {
         let editable = self.session.is_some();
         let del = self.delete_targets();
@@ -1385,7 +1382,7 @@ impl App {
         }
     }
 
-    /// Правая кнопка по детали `hit`: если она не выделена — выделить только её (как в Базисе).
+    /// Right-click on part `hit`: if it isn't selected, select only it (as in Bazis).
     fn menu_pick(&mut self, hit: Option<usize>) {
         if let Some(i) = hit
             && !self.selected_all().contains(&i)
@@ -1395,7 +1392,7 @@ impl App {
         }
     }
 
-    /// Окно «Анализ модели»: щелчок по проблеме выделяет её детали.
+    /// The "Model analysis" window: clicking a problem selects its parts.
     fn problems_window(&mut self, ctx: &egui::Context) {
         let Some(list) = &self.problems else { return };
         let mut open = true;
@@ -1414,7 +1411,7 @@ impl App {
             });
         });
         if let (Some(ids), Ok(parts)) = (pick, &self.parts) {
-            // Анализ мог строиться по импортированной копии — выделяем по номерам деталей текущей модели.
+            // Analysis may have run on an imported copy, so select by part numbers of the current model.
             self.selection = ids.into_iter().filter(|&i| i < parts.len()).map(|i| Sel::of(parts, i)).collect();
         }
         if !open {
@@ -1422,7 +1419,7 @@ impl App {
         }
     }
 
-    /// Запуск скрипта: без окон — сразу завершается; с окнами — живёт, пока открыто его окно.
+    /// Run a script: without windows it finishes immediately; with windows it lives while its window is open.
     fn start_script(&mut self, path: &std::path::Path) {
         let Some(s) = &self.session else { return };
         let source = match script::read_script(path) {
@@ -1445,7 +1442,7 @@ impl App {
         self.refresh();
     }
 
-    /// Окно скрипта: его формы, сообщения, «Применить» / «Отменить».
+    /// Script window: its forms, messages, "Apply" / "Cancel".
     fn script_window(&mut self, ctx: &egui::Context) {
         let Some(win) = &mut self.script else { return };
         let mut open = true;
@@ -1485,7 +1482,7 @@ impl App {
                     ScriptEvent::Change(id, field, v) => rt.change(id, field, &v),
                 }
             }
-            // Скрипт закрыл все свои окна — завершаем, как «Применить».
+            // The script closed all its windows: finish, as with "Apply".
             if rt.error.is_none() && rt.forms().is_empty() {
                 apply = true;
             }
@@ -1500,7 +1497,7 @@ impl App {
         }
     }
 
-    /// «Фурнитура»: модели .fr3d из папки — превью, поиск, «Поставить».
+    /// "Fasteners": .fr3d models from a folder, previews, search, "Place".
     fn library_panel(&mut self, ui: &mut egui::Ui) {
         if !self.library.scanned {
             self.library.scan();
@@ -1565,7 +1562,7 @@ impl App {
         }
     }
 
-    /// Свойства выделенной фурнитуры: положение, отверстия, удаление.
+    /// Properties of the selected furniture: position, holes, deletion.
     fn furniture_properties(&mut self, ui: &mut egui::Ui, id: u32) {
         let Some(s) = &self.session else { return };
         let Some((f, fr)) = design::furniture(&s.project).into_iter().find(|(f, _)| f.id == id) else {
@@ -1617,7 +1614,7 @@ impl App {
         }
     }
 
-    /// «Крепёж»: между двумя выделенными панелями, на все стыки выделенных; крепёж этой панели.
+    /// "Fasteners": between two selected panels, on all joints of the selected ones; this panel's fasteners.
     fn fastener_panel(&mut self, ui: &mut egui::Ui, project: &Project, panel: u32, cmds: &mut Cmds) {
         let panels: Vec<u32> = self.targets().into_iter().filter(|id| project.panels().iter().any(|p| p.id == *id)).collect();
         egui::CollapsingHeader::new(crate::i18n::t("Крепёж")).default_open(panels.len() >= 2).show(ui, |ui| {
@@ -1648,9 +1645,9 @@ impl App {
         });
     }
 
-    /// «Свойства» выделенной детали: её размеры и редактор объекта, которому она принадлежит.
+    /// "Properties" of the selected part: its dimensions and the editor of the object it belongs to.
     fn properties_panel(&mut self, ui: &mut egui::Ui) {
-        // Шапка как в cadcraft: заголовок и что выделено.
+        // Header as in cadcraft: title and what is selected.
         let n = self.selected_all().len();
         let what = match (self.furniture_sel, self.selected(), &self.parts) {
             (Some(_), _, _) => crate::i18n::t("Фурнитура"),
@@ -1710,7 +1707,7 @@ impl App {
         let mut cmds: Cmds = Vec::new();
         if let Some(c) = project.cabinets.iter().find(|c| c.id == part.owner) {
             ui.heading(crate::i18n::t(format!("Корпус «{}»", c.name)));
-            // Формулы в полях корпуса: W/2, H-100, D-T… (английские буквы; русские Ш, В, Г, Ц, Т — синонимы).
+            // Formulas in cabinet fields: W/2, H-100, D-T… (English letters; their Russian equivalents are aliases).
             let t = project.material(&c.material).map_or(16.0, |m| m.thickness);
             let vars = vec![(&["W", "Ш"][..], c.width, "ширина"), (&["H", "В"][..], c.height, "высота"), (&["D", "Г"][..], c.depth, "глубина"), (&["P", "Ц"][..], c.plinth, "цоколь"), (&["T", "Т"][..], t, "толщина материала")];
             expr::with_vars(vars, || editors::cabinet_editor(ui, &project, c, &mut cmds));
@@ -1806,7 +1803,7 @@ impl App {
         }
     }
 
-    /// Панель режима «в проём»: включение, плоскость, материал, отступы.
+    /// The "into opening" mode panel: toggle, plane, material, gaps.
     fn front_view(&mut self, ui: &mut egui::Ui) {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
@@ -1831,7 +1828,7 @@ impl App {
         let area = resp.rect.shrink(30.0);
         let k = ((area.width() as f64) / (hi[0] - lo[0]).max(1.0)).min((area.height() as f64) / (hi[1] - lo[1]).max(1.0));
         let to = |x: f64, y: f64| Pos2::new(area.left() + ((x - lo[0]) * k) as f32, area.bottom() - ((y - lo[1]) * k) as f32);
-        // Холст как в cadcraft: тёмный фон, сетка на весь экран (каждая десятая линия ярче), оси через начало.
+        // Canvas as in cadcraft: dark background, full-screen grid (every tenth line brighter), axes through the origin.
         painter.rect_filled(resp.rect, 0.0, theme::T.canvas);
         {
             let (minor, major) = (Color32::from_rgb(0x29, 0x30, 0x3a), Color32::from_rgb(0x31, 0x39, 0x45));
@@ -1862,7 +1859,7 @@ impl App {
             }
         }
         let selected = self.selected_all();
-        // Перетаскивание выделенного: сдвиг в мм с прилипанием краёв к краям других деталей (порог 10 пикселей).
+        // Dragging the selection: offset in mm with edges snapping to other parts' edges (10 pixel threshold).
         let moving = self.drag.map(|d| {
             let (lo, hi) = self.selection_bounds().unwrap_or(([0.0; 3], [0.0; 3]));
             let snap = |axis: usize, d: f64| -> f64 {
@@ -1873,7 +1870,7 @@ impl App {
             };
             [snap(0, d[0]), snap(1, d[1])]
         });
-        // Ближайшая к зрителю деталь под курсором — последняя нарисованная.
+        // The part nearest to the viewer under the cursor is the last one drawn.
         let mut hovered: Option<usize> = None;
         for fr in &rects {
             let mv = moving.filter(|_| selected.contains(&fr.part)).unwrap_or([0.0; 2]);
@@ -1889,14 +1886,14 @@ impl App {
                 hovered = Some(fr.part);
             }
         }
-        // Габаритные размеры корпусов.
+        // Overall dimensions of cabinets.
         if let Some(s) = &self.session {
             for c in &s.project.cabinets {
                 painter.text(to(c.position[0] + c.width / 2.0, c.position[1]) + Vec2::new(0.0, 14.0), egui::Align2::CENTER_CENTER, format!("{}", c.width), egui::FontId::proportional(13.0), Color32::from_rgb(0xdd, 0xe2, 0xea));
                 painter.text(to(c.position[0], c.position[1] + c.height / 2.0) - Vec2::new(16.0, 0.0), egui::Align2::CENTER_CENTER, format!("{}", c.height), egui::FontId::proportional(13.0), Color32::from_rgb(0xdd, 0xe2, 0xea));
             }
         }
-        // Режим «в проём»: фантом будущей панели под курсором, щелчок — поставить.
+        // "Into opening" mode: a ghost of the future panel under the cursor; a click places it.
         let mm_at = |p: Pos2| [((p.x - area.left()) as f64 / k + lo[0]).round(), ((area.bottom() - p.y) as f64 / k + lo[1]).round()];
         if let (Some(t), Some(m)) = (&self.fill, ui.ctx().pointer_hover_pos().filter(|m| resp.rect.contains(*m))) {
             let at = mm_at(m);
@@ -1938,7 +1935,7 @@ impl App {
             }
             return;
         }
-        // Маркеры размера: у одной выделенной прямоугольной панели дерева, по осям без толщины.
+        // Resize handles: on a single selected rectangular tree panel, along the axes other than thickness.
         let target = (selected.len() == 1).then(|| selected[0]).filter(|&i| parts[i].id != 0 && parts[i].panel.is_rect() && self.session.is_some());
         if let Some(i) = target {
             let p = &parts[i];
@@ -1951,7 +1948,7 @@ impl App {
                 let best = others.iter().flat_map(|q| [q.origin[axis], q.origin[axis] + q.size[axis]]).map(|e| e - v).filter(|d| d.abs() < tol).min_by(|a, b| a.abs().total_cmp(&b.abs()));
                 (v + best.unwrap_or(0.0)).round()
             };
-            // Новый габарит при перетаскивании маркера.
+            // New bounding box while dragging a handle.
             let moved = |h: [i8; 2], d: [f64; 2]| -> ([f64; 2], [f64; 2]) {
                 let (mut a, mut b) = (lo, hi);
                 for ax in 0..2 {
@@ -1963,7 +1960,7 @@ impl App {
                 }
                 (a, b)
             };
-            // Деталь тащат — маркеры едут вместе с ней.
+            // When the part is dragged, the handles move with it.
             let mv = moving.unwrap_or([0.0; 2]);
             let (pa, pb) = match self.handle { Some((h, d)) => moved(h, d), None => ([lo[0] + mv[0], lo[1] + mv[1]], [hi[0] + mv[0], hi[1] + mv[1]]) };
             let r = Rect::from_two_pos(to(pa[0], pa[1]), to(pb[0], pb[1]));
@@ -1981,7 +1978,7 @@ impl App {
                     let y = match hy { -1 => r.bottom(), 1 => r.top(), _ => r.center().y };
                     let hr = Rect::from_center_size(Pos2::new(x, y), Vec2::splat(9.0));
                     painter.rect(hr, 1.0, Color32::WHITE, Stroke::new(1.2, Color32::from_rgb(220, 110, 0)), StrokeKind::Inside);
-                    // Где нажали, а не где мышь сейчас: перетаскивание начинается, когда она уже сдвинулась на несколько точек.
+                    // Where it was pressed, not where the mouse is now: dragging starts once it has already moved a few points.
                     if resp.drag_started() && ui.input(|i| i.pointer.press_origin()).is_some_and(|m| hr.expand(4.0).contains(m)) {
                         grabbed = Some([hx, hy]);
                     }
@@ -2046,7 +2043,7 @@ impl App {
         }
     }
 
-    /// Иконка «Показывать двери и фасады».
+    /// The "Show doors and fronts" icon.
     fn doors_toggle(&mut self, ui: &mut egui::Ui) {
         if icons::button(ui, icons::Icon::Doors, 26.0, "Двери и фасады: показать или скрыть (скрыть — заглянуть внутрь корпуса)", self.show_doors).clicked() {
             self.show_doors = !self.show_doors;
@@ -2066,7 +2063,7 @@ impl App {
             }
             self.doors_toggle(ui);
         });
-        // Общие режим, рамки фурнитуры и «Показать всё» — для всех окон.
+        // Shared mode, furniture boxes and "Show all" for all views.
         let list = self.session.as_ref().map(|s| design::furniture(&s.project)).unwrap_or_default();
         let boxes: Vec<viewport::FurnView> = list
             .into_iter()
@@ -2076,7 +2073,7 @@ impl App {
             })
             .collect();
         let refit = self.viewport.needs_fit();
-        // Текстуры материалов: полное имя «Название\rАртикул» → картинка и плитка.
+        // Material textures: full name "Name\rArticle" → image and tile.
         let textures: Vec<(String, String, [f64; 2])> = self.session.as_ref().map(|s| {
             s.project.materials.iter().filter_map(|m| {
                 let full = if m.article.is_empty() { m.name.clone() } else { format!("{}\r{}", m.name, m.article) };
@@ -2102,12 +2099,12 @@ impl App {
         };
         let doors = self.show_doors;
         let selected = self.selected_all();
-        // Скрытые глазом детали — по адресу в списке (замыкание получает саму деталь).
+        // Parts hidden with the eye icon, by address in the list (the closure receives the part itself).
         let hidden: std::collections::HashSet<*const Part> = self.hidden_parts().into_iter().map(|i| &parts[i] as *const Part).collect();
         let skip = |p: &Part| hidden.contains(&(p as *const Part)) || (!doors && matches!(p.kind, design::Kind::Door | design::Kind::Drawer));
         let mut clicks = Vec::new();
         if self.quad {
-            // Как в Базисе: спереди | слева, сверху | аксонометрия.
+            // As in Bazis: front | left, top | axonometric.
             let r = ui.available_rect_before_wrap();
             let (w, h) = (r.width() / 2.0, r.height() / 2.0);
             let cell = |i: usize, j: usize| egui::Rect::from_min_size(r.min + Vec2::new(i as f32 * w, j as f32 * h), Vec2::new(w, h)).shrink(1.0);
@@ -2123,7 +2120,7 @@ impl App {
             if let Some(c) = cells[3] {
                 clicks.push(ui.scope_builder(egui::UiBuilder::new().max_rect(c), |ui| self.viewport.show(ui, frame, parts, self.revision, &selected, skip)).inner);
             }
-            // Кнопка в углу окна: развернуть на всю область / вернуть четыре окна.
+            // Button in the view corner: maximize to the whole area / restore the four views.
             for (i, c) in cells.iter().enumerate() {
                 let Some(c) = c else { continue };
                 let b = egui::Rect::from_min_size(c.right_top() + Vec2::new(-28.0, 4.0), Vec2::splat(24.0));
@@ -2154,7 +2151,7 @@ impl App {
                     }
                 }
                 viewport::Click::Furniture(id, right) => {
-                    // Правой кнопкой по невыделенной — выделить её; левой — выделить (с Ctrl — тоже одну).
+                    // Right-click on an unselected one selects it; left-click selects (with Ctrl, also just one).
                     if !right || self.furniture_sel != Some(id) {
                         self.selection.clear();
                         self.furniture_sel = Some(id);
@@ -2198,8 +2195,8 @@ impl App {
 
     fn cut_view(&mut self, ui: &mut egui::Ui) {
         let before = self.params;
-        // В своём проекте лист, пропил и обрезка — у каждого материала; общие числа нужны только
-        // модели Базиса, у материалов которой листа нет.
+        // In our own project, sheet, kerf and trim belong to each material; the general numbers are only needed
+        // for a Bazis model whose materials have no sheet.
         if self.session.is_some() {
             ui.weak(crate::i18n::t("Лист, пропил и обрезка задаются у каждого материала: панель «Проект» → «Материалы»."));
         } else {
@@ -2262,7 +2259,7 @@ impl App {
         }
     }
 
-    /// `--screenshot файл.png`: после нескольких кадров сохранить окно и выйти.
+    /// `--screenshot file.png`: after a few frames save the window and exit.
     fn take_screenshot(&mut self, ctx: &egui::Context) {
         let Some(path) = self.screenshot.clone() else { return };
         self.frames += 1;

@@ -1,10 +1,10 @@
-//! Собственная модель изделия: параметрические корпуса и команды для их изменения.
+//! Native product model: parametric cabinets and commands to change them.
 //!
-//! Проект хранит параметры (габариты, полки, перегородки, двери), а детали строятся из них
-//! функцией [`build`] в виде [`Panel`]. Поэтому спецификация, раскрой, карты, смета и XML
-//! для Раскроя работают с собственными моделями так же, как с моделями Базиса.
-//! Все изменения идут через [`Session::execute`]: команда с JSON-параметрами.
-//! Тот же вход будут вызывать CLI, окно и MCP.
+//! The project stores parameters (dimensions, shelves, partitions, doors), and parts are built from them
+//! by [`build`] as [`Panel`]. So the specification, sheet cutting, cutting maps, estimate and XML
+//! for Raskroy work with native models the same way as with Bazis models.
+//! All changes go through [`Session::execute`]: a command with JSON parameters.
+//! The CLI, the window and MCP will call the same entry point.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -23,16 +23,16 @@ pub mod fronts;
 pub mod analysis;
 pub use commands::{COMMANDS, Session};
 
-/// Файл своего проекта `.dcraft`.
+/// Native project file `.dcraft`.
 pub fn is_project_file(path: &std::path::Path) -> bool {
     path.extension().is_some_and(|e| e.eq_ignore_ascii_case("dcraft"))
 }
 
-/// Метка формата в файле проекта `.dcraft`.
+/// Format tag in a `.dcraft` project file.
 pub const FORMAT: &str = "dowel-craft/2";
-/// Тот же формат под прежним именем программы (basis-craft).
+/// The same format under the program's former name (basis-craft).
 const FORMAT_OLD_NAME: &str = "basis-craft/2";
-/// Прежний формат: без дерева объектов (свободные детали — габаритом). Читается, если в нём нет свободных деталей.
+/// Former format: no object tree (free parts stored as bounding boxes). Readable if it has no free parts.
 const FORMAT_V1: &str = "basis-craft/1";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -41,22 +41,22 @@ pub struct Material {
     #[serde(default)]
     pub article: String,
     pub thickness: f64,
-    /// Формат листа, мм.
+    /// Sheet size, mm.
     #[serde(default = "default_sheet")]
     pub sheet: (f64, f64),
-    /// Коэффициент расхода для сметы.
+    /// Material usage coefficient for the estimate.
     #[serde(default = "default_coef")]
     pub coef: f64,
-    /// Обрезка края листа, мм; нет — общая из параметров раскроя (у столешниц обычно 0).
+    /// Sheet edge trim, mm; none — the global sheet cutting setting (usually 0 for countertops).
     #[serde(default)]
     pub trim: Option<f64>,
-    /// Пропил, мм; нет — общий.
+    /// Kerf, mm; none — the global one.
     #[serde(default)]
     pub kerf: Option<f64>,
-    /// Картинка текстуры для 3D (путь к файлу).
+    /// Texture image for 3D (file path).
     #[serde(default)]
     pub texture: Option<String>,
-    /// Размер плитки текстуры на детали, мм (длина вдоль волокон × ширина); нет — 1000 × 1000.
+    /// Texture tile size on parts, mm (length along the grain × width); none — 1000 × 1000.
     #[serde(default)]
     pub texture_size: Option<[f64; 2]>,
 }
@@ -67,7 +67,7 @@ pub struct EdgeMaterial {
     #[serde(default)]
     pub article: String,
     pub thickness: f64,
-    /// Ширина ленты, мм.
+    /// Band width, mm.
     #[serde(default)]
     pub width: f64,
 }
@@ -82,8 +82,8 @@ fn default_gap() -> f64 {
     2.0
 }
 
-/// Полка: в какой секции (между перегородками, слева направо с 0) и на какой высоте
-/// её нижняя грань от верхней грани дна, мм.
+/// Shelf: which section (between partitions, left to right from 0) and at what height
+/// its bottom face is above the top face of the bottom, mm.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Shelf {
     #[serde(default)]
@@ -91,59 +91,59 @@ pub struct Shelf {
     pub height: f64,
 }
 
-/// Корпус: боковины, дно и крыша между боковинами, цоколь, перегородки, полки,
-/// накладная задняя стенка и накладные двери. Оси: X — вправо, Y — вверх, Z — к фасаду.
+/// Cabinet: side panels, bottom and top between the side panels, plinth, partitions, shelves,
+/// overlay back panel and overlay doors. Axes: X — right, Y — up, Z — towards the front.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Cabinet {
     pub id: u32,
     #[serde(default)]
     pub name: String,
-    /// Крепёж стыков корпуса (название из справочника); полки — на полкодержатели. Нет — без присадки.
+    /// Cabinet joint fasteners (name from the library); shelves sit on shelf supports. None — no drilling.
     #[serde(default)]
     pub fastener: Option<String>,
-    /// Положение левого нижнего заднего угла, мм.
+    /// Position of the bottom-left-back corner, mm.
     #[serde(default)]
     pub position: [f64; 3],
     pub width: f64,
     pub height: f64,
     pub depth: f64,
-    /// Материал корпуса (имя из `materials`).
+    /// Cabinet material (name from `materials`).
     pub material: String,
-    /// Кромка для лицевых торцов и дверей (имя из `edges`).
+    /// Edge banding for front edges and doors (name from `edges`).
     #[serde(default)]
     pub edge: Option<String>,
-    /// Высота цоколя, мм; 0 — без цоколя.
+    /// Plinth height, mm; 0 — no plinth.
     #[serde(default)]
     pub plinth: f64,
-    /// Материал задней стенки; нет — без стенки.
+    /// Back panel material; none — no back panel.
     #[serde(default)]
     pub back: Option<String>,
-    /// Левые грани перегородок от левого края корпуса, мм.
+    /// Left faces of partitions from the cabinet's left edge, mm.
     #[serde(default)]
     pub partitions: Vec<f64>,
     #[serde(default)]
     pub shelves: Vec<Shelf>,
-    /// Число дверей по ширине; 0 — открытый корпус.
+    /// Number of doors across the width; 0 — open cabinet.
     #[serde(default)]
     pub doors: u32,
-    /// Материал дверей; нет — материал корпуса.
+    /// Door material; none — the cabinet material.
     #[serde(default)]
     pub door_material: Option<String>,
-    /// Зазор между дверями и по краям, мм.
+    /// Gap between doors and at the edges, mm.
     #[serde(default = "default_gap")]
     pub door_gap: f64,
-    /// Выдвижные ящики: высоты фасадов снизу вверх, мм. Двери закрывают высоту над ними.
+    /// Drawers: front heights bottom to top, mm. Doors cover the height above them.
     #[serde(default)]
     pub drawers: Vec<f64>,
-    /// Длина направляющих (глубина короба), мм; нет — глубина корпуса, округлённая вниз до 50 мм.
+    /// Drawer runner length (box depth), mm; none — cabinet depth rounded down to 50 mm.
     #[serde(default)]
     pub drawer_depth: Option<f64>,
-    /// Секция с ящиками (слева направо с 0), если есть перегородки.
+    /// Section with drawers (left to right from 0), if there are partitions.
     #[serde(default)]
     pub drawer_section: usize,
 }
 
-/// Столешница: лежит поверх корпусов, задаётся положением левого нижнего заднего угла.
+/// Countertop: lies on top of cabinets, positioned by its bottom-left-back corner.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Countertop {
     pub id: u32,
@@ -154,19 +154,19 @@ pub struct Countertop {
     pub position: [f64; 3],
     pub length: f64,
     pub depth: f64,
-    /// Кромка лицевого торца.
+    /// Front edge banding.
     #[serde(default)]
     pub edge: Option<String>,
 }
 
-/// Угловой Г-образный модуль в углу комнаты: крыло вдоль X (`width_x`) и крыло вдоль Z (`width_z`)
-/// от общего заднего угла `position`. Стены — с задних сторон крыльев, фасады смотрят во внутренний угол.
+/// L-shaped corner unit in a room corner: a wing along X (`width_x`) and a wing along Z (`width_z`)
+/// from the shared back corner `position`. Walls are behind the wings, fronts face the inner corner.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Corner {
     pub id: u32,
     #[serde(default)]
     pub name: String,
-    /// Крепёж стыков модуля; полки — на полкодержатели.
+    /// Unit joint fasteners; shelves sit on shelf supports.
     #[serde(default)]
     pub fastener: Option<String>,
     #[serde(default)]
@@ -182,10 +182,10 @@ pub struct Corner {
     pub plinth: f64,
     #[serde(default)]
     pub back: Option<String>,
-    /// Высоты полок от верха дна, мм.
+    /// Shelf heights above the top of the bottom, mm.
     #[serde(default)]
     pub shelves: Vec<f64>,
-    /// Двери на обоих крыльях.
+    /// Doors on both wings.
     #[serde(default)]
     pub doors: bool,
     #[serde(default)]
@@ -194,38 +194,38 @@ pub struct Corner {
     pub door_gap: f64,
 }
 
-/// Свободная деталь: плита с произвольным контуром — так в проект попадают детали из моделей Базиса.
-/// Панель в дереве проекта: контур, материал, кромка, отверстия и точное положение.
+/// Free part: a board with an arbitrary contour — this is how parts from Bazis models get into the project.
+/// A panel in the project tree: contour, material, edge banding, holes and exact position.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct FreePanel {
     pub id: u32,
     #[serde(default)]
     pub name: String,
-    /// Номер позиции (у импортированных — из исходной модели).
+    /// Item number (for imported ones — from the source model).
     #[serde(default)]
     pub pos: String,
     #[serde(default)]
     pub designation: String,
     pub material: String,
-    /// Контур в осях панели, габарит от (0, 0).
+    /// Contour in panel axes, bounding box from (0, 0).
     pub segs: Vec<Seg>,
     pub texture: Texture,
     #[serde(default)]
     pub edges: Vec<Edge>,
-    /// Отверстия в координатах панели.
+    /// Holes in panel coordinates.
     #[serde(default)]
     pub holes: Vec<Hole>,
-    /// Пазы (из модели Базиса).
+    /// Grooves (from the Bazis model).
     #[serde(default)]
     pub grooves: Vec<crate::panel::Groove>,
-    /// Назначение — для цвета на видах.
+    /// Purpose — for coloring on views.
     #[serde(default)]
     pub kind: Kind,
-    /// Положение относительно родителя; толщина — вдоль +Z панели.
+    /// Position relative to the parent; thickness runs along the panel's +Z.
     pub frame: Frame,
 }
 
-/// Блок (сборочная единица): именованная группа объектов со своим положением.
+/// Block (assembly unit): a named group of objects with its own position.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Block {
     pub id: u32,
@@ -237,27 +237,27 @@ pub struct Block {
     pub children: Vec<Object>,
 }
 
-/// Модель фурнитуры (из `.fr3d`): в раскрой не идёт, сверлит свои отверстия в панелях, к которым
-/// прижата, считается в смете по названию. Отверстия и габарит хранятся в проекте — файл может пропасть.
+/// Hardware model (from `.fr3d`): not included in sheet cutting, drills its holes into the panels it
+/// touches, counted in the estimate by name. Holes and bounding box are stored in the project — the file may disappear.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Furniture {
     pub id: u32,
     pub name: String,
     #[serde(default)]
     pub kind: String,
-    /// Файл, из которого поставлена модель.
+    /// File the model was placed from.
     #[serde(default)]
     pub source: String,
     #[serde(default)]
     pub frame: Frame,
     #[serde(default)]
     pub holes: Vec<crate::panel::WorldHole>,
-    /// Габарит в осях модели.
+    /// Bounding box in model axes.
     pub lo: [f64; 3],
     pub hi: [f64; 3],
 }
 
-/// Объект дерева проекта.
+/// Project tree object.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Object {
@@ -276,13 +276,13 @@ impl Object {
     }
 }
 
-/// Толщина панели дерева (из её материала).
+/// Thickness of a tree panel (from its material).
 fn panels_thickness(p: &Project, id: u32) -> Result<f64, String> {
     let fp = p.panels().into_iter().find(|f| f.id == id).ok_or_else(|| format!("нет панели {id}"))?;
     Ok(p.material(&fp.material)?.thickness)
 }
 
-/// Все панели дерева, в глубину.
+/// All tree panels, depth-first.
 fn walk_panels<'a>(objects: &'a [Object], out: &mut Vec<&'a FreePanel>) {
     for o in objects {
         match o {
@@ -293,7 +293,7 @@ fn walk_panels<'a>(objects: &'a [Object], out: &mut Vec<&'a FreePanel>) {
     }
 }
 
-/// Объект с номером `id` где угодно в дереве.
+/// Object with id `id` anywhere in the tree.
 fn find_mut(objects: &mut [Object], id: u32) -> Option<&mut Object> {
     for o in objects {
         if o.id() == id {
@@ -308,7 +308,6 @@ fn find_mut(objects: &mut [Object], id: u32) -> Option<&mut Object> {
     None
 }
 
-/// Убирает объект с номером `id` из дерева.
 fn remove(objects: &mut Vec<Object>, id: u32) -> Option<Object> {
     if let Some(i) = objects.iter().position(|o| o.id() == id) {
         return Some(objects.remove(i));
@@ -345,29 +344,29 @@ pub struct Project {
     pub countertops: Vec<Countertop>,
     #[serde(default)]
     pub corners: Vec<Corner>,
-    /// Дерево панелей и блоков (свободные детали, импорт из Базиса).
+    /// Tree of panels and blocks (free parts, import from Bazis).
     #[serde(default)]
     pub objects: Vec<Object>,
-    /// Крепёж между панелями дерева.
+    /// Fasteners between tree panels.
     #[serde(default)]
     pub fasteners: Vec<FastenerInst>,
-    /// Свой справочник крепежа; пусто — справочник по умолчанию ([`crate::fasteners::library`]).
+    /// Custom fastener library; empty — the default library ([`crate::fasteners::library`]).
     #[serde(default)]
     pub fastener_defs: Vec<crate::fasteners::Def>,
 }
 
-/// Крепёж на стыке двух панелей дерева: торец `b` на пласти `a` (порядок не важен — стык ищется в обе стороны).
+/// Fastener at a joint of two tree panels: edge of `b` on the face of `a` (order doesn't matter — the joint is searched both ways).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct FastenerInst {
     pub id: u32,
-    /// Название крепежа из справочника.
+    /// Fastener name from the library.
     pub kind: String,
     pub a: u32,
     pub b: u32,
-    /// Точки вдоль стыка, мм от его начала; нет — по правилу крепежа (отступ и шаг).
+    /// Points along the joint, mm from its start; none — by the fastener rule (offset and pitch).
     #[serde(default)]
     pub positions: Option<Vec<f64>>,
-    /// Чашка эксцентрика снаружи корпуса (по умолчанию — внутри).
+    /// Cam lock cup outside the cabinet (inside by default).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub outside: bool,
 }
@@ -388,12 +387,12 @@ impl Project {
         }
     }
 
-    /// Справочник крепежа проекта.
+    /// The project's fastener library.
     pub fn defs(&self) -> Vec<crate::fasteners::Def> {
         if self.fastener_defs.is_empty() { crate::fasteners::library() } else { self.fastener_defs.clone() }
     }
 
-    /// Крепёж по названию (без артикула или полностью).
+    /// Fastener by name (without article number or full).
     pub fn def(&self, name: &str) -> Result<crate::fasteners::Def, String> {
         self.defs()
             .into_iter()
@@ -416,14 +415,14 @@ impl Project {
         Ok(p)
     }
 
-    /// Все панели дерева объектов, в глубину.
+    /// All panels of the object tree, depth-first.
     pub fn panels(&self) -> Vec<&FreePanel> {
         let mut out = Vec::new();
         walk_panels(&self.objects, &mut out);
         out
     }
 
-    /// Свободный номер: номера общие для корпусов, угловых модулей, столешниц и объектов дерева.
+    /// Free id: ids are shared by cabinets, corner units, countertops and tree objects.
     pub fn next_id(&self) -> u32 {
         let c = self.cabinets.iter().map(|c| c.id);
         let k = self.corners.iter().map(|c| c.id);
@@ -447,13 +446,13 @@ impl Project {
     }
 }
 
-/// Название и артикул в формате Базиса `Название\rАртикул`.
+/// Name and article number in Bazis format `Name\rArticle`.
 fn full(name: &str, article: &str) -> String {
     if article.is_empty() { name.into() } else { format!("{name}\r{article}") }
 }
 
-/// Назначение детали Базиса по её имени — только для цвета на видах.
-/// shortcut: угадывание по словам «фасад», «дверь», «задняя стенка»; уточнить, если найдётся признак в модели.
+/// Purpose of a Bazis part by its name — only for coloring on views.
+/// shortcut: guessed from the words for front, door and back panel; refine if the model has a marker.
 pub fn guess_kind(p: &Panel) -> Kind {
     let name = p.name.to_lowercase();
     if name.contains("фасад") || name.contains("двер") {
@@ -465,14 +464,14 @@ pub fn guess_kind(p: &Panel) -> Kind {
     }
 }
 
-/// Проект из деталей модели Базиса: плиты — панели дерева с их точным положением, блоки Базиса — блоки.
-/// Материалы — из встреченных (формат листа и коэффициент по умолчанию). Плиты без положения пропускаются.
-/// `blocks` и `panel_block` — структура блоков из [`crate::panel::Extract`].
+/// Project from Bazis model parts: boards become tree panels with their exact position, Bazis blocks become blocks.
+/// Materials come from those encountered (default sheet size and coefficient). Boards without a position are skipped.
+/// `blocks` and `panel_block` are the block structure from [`crate::panel::Extract`].
 pub fn import(name: &str, panels: &[Panel], blocks: &[BlockInfo], panel_block: &[Option<usize>]) -> Project {
     let mut p = Project::new(name);
-    // (материал Базиса, толщина) → имя материала проекта. Один материал разной толщины — разные материалы.
+    // (Bazis material, thickness) → project material name. One material in different thicknesses becomes different materials.
     let mut seen: Vec<((&str, f64), String)> = Vec::new();
-    // Дерево собирается в списках детей: 0 — корень, далее — блоки в порядке появления.
+    // The tree is assembled in child lists: 0 — the root, then blocks in order of appearance.
     let mut kids: Vec<Vec<Object>> = vec![Vec::new()];
     let mut made: Vec<(usize, usize)> = Vec::new();
     let mut next_block = panels.len() as u32 + 1;
@@ -490,8 +489,8 @@ pub fn import(name: &str, panels: &[Panel], blocks: &[BlockInfo], panel_block: &
                 key
             }
         };
-        // Цепочка блоков от корня до блока плиты; недостающие блоки создаются при первой встрече,
-        // поэтому порядок деталей при обходе дерева совпадает с порядком в модели.
+        // Chain of blocks from the root to the board's block; missing blocks are created on first encounter,
+        // so the part order when walking the tree matches the order in the model.
         let mut chain = Vec::new();
         let mut b = panel_block.get(i).copied().flatten();
         while let Some(bi) = b {
@@ -509,7 +508,7 @@ pub fn import(name: &str, panels: &[Panel], blocks: &[BlockInfo], panel_block: &
                     next_block += 1;
                     kids[parent].push(Object::Block(Block { id: 0, name: String::new(), frame: Frame::IDENTITY, children: Vec::new() }));
                     made.push((bi, slot));
-                    // Номер слота запоминаем в id заглушки, имя и детей подставим при сборке.
+                    // Store the slot number in the placeholder id; the name and children are filled in during assembly.
                     if let Some(Object::Block(stub)) = kids[parent].last_mut() {
                         stub.id = slot as u32;
                     }
@@ -549,7 +548,7 @@ pub fn import(name: &str, panels: &[Panel], blocks: &[BlockInfo], panel_block: &
     p
 }
 
-/// Назначение детали — для отображения.
+/// Part purpose — for display.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
@@ -557,35 +556,35 @@ pub enum Kind {
     Body,
     Back,
     Door,
-    /// Фасад ящика.
+    /// Drawer front.
     Drawer,
 }
 
-/// Деталь изделия: плита для отчётов (с положением `panel.frame`) и её габарит в координатах проекта.
+/// Product part: a board for reports (positioned by `panel.frame`) and its bounding box in project coordinates.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Part {
-    /// Номер объекта верхнего уровня: корпуса, углового модуля, столешницы или объекта дерева.
+    /// Top-level object id: cabinet, corner unit, countertop or tree object.
     pub owner: u32,
-    /// Номер панели дерева объектов; 0 — деталь шаблона (корпуса и т.п.) или модели Базиса.
+    /// Object tree panel id; 0 — a template part (cabinet etc.) or a Bazis model part.
     pub id: u32,
     pub kind: Kind,
     pub panel: Panel,
-    /// Минимальный угол габарита, мм.
+    /// Bounding box min corner, mm.
     pub origin: [f64; 3],
-    /// Размеры габарита по X, Y, Z, мм.
+    /// Bounding box size along X, Y, Z, mm.
     pub size: [f64; 3],
 }
 
 impl Part {
-    /// Деталь с положением: габарит считается из положения, контура и толщины.
+    /// Positioned part: the bounding box is computed from the position, contour and thickness.
     fn new(owner: u32, kind: Kind, panel: Panel) -> Result<Part, String> {
         let (lo, hi) = panel.bounds().ok_or_else(|| format!("деталь «{}» без положения", panel.name))?;
         Ok(Part { owner, id: 0, kind, panel, origin: lo, size: std::array::from_fn(|k| hi[k] - lo[k]) })
     }
 
-    /// Деталь генератора, заданная габаритом: плоскость определяется по тому, вдоль какой оси толщина.
-    /// Фронтальная — контур X→X, Y→Y, толщина к зрителю; горизонтальная — X→X, Y→+Z (лицевая кромка — верх
-    /// контура), толщина вниз; вертикальная — X→+Z (лицевая кромка — правая), Y→Y, толщина влево.
+    /// Generator part given by a bounding box: the plane is determined by the axis along which the thickness runs.
+    /// Front — contour X→X, Y→Y, thickness towards the viewer; horizontal — X→X, Y→+Z (front edge is the contour
+    /// top), thickness down; vertical — X→+Z (front edge is the right one), Y→Y, thickness to the left.
     fn placed(owner: u32, kind: Kind, mut panel: Panel, origin: [f64; 3], size: [f64; 3]) -> Result<Part, String> {
         panel.frame = Some(place(&panel, origin, size)?);
         let part = Part::new(owner, kind, panel)?;
@@ -597,7 +596,7 @@ impl Part {
     }
 }
 
-/// Положение панели по её габариту в проекте (см. [`Part::placed`]).
+/// Panel position from its bounding box in the project (see [`Part::placed`]).
 fn place(panel: &Panel, o: [f64; 3], size: [f64; 3]) -> Result<Frame, String> {
     let eq = |a: f64, b: f64| (a - b).abs() < 1e-9;
     let (t, (sx, sy)) = (panel.thickness, panel.size);
@@ -613,19 +612,19 @@ fn place(panel: &Panel, o: [f64; 3], size: [f64; 3]) -> Result<Frame, String> {
     }
 }
 
-/// Плоскость новой панели.
+/// Plane of a new panel.
 #[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Plane {
-    /// Фронтальная: в плоскости XY (ширина × высота).
+    /// Front: in the XY plane (width × height).
     Front,
-    /// Горизонтальная: в плоскости XZ (ширина × глубина).
+    /// Horizontal: in the XZ plane (width × depth).
     Horizontal,
-    /// Вертикальная (профильная): в плоскости ZY (глубина × высота).
+    /// Vertical (profile): in the ZY plane (depth × height).
     Vertical,
 }
 
-/// Стороны прямоугольного контура: низ, лево, верх, право — в порядке сегментов, как у Базиса.
+/// Sides of a rectangular contour: bottom, left, top, right — in segment order, as in Bazis.
 const BOTTOM: usize = 0;
 const LEFT: usize = 1;
 const TOP: usize = 2;
@@ -635,7 +634,7 @@ fn rect(name: &str, mat: &Material, sx: f64, sy: f64, texture: Texture, edged: &
     poly(name, mat, &[[sx, 0.0], [0.0, 0.0], [0.0, sy], [sx, sy]], texture, edged, edge)
 }
 
-/// Плита с многоугольным контуром: сегмент i идёт от вершины i к i+1. Габарит — от (0, 0).
+/// Board with a polygonal contour: segment i runs from vertex i to i+1. Bounding box from (0, 0).
 fn poly(name: &str, mat: &Material, pts: &[[f64; 2]], texture: Texture, edged: &[usize], edge: Option<&EdgeMaterial>) -> Panel {
     let segs: Vec<Seg> = (0..pts.len()).map(|i| Seg::Line { a: pts[i], b: pts[(i + 1) % pts.len()] }).collect();
     let size = pts.iter().fold((0.0, 0.0), |s: (f64, f64), p| (s.0.max(p[0]), s.1.max(p[1])));
@@ -648,7 +647,7 @@ fn poly(name: &str, mat: &Material, pts: &[[f64; 2]], texture: Texture, edged: &
                     thickness: e.thickness,
                     width: e.width,
                     allowance: 0.0,
-                    // Размер детали в модели — чистовой, кромка подрезает заготовку.
+                    // Part size in the model is the finished size; edge banding trims the blank.
                     clip: true,
                     segment,
                 })
@@ -671,7 +670,7 @@ fn poly(name: &str, mat: &Material, pts: &[[f64; 2]], texture: Texture, edged: &
     }
 }
 
-/// Строит детали всех корпусов. Ошибка — если параметры не дают корректного изделия.
+/// Builds the parts of all cabinets. Error if the parameters don't yield a valid product.
 pub fn build(p: &Project) -> Result<Vec<Part>, String> {
     let mut parts = Vec::new();
     for c in &p.cabinets {
@@ -687,7 +686,7 @@ pub fn build(p: &Project) -> Result<Vec<Part>, String> {
         countertop(p, ct, &mut parts).map_err(|e| format!("столешница {} «{}»: {e}", ct.id, ct.name))?;
     }
     drill(p, &mut parts)?;
-    // Номера позиций — по порядку деталей в проекте; у импортированных деталей — свои.
+    // Item numbers follow the part order in the project; imported parts keep their own.
     for (i, part) in parts.iter_mut().enumerate() {
         if part.panel.pos.is_empty() {
             part.panel.pos = (i + 1).to_string();
@@ -696,8 +695,8 @@ pub fn build(p: &Project) -> Result<Vec<Part>, String> {
     Ok(parts)
 }
 
-/// Точки и стыки крепежа: (название крепежа, стык, точки). Для шаблонов — по их параметру «Крепёж»,
-/// для панелей дерева — по экземплярам `fasteners`. Стык, которого больше нет, пропускается (его покажет анализ).
+/// Fastener points and joints: (fastener name, joint, points). For templates — by their fasteners parameter,
+/// for tree panels — by the `fasteners` instances. A joint that no longer exists is skipped (analysis will report it).
 pub fn fastener_joints(p: &Project, parts: &[Part]) -> Result<Vec<(crate::fasteners::Def, crate::fasteners::Joint, Vec<f64>)>, String> {
     use crate::fasteners::{joints, positions};
     let mut out = Vec::new();
@@ -706,7 +705,7 @@ pub fn fastener_joints(p: &Project, parts: &[Part]) -> Result<Vec<(crate::fasten
         let Some(name) = fastener else { continue };
         let main = p.def(name)?;
         let shelf = p.def("Полкодержатель 5").ok();
-        // Короба ящиков, задние стенки и фасады — без крепежа корпуса.
+        // Drawer boxes, back panels and fronts get no cabinet fasteners.
         let ids: Vec<usize> = (0..parts.len())
             .filter(|&i| parts[i].owner == owner && parts[i].kind == Kind::Body && !parts[i].panel.name.contains("ящика"))
             .collect();
@@ -733,8 +732,8 @@ pub fn fastener_joints(p: &Project, parts: &[Part]) -> Result<Vec<(crate::fasten
     Ok(out)
 }
 
-/// Присадка: отверстия крепежа — в детали. Отверстие за пределами детали — ошибка с объяснением.
-/// Затем отверстия моделей фурнитуры садятся в панели, к которым модель прижата.
+/// Drilling: fastener holes go into the parts. A hole outside the part is an error with an explanation.
+/// Then holes of hardware models are drilled into the panels the model touches.
 fn drill(p: &Project, parts: &mut [Part]) -> Result<(), String> {
     for (def, j, at) in fastener_joints(p, parts)? {
         for s in at {
@@ -747,7 +746,7 @@ fn drill(p: &Project, parts: &mut [Part]) -> Result<(), String> {
     Ok(())
 }
 
-/// Фурнитура дерева в координатах проекта.
+/// Tree hardware in project coordinates.
 pub fn furniture(p: &Project) -> Vec<(Furniture, Frame)> {
     fn walk(list: &[Object], parent: &Frame, out: &mut Vec<(Furniture, Frame)>) {
         for o in list {
@@ -763,7 +762,7 @@ pub fn furniture(p: &Project) -> Vec<(Furniture, Frame)> {
     out
 }
 
-/// Сажает отверстия фурнитуры в детали; возвращает число отверстий, не нашедших панель (по фурнитуре).
+/// Drills hardware holes into parts; returns the number of holes that found no panel (per hardware item).
 fn furniture_drill(p: &Project, parts: &mut [Part]) -> Vec<(String, usize)> {
     let mut panels: Vec<Panel> = parts.iter().map(|q| Panel { holes: Vec::new(), ..q.panel.clone() }).collect();
     let mut lost = Vec::new();
@@ -784,14 +783,14 @@ fn furniture_drill(p: &Project, parts: &mut [Part]) -> Vec<(String, usize)> {
     lost
 }
 
-/// Отверстия фурнитуры, не попавшие ни в одну панель: (фурнитура, число) — для анализа модели.
+/// Hardware holes that hit no panel: (hardware, count) — for model analysis.
 pub fn furniture_lost_holes(p: &Project) -> Vec<(String, usize)> {
     let Ok(mut parts) = build(p) else { return Vec::new() };
     parts.iter_mut().for_each(|q| q.panel.holes.clear());
     furniture_drill(p, &mut parts)
 }
 
-/// Крепёж для сметы: (название, штук).
+/// Fasteners for the estimate: (name, count).
 pub fn hardware(p: &Project) -> Result<Vec<(String, usize)>, String> {
     let parts = build(p)?;
     let mut out: Vec<(String, usize)> = Vec::new();
@@ -810,7 +809,7 @@ pub fn hardware(p: &Project) -> Result<Vec<(String, usize)>, String> {
     Ok(out)
 }
 
-/// Крепёж, чей стык пропал (панели раздвинули или удалили): номера экземпляров и причина.
+/// Fasteners whose joint is gone (panels moved apart or deleted): instance ids and the reason.
 pub fn hanging_fasteners(p: &Project) -> Vec<(u32, String)> {
     let Ok(parts) = build(p) else { return Vec::new() };
     p.fasteners
@@ -826,7 +825,7 @@ pub fn hanging_fasteners(p: &Project) -> Vec<(u32, String)> {
         .collect()
 }
 
-/// Панели поддерева в координатах проекта.
+/// Subtree panels in project coordinates.
 fn objects(p: &Project, owner: u32, list: &[Object], parent: &Frame, out: &mut Vec<Part>) -> Result<(), String> {
     for o in list {
         match o {
@@ -834,7 +833,7 @@ fn objects(p: &Project, owner: u32, list: &[Object], parent: &Frame, out: &mut V
                 b.frame.check().map_err(|e| format!("блок {} «{}»: {e}", b.id, b.name))?;
                 objects(p, owner, &b.children, &parent.then(&b.frame), out)?;
             }
-            // Фурнитура деталей не даёт; её отверстия сажает `drill`.
+            // Hardware yields no parts; its holes are drilled by `drill`.
             Object::Furniture(f) => f.frame.check().map_err(|e| format!("фурнитура {} «{}»: {e}", f.id, f.name))?,
             Object::Panel(fp) => {
                 let err = |e: String| format!("деталь {} «{}»: {e}", fp.id, fp.name);
@@ -880,9 +879,9 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         out.push(Part::placed(c.id, kind, panel, [o[0] + origin[0], o[1] + origin[1], o[2] + origin[2]], size)?);
         Ok(())
     };
-    // Вертикальные детали: контур X — глубина (от задней кромки к лицевой), Y — высота, текстура вдоль высоты.
+    // Vertical parts: contour X — depth (from the back edge to the front edge), Y — height, grain along the height.
     let vertical = |name: &str, height: f64| rect(name, m, d, height, Texture::Vertical, &[RIGHT], edge);
-    // Горизонтальные: X — длина, Y — глубина (лицевая кромка — верх контура), текстура вдоль длины.
+    // Horizontal: X — length, Y — depth (front edge is the contour top), grain along the length.
     let horizontal = |name: &str, length: f64| rect(name, m, length, d, Texture::Horizontal, &[TOP], edge);
 
     add(Kind::Body, vertical("Боковина левая", h), [0.0, 0.0, 0.0], [t, h, d])?;
@@ -893,7 +892,7 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         add(Kind::Body, rect("Цоколь", m, inner_w, c.plinth, Texture::Horizontal, &[], None), [t, 0.0, d - t], [inner_w, c.plinth, t])?;
     }
 
-    // Перегородки и секции между ними.
+    // Partitions and the sections between them.
     let mut xs = c.partitions.clone();
     xs.sort_by(f64::total_cmp);
     let mut sections = Vec::new();
@@ -914,7 +913,7 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
     let &(dsx, dsw) = sections
         .get(c.drawer_section)
         .ok_or_else(|| format!("ящики: нет секции {} (всего {})", c.drawer_section, sections.len()))?;
-    // Длина направляющих кратна 50 мм; верх зоны ящиков — над верхним фасадом, от верха дна.
+    // Drawer runner length is a multiple of 50 mm; the drawer zone top is above the top front, measured from the top of the bottom.
     let drawer_depth = c.drawer_depth.unwrap_or(((d - 10.0) / 50.0).floor() * 50.0);
     let drawer_zone = if c.drawers.is_empty() {
         0.0
@@ -945,9 +944,9 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         None => m,
     };
     let g = c.door_gap;
-    // Ящики: фасады снизу вверх с зазором g, короб под шариковые направляющие (13 мм на сторону).
+    // Drawers: fronts bottom to top with gap g, box for ball-bearing drawer runners (13 mm per side).
     let mut front_y = c.plinth + g;
-    // Фасад ящика закрывает секцию до середины соседних перегородок (у крайних секций — до края корпуса).
+    // A drawer front covers the section up to the middle of adjacent partitions (for end sections — to the cabinet edge).
     let fx0 = if c.drawer_section == 0 { 0.0 } else { dsx - t / 2.0 };
     let fx1 = if c.drawer_section + 1 == sections.len() { w } else { dsx + dsw + t / 2.0 };
     for (i, &hf) in c.drawers.iter().enumerate() {
@@ -961,7 +960,7 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         let facade = rect("Фасад ящика", dm, fw, hf, Texture::Horizontal, &[BOTTOM, LEFT, TOP, RIGHT], edge);
         add(Kind::Drawer, facade, [fx0 + g, front_y, d], [fw, hf, dm.thickness])?;
         let (bx, by, bz) = (dsx + RAIL_GAP, front_y + 20.0, d - bd);
-        // Короб: боковины (X — глубина, Y — высота), стенки между боковинами, дно под коробом.
+        // Box: side panels (X — depth, Y — height), walls between the side panels, bottom under the box.
         let side = |name| rect(name, m, bd, bh, Texture::Horizontal, &[TOP], edge);
         add(Kind::Body, side("Боковина ящика"), [bx, by, bz], [t, bh, bd])?;
         add(Kind::Body, side("Боковина ящика"), [bx + bw - t, by, bz], [t, bh, bd])?;
@@ -1008,8 +1007,8 @@ fn corner(p: &Project, c: &Corner, out: &mut Vec<Part>) -> Result<(), String> {
         out.push(Part::placed(c.id, kind, panel, [o[0] + origin[0], o[1] + origin[1], o[2] + origin[2]], size)?);
         Ok(())
     };
-    // Г-образные горизонтали в плане (X, Z): лицевые кромки — внутренний угол (сегменты 3 и 4).
-    // shortcut: на видах Г-деталь рисуется своим габаритом (квадратом) — для точного 3D нужны многогранники.
+    // L-shaped horizontals in plan (X, Z): front edges form the inner corner (segments 3 and 4).
+    // shortcut: on views an L-part is drawn as its bounding box (a square); exact 3D needs polyhedra.
     let l_shape = |name| poly(name, m, &[[ax, 0.0], [0.0, 0.0], [0.0, bz], [d, bz], [d, d], [ax, d]], Texture::Horizontal, &[3, 4], edge);
     let side = |name| rect(name, m, d, h, Texture::Vertical, &[RIGHT], edge);
     add(Kind::Body, side("Боковина крыла X"), [ax, 0.0, 0.0], [t, h, d])?;
@@ -1038,7 +1037,7 @@ fn corner(p: &Project, c: &Corner, out: &mut Vec<Part>) -> Result<(), String> {
             None => m,
         };
         let dh = h - c.plinth - 2.0 * g;
-        // Дверь крыла X начинается за дверью крыла Z, чтобы они не сталкивались во внутреннем углу.
+        // The X-wing door starts past the Z-wing door so they don't collide in the inner corner.
         let (dwx, dwz) = (c.width_x - d - dm.thickness - 2.0 * g, c.width_z - d - 2.0 * g);
         if !(dwx > 0.0 && dwz > 0.0 && dh > 0.0) {
             return Err("двери не помещаются".into());
@@ -1050,7 +1049,7 @@ fn corner(p: &Project, c: &Corner, out: &mut Vec<Part>) -> Result<(), String> {
     Ok(())
 }
 
-/// Зазор под шариковую направляющую с каждой стороны короба, мм.
+/// Clearance for a ball-bearing drawer runner on each side of the box, mm.
 const RAIL_GAP: f64 = 13.0;
 
 fn countertop(p: &Project, ct: &Countertop, out: &mut Vec<Part>) -> Result<(), String> {

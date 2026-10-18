@@ -1,42 +1,42 @@
-//! Сетка для 3D-вида: панель — тело выдавливания контура на толщину, в координатах проекта.
-//! Дуги разбиваются с отклонением хорды не больше [`TOLERANCE`]; рёбра — контур обеих пластей
-//! и вертикали в концах сегментов (как «Без невидимых» в Базисе: без рёбер разбиения дуг).
+//! Mesh for the 3D view: a panel is the contour extruded by its thickness, in project coordinates.
+//! Arcs are split with chord deviation no more than [`TOLERANCE`]; edges — the contour of both faces
+//! and verticals at segment ends (like "No invisible" in Bazis: no arc-splitting edges).
 
 use crate::contour::{self, Seg};
 use crate::design::{Kind, Part};
 
-/// Наибольшее отклонение хорды от дуги, мм.
+/// Maximum chord deviation from the arc, mm.
 pub const TOLERANCE: f64 = 0.1;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Vertex {
     pub pos: [f32; 3],
     pub normal: [f32; 3],
-    /// Координаты для текстуры, мм: на пластях — точка контура, на торцах — (вдоль торца, по толщине).
+    /// Texture coordinates, mm: on faces — the contour point, on edge faces — (along the edge, through thickness).
     pub uv: [f32; 2],
-    /// Индекс детали в списке `parts`.
+    /// Part index in the `parts` list.
     pub part: u32,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
-    /// Треугольники, по три индекса.
+    /// Triangles, three indices each.
     pub indices: Vec<u32>,
-    /// Рёбра: пары точек и индекс детали.
+    /// Edges: point pairs and part index.
     pub lines: Vec<([f32; 3], [f32; 3], u32)>,
-    /// Назначение детали, по индексу детали.
+    /// Part role, by part index.
     pub kinds: Vec<Kind>,
-    /// Детали, чей контур не удалось построить: (индекс, причина).
+    /// Parts whose contour could not be built: (index, reason).
     pub errors: Vec<(usize, String)>,
 }
 
-/// Точки сегмента от начала до конца (без конечной), дуги — с разбиением.
+/// Segment points from start to end (end excluded), arcs subdivided.
 fn points(s: &Seg, out: &mut Vec<[f64; 2]>) {
     out.extend(contour::tessellate(s, TOLERANCE));
 }
 
-/// Замкнутый контур как многоугольник: точки и начала сегментов (там ставятся вертикальные рёбра).
+/// Closed contour as a polygon: points and segment starts (where vertical edges go).
 #[derive(Debug, Clone)]
 struct Ring {
     pts: Vec<[f64; 2]>,
@@ -46,13 +46,13 @@ struct Ring {
 impl Ring {
     fn reverse(&mut self) {
         self.pts.reverse();
-        // Те же точки углов в обратном порядке обхода.
+        // The same corner points in reverse traversal order.
         let n = self.pts.len();
         self.corners = self.corners.iter().map(|&c| n - 1 - c).collect();
     }
 }
 
-/// Контуры панели: первый — внешний (против часовой стрелки), остальные — вырезы (по часовой).
+/// Panel contours: the first is outer (counter-clockwise), the rest are cutouts (clockwise).
 fn rings(segs: &[Seg]) -> Result<Vec<Ring>, String> {
     let mut rings: Vec<Ring> = contour::loops(segs)?
         .into_iter()
@@ -76,12 +76,12 @@ fn rings(segs: &[Seg]) -> Result<Vec<Ring>, String> {
     Ok(rings)
 }
 
-/// Внешний контур с вырезами — один многоугольник: каждый вырез соединён с внешним контуром
-/// мостиком из видимой вершины (вершины мостика повторяются).
+/// Outer contour with cutouts as one polygon: each cutout is joined to the outer contour
+/// by a bridge from a visible vertex (bridge vertices are duplicated).
 fn merge(rings: &[Ring]) -> Vec<[f64; 2]> {
     let mut poly = rings[0].pts.clone();
     let mut holes: Vec<&Ring> = rings[1..].iter().collect();
-    // От самого правого выреза: мостики не пересекают ещё не вставленные вырезы.
+    // Start from the rightmost cutout: bridges don't cross cutouts not yet inserted.
     holes.sort_by(|a, b| {
         let mx = |r: &Ring| r.pts.iter().map(|p| p[0]).fold(f64::MIN, f64::max);
         mx(b).total_cmp(&mx(a))
@@ -101,7 +101,7 @@ fn merge(rings: &[Ring]) -> Vec<[f64; 2]> {
         }
         let visible = |j: usize| !blockers.iter().any(|&(c, d)| crosses(h, poly[j], c, d));
         let dist = |j: usize| (poly[j][0] - h[0]).hypot(poly[j][1] - h[1]);
-        // Ближайшая видимая вершина: обычно видна просто ближайшая, иначе — по возрастанию расстояния.
+        // Nearest visible vertex: usually the nearest one is visible, otherwise try by increasing distance.
         let nearest = (0..poly.len()).min_by(|&a, &b| dist(a).total_cmp(&dist(b))).unwrap_or(0);
         let j = if visible(nearest) {
             nearest
@@ -125,9 +125,9 @@ fn area(p: &[[f64; 2]]) -> f64 {
     }).sum::<f64>() / 2.0
 }
 
-/// Триангуляция простого многоугольника отсечением ушей. Вершины против часовой стрелки.
-/// Вершину-кандидата проверяют только вогнутые вершины (только они могут лежать внутри уха),
-/// обход идёт по кругу — O(n·r), где r — число вогнутых вершин.
+/// Triangulation of a simple polygon by ear clipping. Vertices counter-clockwise.
+/// Only reflex vertices are tested against a candidate (only they can lie inside an ear),
+/// traversal goes round in a loop — O(n·r), where r is the number of reflex vertices.
 fn triangulate(p: &[[f64; 2]]) -> Vec<[usize; 3]> {
     let n = p.len();
     if n < 3 {
@@ -139,8 +139,8 @@ fn triangulate(p: &[[f64; 2]]) -> Vec<[usize; 3]> {
     let convex = |prev: &[usize], next: &[usize], i: usize| cross(p[prev[i]], p[i], p[next[i]]) > 1e-12;
     let mut reflex: Vec<bool> = (0..n).map(|i| !convex(&prev, &next, i)).collect();
     let mut alive = vec![true; n];
-    // Сетка ячеек с вогнутыми вершинами: проверяются только ячейки под рамкой уха.
-    // Вогнутая вершина может стать выпуклой, но не наоборот — устаревшие записи отсеивает `reflex[j]`.
+    // Grid of cells with reflex vertices: only cells under the ear's bounding box are checked.
+    // A reflex vertex can become convex but not vice versa — stale entries are filtered by `reflex[j]`.
     let (lo, hi) = p.iter().fold(([f64::MAX; 2], [f64::MIN; 2]), |(lo, hi), q| ([lo[0].min(q[0]), lo[1].min(q[1])], [hi[0].max(q[0]), hi[1].max(q[1])]));
     let cells = ((n as f64).sqrt().ceil() as usize).clamp(1, 256);
     let cell = |v: f64, k: usize| (((v - lo[k]) / (hi[k] - lo[k]).max(1e-9) * cells as f64) as usize).min(cells - 1);
@@ -162,7 +162,7 @@ fn triangulate(p: &[[f64; 2]]) -> Vec<[usize; 3]> {
                     && cross(pa, pb, q) >= 0.0 && cross(pb, pc, q) >= 0.0 && cross(pc, pa, q) >= 0.0
             })
         };
-        // Нет ушей за полный круг — вершина вырожденная (на одной прямой с соседями): убираем её.
+        // No ears in a full loop — the vertex is degenerate (collinear with neighbours): remove it.
         if ear || stall > left {
             if ear {
                 out.push([a, i, c]);
@@ -186,7 +186,7 @@ fn triangulate(p: &[[f64; 2]]) -> Vec<[usize; 3]> {
     out
 }
 
-/// Сетка деталей. Детали с `skip` (например, двери при их скрытии) пропускаются.
+/// Parts mesh. Parts with `skip` (e.g. doors when hidden) are skipped.
 pub fn build(parts: &[Part], skip: impl Fn(&Part) -> bool) -> Mesh {
     let mut m = Mesh { kinds: parts.iter().map(|p| p.kind).collect(), ..Mesh::default() };
     for (pi, part) in parts.iter().enumerate() {
@@ -207,7 +207,7 @@ pub fn build(parts: &[Part], skip: impl Fn(&Part) -> bool) -> Mesh {
         let n = |v: [f64; 3]| f.dir(v).map(|v| v as f32);
         let pi = pi as u32;
         let tris = triangulate(&pts);
-        // Пласти: лицевая (z = t) смотрит по +Z панели, тыльная — против.
+        // Faces: the front face (z = t) points along panel +Z, the back face opposite.
         for (z, normal, flip) in [(t, [0.0, 0.0, 1.0], false), (0.0, [0.0, 0.0, -1.0], true)] {
             let base = m.vertices.len() as u32;
             m.vertices.extend(pts.iter().map(|&p| Vertex { pos: w(p, z), normal: n(normal), uv: [p[0] as f32, p[1] as f32], part: pi }));
@@ -216,8 +216,8 @@ pub fn build(parts: &[Part], skip: impl Fn(&Part) -> bool) -> Mesh {
                 m.indices.extend(if flip { [a, c, b] } else { [a, b, c] });
             }
         }
-        // Торцы: четырёхугольник на каждую хорду, нормаль наружу — справа по обходу
-        // (внешний контур против часовой стрелки, вырезы — по часовой).
+        // Edge faces: a quad per chord, normal outward — to the right of the traversal
+        // (outer contour counter-clockwise, cutouts clockwise).
         for ring in &rings {
             let (pts, k) = (&ring.pts, ring.pts.len());
             for i in 0..k {
@@ -281,15 +281,15 @@ mod tests {
 
     #[test]
     fn l_shaped_panel_is_exact_solid() {
-        // Г-образная горизонтальная панель (как дно углового модуля), по часовой стрелке.
+        // L-shaped horizontal panel (like the bottom of a corner unit), clockwise.
         let pts = [[984.0, 0.0], [0.0, 0.0], [0.0, 884.0], [560.0, 884.0], [560.0, 560.0], [984.0, 560.0]];
         let segs = (0..6).map(|i| Seg::Line { a: pts[i], b: pts[(i + 1) % 6] }).collect();
         let m = build(&[part(segs, (984.0, 884.0))], |_| false);
         let expect = 984.0 * 560.0 + 560.0 * 324.0;
-        // Горизонтальная панель: лицевая пласть смотрит вниз (−Y), тыльная — вверх.
+        // Horizontal panel: front face points down (−Y), back face up.
         assert!((tri_area(&m, [0.0, -1.0, 0.0]) - expect).abs() < 1e-3);
         assert!((tri_area(&m, [0.0, 1.0, 0.0]) - expect).abs() < 1e-3);
-        // 6 торцов, рёбра: 6 + 6 по пластям и 6 вертикалей.
+        // 6 edge faces; edges: 6 + 6 along the faces and 6 verticals.
         assert_eq!(m.lines.len(), 18);
         let ys: Vec<f32> = m.vertices.iter().map(|v| v.pos[1]).collect();
         assert!(ys.iter().all(|&y| y == 0.0 || y == -16.0));
@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     fn arc_follows_tolerance() {
-        // Полукруглый край радиусом 300: хорды не дальше 0,1 мм от дуги, вертикальные рёбра — только в концах сегментов.
+        // Semicircular edge of radius 300: chords no farther than 0.1 mm from the arc, vertical edges only at segment ends.
         let segs = vec![
             Seg::Line { a: [600.0, 0.0], b: [0.0, 0.0] },
             Seg::Line { a: [0.0, 0.0], b: [0.0, 300.0] },
@@ -308,7 +308,7 @@ mod tests {
         let m = build(&[part(segs, (600.0, 600.0))], |_| false);
         let r = &rings(&m_segs()).unwrap()[0];
         assert_eq!(r.corners.len(), 4);
-        // Точки дуги (верхняя полуокружность с концами): все на окружности, хорда даёт отклонение ≤ допуска.
+        // Arc points (upper semicircle with ends): all on the circle, chords deviate ≤ tolerance.
         let on_arc = r.pts.iter().filter(|p| p[1] >= 300.0 - 1e-9 && ((p[0] - 300.0).hypot(p[1] - 300.0) - 300.0).abs() < 1e-9).count();
         let n = on_arc - 1;
         assert!(n > 10, "{n}");
@@ -316,7 +316,7 @@ mod tests {
         assert!(300.0 - (300.0f64.powi(2) - (chord / 2.0).powi(2)).sqrt() <= TOLERANCE);
         assert_eq!(m.lines.iter().filter(|l| l.0[1] != l.1[1]).count(), 4);
         let expect = 600.0 * 300.0 + std::f64::consts::PI * 300.0 * 300.0 / 2.0;
-        // Хорды внутри дуги: площадь меньше не более чем на длину дуги × допуск.
+        // Chords inside the arc: area smaller by at most arc length × tolerance.
         let lost = expect - tri_area(&m, [0.0, 1.0, 0.0]);
         assert!((0.0..=std::f64::consts::PI * 300.0 * TOLERANCE).contains(&lost), "{lost}");
 
@@ -330,8 +330,8 @@ mod tests {
         }
     }
 
-    /// На всех плитах «Кухни 24.04» триангуляция покрывает контур целиком: площадь треугольников
-    /// одной пласти равна площади многоугольника.
+    /// On all panels of the "Kitchen 24.04" reference the triangulation covers the whole contour: triangle area
+    /// of one face equals the polygon area.
     #[test]
     fn kitchen_panels_triangulate_fully() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/pairs/kuhnya-24-04/_Кухня 24.04.b3d");
@@ -353,7 +353,7 @@ mod tests {
 
     #[test]
     fn hole_is_cut_out() {
-        // Квадрат 100×100 с круглым вырезом r = 10 в центре (окружность — отдельный контур).
+        // 100×100 square with a round cutout r = 10 in the centre (the circle is a separate contour).
         let mut segs: Vec<Seg> = [[0.0, 0.0], [100.0, 0.0], [100.0, 100.0], [0.0, 100.0]]
             .windows(2)
             .map(|w| Seg::Line { a: w[0], b: w[1] })
@@ -368,13 +368,13 @@ mod tests {
         let sum: f64 = tris.iter().map(|t| area(&[pts[t[0]], pts[t[1]], pts[t[2]]])).sum();
         let want = 10000.0 + area(&rs[1].pts);
         assert!((sum - want).abs() < 1e-6, "{sum} ≠ {want}");
-        // Ни один треугольник не лежит внутри выреза.
+        // No triangle lies inside the cutout.
         assert!(tris.iter().all(|t| {
             let c = [0, 1].map(|k| (pts[t[0]][k] + pts[t[1]][k] + pts[t[2]][k]) / 3.0);
             (c[0] - 50.0).hypot(c[1] - 50.0) > 9.9
         }));
         let m = build(&[part(segs, (100.0, 100.0))], |_| false);
-        // Торцы выреза смотрят к центру выреза.
+        // Cutout edge faces point toward the cutout centre.
         let inner: Vec<&Vertex> = m.vertices.iter().filter(|v| (v.pos[0] - 150.0).hypot(v.pos[2] - 50.0) < 10.5).collect();
         assert!(!inner.is_empty());
         assert!(inner.iter().filter(|v| v.normal[1] == 0.0).all(|v| {

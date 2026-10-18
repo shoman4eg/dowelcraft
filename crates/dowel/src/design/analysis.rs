@@ -1,5 +1,5 @@
-//! «Анализ модели» (гл. 3.4 руководства Базиса): пересечения панелей, крепёж и фурнитура без панели,
-//! деталь больше листа. Каждая проблема — с деталями, к которым относится (их можно выделить).
+//! "Model analysis" (ch. 3.4 of the Bazis manual): panel intersections, fasteners and hardware without a panel,
+//! part larger than the sheet. Each issue lists the parts it concerns (they can be selected).
 
 use serde::Serialize;
 
@@ -7,29 +7,29 @@ use super::{Part, Project, build, furniture_lost_holes, hanging_fasteners};
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct Problem {
-    /// Вид: «Пересечение», «Крепёж», «Фурнитура», «Размер».
+    /// Kind (Russian label): intersection, fasteners, hardware or size.
     pub kind: &'static str,
     pub message: String,
-    /// Индексы деталей в списке `build`.
+    /// Part indices in the `build` list.
     pub parts: Vec<usize>,
 }
 
-/// Объём пересечения габаритов двух деталей, мм³ (0 — касаются или не пересекаются).
+/// Volume of the intersection of two parts' bounding boxes, mm³ (0 if they touch or don't intersect).
 fn overlap(a: &Part, b: &Part) -> Option<([f64; 3], [f64; 3])> {
     let lo: [f64; 3] = std::array::from_fn(|k| a.origin[k].max(b.origin[k]));
     let hi: [f64; 3] = std::array::from_fn(|k| (a.origin[k] + a.size[k]).min(b.origin[k] + b.size[k]));
-    // Допуск 0,01 мм: касание по грани — не пересечение.
+    // 0.01 mm tolerance: touching faces is not an intersection.
     (0..3).all(|k| hi[k] - lo[k] > 0.01).then_some((lo, hi))
 }
 
-/// Точка проекта внутри тела детали (по её контуру и толщине).
+/// Whether a project point is inside the part body (by its contour and thickness).
 fn inside(p: &Part, w: [f64; 3]) -> bool {
     let Some(f) = p.panel.frame else { return false };
     let l = f.local(w);
     if l[2] < -1e-6 || l[2] > p.panel.thickness + 1e-6 {
         return false;
     }
-    // Точка в многоугольнике контура (дуги — хордами).
+    // Point in the contour polygon (arcs approximated by chords).
     let Ok(loops) = crate::contour::loops(&p.panel.segs) else { return false };
     let mut crossings = 0;
     for lp in loops {
@@ -53,13 +53,13 @@ pub fn analyze(p: &Project) -> Result<Vec<Problem>, String> {
     for i in 0..parts.len() {
         for j in i + 1..parts.len() {
             let Some((lo, hi)) = overlap(&parts[i], &parts[j]) else { continue };
-            // Деталь в пазу другой (задняя стенка в пазу боковины) — не пересечение: вся общая область в пазу.
+            // A part in another's groove (back panel in a side panel groove) is not an intersection: the whole overlap is in the groove.
             let corners: Vec<[f64; 3]> = (0..8).map(|c| std::array::from_fn(|k| if c >> k & 1 == 0 { lo[k] } else { hi[k] })).collect();
             let in_groove = |p: &Part| p.panel.frame.is_some_and(|f| p.panel.grooves.iter().any(|g| corners.iter().all(|&c| g.contains(f.local(c), 0.01))));
             if in_groove(&parts[i]) || in_groove(&parts[j]) {
                 continue;
             }
-            // У фигурных деталей габарит больше тела: пересечение — если центр общей области внутри обеих.
+            // Shaped parts have a bounding box larger than the body: intersection only if the overlap center is inside both.
             let c: [f64; 3] = std::array::from_fn(|k| (lo[k] + hi[k]) / 2.0);
             let figured = !parts[i].panel.is_rect() || !parts[j].panel.is_rect();
             if figured && !(inside(&parts[i], c) && inside(&parts[j], c)) {
@@ -85,7 +85,7 @@ pub fn analyze(p: &Project) -> Result<Vec<Problem>, String> {
         let trim = m.trim.unwrap_or(10.0);
         let (sl, sw) = (m.sheet.0 - 2.0 * trim, m.sheet.1 - 2.0 * trim);
         let (l, w) = part.panel.cut_size();
-        // С текстурой деталь не поворачивают: длина — вдоль длины листа.
+        // Grained parts are not rotated: length runs along the sheet length.
         let fits = if part.panel.grain() { l <= sl && w <= sw } else { (l <= sl && w <= sw) || (w <= sl && l <= sw) };
         if !fits {
             out.push(Problem {
