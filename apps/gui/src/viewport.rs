@@ -240,7 +240,7 @@ fn line(c: f32, step: f32) -> f32 {
     let o = g.eye.xyz + v.ndc.x * g.half.x * g.r.xyz + v.ndc.y * g.half.y * g.u.xyz - f * g.half.z;
     let fn_ = f[n];
     if (abs(fn_) < 1e-4) { discard; }
-    let t = -o[n] / fn_;
+    let t = (g.grid.w - o[n]) / fn_;
     if (t < 0.0) { discard; }
     let p = o + f * t;
     let a = (n + 1u) % 3u;
@@ -263,6 +263,12 @@ fn line(c: f32, step: f32) -> f32 {
     return out;
 }
 "#;
+
+/// Где лежит сетка по оси взгляда: через начало координат, но не перед моделью — иначе при взгляде
+/// сзади, слева или снизу она закрывает модель. `f` — направление взгляда по этой оси.
+fn grid_plane(f: f32, lo: f32, hi: f32) -> f32 {
+    if f > 0.0 { hi.max(0.0) } else { lo.min(0.0) }
+}
 
 /// Сетка окна: включена, шаг (мм), основная линия — каждая N-я.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1085,7 +1091,7 @@ impl Viewport {
             let vals: [f32; 32] = [
                 t[0], t[1], t[2], 0.0, r[0], r[1], r[2], 0.0, up[0], up[1], up[2], 0.0, f[0], f[1], f[2], 0.0,
                 size[0] as f32 / 2.0 * cam.mm_per_px, size[1] as f32 / 2.0 * cam.mm_per_px, depth, 0.5 / depth,
-                minor, major, n as f32, 1.0,
+                minor, major, n as f32, grid_plane(f[n], scene.lo[n], scene.hi[n]),
                 cmin[0], cmin[1], cmin[2], 1.0, cmaj[0], cmaj[1], cmaj[2], 1.0,
             ];
             let bytes: Vec<u8> = vals.iter().flat_map(|v| v.to_le_bytes()).collect();
@@ -1208,6 +1214,16 @@ mod tests {
         v.camera.mm_per_px = 2.0;
         v.dragging = Some(d);
         v.drag_offset()
+    }
+
+    /// Сетка — всегда за моделью: спереди — плоскость через начало (зад шкафа), сзади — за его передом.
+    #[test]
+    fn grid_stays_behind_the_model() {
+        // Шкаф по глубине 0…300. Взгляд спереди (к −Z): сетка на 0. Сзади (к +Z): на 300.
+        assert_eq!(grid_plane(-1.0, 0.0, 300.0), 0.0);
+        assert_eq!(grid_plane(1.0, 0.0, 300.0), 300.0);
+        // Модель целиком за началом — сетка остаётся на нуле.
+        assert_eq!(grid_plane(1.0, -500.0, -100.0), 0.0);
     }
 
     /// Маркер размера: край тянется на сдвиг мыши и прилипает к краю соседней детали.
