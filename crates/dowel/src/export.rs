@@ -137,7 +137,7 @@ fn owner_name(pr: &Project, owner: u32) -> String {
             design::Object::Panel(p) => p.name.clone(),
             design::Object::Furniture(f) => f.name.clone(),
         }))
-        .unwrap_or_else(|| format!("Блок {owner}"))
+        .unwrap_or_else(|| crate::i18n::t(format!("Block {owner}")))
 }
 
 /// White 256×256 PNG image — the preview in the file header.
@@ -168,8 +168,8 @@ fn blank_png() -> Vec<u8> {
         raw.extend(std::iter::repeat_n(255u8, (w * 3) as usize));
     }
     let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
-    z.write_all(&raw).expect("запись в память");
-    let idat = z.finish().expect("запись в память");
+    z.write_all(&raw).expect("writing to memory");
+    let idat = z.finish().expect("writing to memory");
     let mut out = b"\x89PNG\r\n\x1a\n".to_vec();
     let mut ihdr = w.to_be_bytes().to_vec();
     ihdr.extend_from_slice(&h.to_be_bytes());
@@ -266,12 +266,12 @@ mod tests {
     /// Our project → .b3d → parse: same slabs, sizes, edge banding, placement and drilling.
     #[test]
     fn exported_model_reads_back() {
-        let mut s = Session::new(Project::new("Экспорт"));
-        s.execute("material.add", &json!({"name": "ЛДСП 16", "article": "W980", "thickness": 16})).unwrap();
-        s.execute("edge.add", &json!({"name": "ПВХ 2", "thickness": 2, "width": 19})).unwrap();
-        s.execute("cabinet.add", &json!({"width": 800, "height": 2000, "depth": 600, "material": "ЛДСП 16", "edge": "ПВХ 2", "plinth": 80, "doors": 2, "shelves": [{"section": 0, "height": 700}]})).unwrap();
-        s.execute("corner.add", &json!({"width_x": 1000, "width_z": 900, "height": 820, "depth": 560, "material": "ЛДСП 16", "position": [2000, 0, 0]})).unwrap();
-        let id = s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "vertical", "size": [500, 700], "position": [4000, 0, 0]})).unwrap()["id"].clone();
+        let mut s = Session::new(Project::new("Export"));
+        s.execute("material.add", &json!({"name": "Chipboard 16", "article": "W980", "thickness": 16})).unwrap();
+        s.execute("edge.add", &json!({"name": "PVC 2", "thickness": 2, "width": 19})).unwrap();
+        s.execute("cabinet.add", &json!({"width": 800, "height": 2000, "depth": 600, "material": "Chipboard 16", "edge": "PVC 2", "plinth": 80, "doors": 2, "shelves": [{"section": 0, "height": 700}]})).unwrap();
+        s.execute("corner.add", &json!({"width_x": 1000, "width_z": 900, "height": 820, "depth": 560, "material": "Chipboard 16", "position": [2000, 0, 0]})).unwrap();
+        let id = s.execute("panel.add", &json!({"material": "Chipboard 16", "plane": "vertical", "size": [500, 700], "position": [4000, 0, 0]})).unwrap()["id"].clone();
         s.execute("panel.corner", &json!({"id": id, "at": [500, 700], "radius": 100})).unwrap();
         s.execute("object.rotate", &json!({"ids": [id], "axis": "y", "angle": 30, "center": [4000, 0, 0]})).unwrap();
         let parts = design::build(&s.project).unwrap();
@@ -290,6 +290,6 @@ mod tests {
         }
         // Blocks: one per top-level object.
         assert_eq!(ex.blocks.len(), 3);
-        assert_eq!(back.section("Header").and_then(|h| h.get("Article")).and_then(|a| a.str("Name")), Some("Экспорт"));
+        assert_eq!(back.section("Header").and_then(|h| h.get("Article")).and_then(|a| a.str("Name")), Some("Export"));
     }
 }

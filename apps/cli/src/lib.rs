@@ -6,35 +6,42 @@ use dowel::design::{self, Project, Session};
 use dowel::job::{self, Job};
 use dowel::nest::Params;
 use dowel::panel;
+use dowel::i18n::t;
 use dowel::report;
 
-const USAGE: &str = "dowel-craft — проектирование мебели и раскрой; читает модели Базис-Мебельщика
+const USAGE: &str = "dowel-craft — cabinet furniture design and sheet cutting; reads Bazis-Mebelshchik models
 
-  dowel-craft [файл]                                  окно (с файлом — открыть его)
-  dowel-craft mcp                                     MCP-сервер для ИИ (stdio)
-  dowel-craft --version                               версия
+  dowel-craft [file]                                  the window (with a file — open it)
+  dowel-craft mcp                                     MCP server for AI (stdio)
+  dowel-craft --version                               version
+  --lang ru (or DOWEL_LANG=ru)                        Russian messages and documents
 
-Модель — файл Базиса .b3d или свой проект .dcraft:
-  dowel-craft spec    <модель> [-o out.csv]           спецификация деталей
-  dowel-craft cut     <модель> [-o карты.html] [--sheet 2800x2070] [--kerf 4] [--trim 10]
-                                                     раскрой: карты и «Панели в производство» (HTML для печати)
-  dowel-craft smeta   <модель> [-o smeta.csv] [--coef 1.2]
-                                                     расход плит (м²) и кромки (м), как смета Базиса
-  dowel-craft raskroy <модель> [-o проект.xml] [--sheet 2800x2070]
-                                                     проект для БАЗИС-Раскроя (XML)
-  dowel-craft dump    <файл.b3d> [глубина]            дерево модели Базиса
+A model is a Bazis .b3d file or your own .dcraft project:
+  dowel-craft spec    <model> [-o out.csv]            parts list
+  dowel-craft cut     <model> [-o maps.html] [--sheet 2800x2070] [--kerf 4] [--trim 10]
+                                                     sheet cutting: maps and “Panels for production” (HTML to print)
+  dowel-craft smeta   <model> [-o smeta.csv] [--coef 1.2]
+                                                     board (m²) and edge banding (m) usage, like the Bazis estimate
+  dowel-craft raskroy <model> [-o project.xml] [--sheet 2800x2070]
+                                                     a BAZIS-Raskroy project (XML)
+  dowel-craft dump    <file.b3d> [depth]              the Bazis model tree
 
-Свой проект:
-  dowel-craft import <файл.b3d> [-o проект.dcraft]   модель Базиса → свой проект (детали можно править)
-  dowel-craft b3d <проект.dcraft> [-o модель.b3d]     свой проект → модель Базис-Мебельщика
-  dowel-craft script <проект.dcraft> <скрипт.js>      выполнить скрипт Базиса над проектом и сохранить
-  dowel-craft check <модель>                          анализ модели: пересечения, крепёж, размеры
-  dowel-craft drawings <модель> [-o чертежи.html|.pdf] сборочный и рабочие чертежи деталей (A4; .pdf — без браузера)
-  dowel-craft design <проект.dcraft> <команда> ['{json-параметры}']
-                                                     выполнить команду; файл создаётся, если его нет
-  dowel-craft design --help                          список команд
+Your own project:
+  dowel-craft import <file.b3d> [-o project.dcraft]  Bazis model → your project (parts become editable)
+  dowel-craft b3d <project.dcraft> [-o model.b3d]     your project → a Bazis-Mebelshchik model
+  dowel-craft script <project.dcraft> <script.js>     run a Bazis script on the project and save it
+  dowel-craft check <model>                           model check: overlaps, fasteners, sizes
+  dowel-craft drawings <model> [-o drawings.html|.pdf] assembly and part drawings (A4; .pdf without a browser)
+  dowel-craft design <project.dcraft> <command> ['{json parameters}']
+                                                     run a command; the file is created if missing
+  dowel-craft design --help                          the list of commands
 
-Формат листа и коэффициент из проекта .dcraft используются, если не заданы --sheet и --coef.";
+Sheet size and factor come from a .dcraft project unless --sheet and --coef are given.";
+
+/// The usage text in the current language, line by line (`lang/ru.tsv` has each line).
+fn usage() -> String {
+    USAGE.lines().map(t).collect::<Vec<_>>().join("\n")
+}
 
 /// Commands handled here (the first argument of `dowel-craft`); anything else opens the window.
 pub fn is_command(name: &str) -> bool {
@@ -44,13 +51,13 @@ pub fn is_command(name: &str) -> bool {
 /// Run a command: `args` without the program name.
 pub fn main(args: &[String]) -> ExitCode {
     if matches!(args.first().map(String::as_str), Some("help" | "--help" | "-h")) {
-        println!("{USAGE}");
+        println!("{}", usage());
         return ExitCode::SUCCESS;
     }
     match run(args) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("ошибка: {e}");
+            eprintln!("{}", t(format!("error: {e}")));
             ExitCode::FAILURE
         }
     }
@@ -61,13 +68,15 @@ fn opt<'a>(args: &'a [String], key: &str) -> Option<&'a str> {
 }
 
 fn num(args: &[String], key: &str) -> Result<Option<f64>, String> {
-    opt(args, key).map(|v| v.replace(',', ".").parse().map_err(|_| format!("{key}: не число «{v}»"))).transpose()
+    opt(args, key).map(|v| v.replace(',', ".").parse().map_err(|_| t(format!("{key}: not a number “{v}”")))).transpose()
 }
 
 fn sheet_arg(args: &[String]) -> Result<Option<(f64, f64)>, String> {
     let Some(s) = opt(args, "--sheet") else { return Ok(None) };
-    let (a, b) = s.split_once(['x', 'х', '*']).ok_or("--sheet: нужно ДЛИНАxШИРИНА")?;
-    Ok(Some((a.parse().map_err(|_| "--sheet: длина")?, b.parse().map_err(|_| "--sheet: ширина")?)))
+    // Bazis users may type the Russian letter for "x".
+    let s = s.replace(dowel::i18n::bazis("times"), "x");
+    let (a, b) = s.split_once(['x', '*']).ok_or_else(|| t("--sheet: LENGTHxWIDTH is required"))?;
+    Ok(Some((a.parse().map_err(|_| t("--sheet: length"))?, b.parse().map_err(|_| t("--sheet: width"))?)))
 }
 
 const DEFAULT_SHEET: (f64, f64) = (2800.0, 2070.0);
@@ -93,7 +102,7 @@ fn run(args: &[String]) -> Result<(), String> {
             let p = job.import();
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("dcraft"));
             std::fs::write(&out, p.save()).map_err(|e| format!("{}: {e}", out.display()))?;
-            println!("деталей {}, материалов {} → {}", p.panels().len(), p.materials.len(), out.display());
+            println!("{}", t(format!("parts {}, materials {} → {}", p.panels().len(), p.materials.len(), out.display())));
             return Ok(());
         }
         "b3d" => {
@@ -101,11 +110,11 @@ fn run(args: &[String]) -> Result<(), String> {
             let project = dowel::design::Project::load(&text)?;
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("b3d"));
             std::fs::write(&out, dowel::export::b3d(&project)?).map_err(|e| format!("{}: {e}", out.display()))?;
-            println!("деталей {} → {}", dowel::design::build(&project)?.len(), out.display());
+            println!("{}", t(format!("parts {} → {}", dowel::design::build(&project)?.len(), out.display())));
             return Ok(());
         }
         "script" => {
-            let js = args.get(2).ok_or("нужен файл скрипта")?;
+            let js = args.get(2).ok_or_else(|| t("a script file is required"))?;
             let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
             let mut s = dowel::design::Session::new(dowel::design::Project::load(&text)?);
             let js_path = Path::new(js);
@@ -113,12 +122,12 @@ fn run(args: &[String]) -> Result<(), String> {
             let r = script::run(&mut s, &script::read_script(js_path)?, script::Options { sandbox: dir.clone(), script_dir: dir, ..Default::default() });
             r.log.iter().for_each(|l| println!("{l}"));
             if let Some(e) = r.error {
-                return Err(format!("скрипт: {e} (проект не изменён)"));
+                return Err(t(format!("script: {e} (the project is unchanged)")));
             }
             if r.changes > 0 {
                 std::fs::write(path, s.project.save()).map_err(|e| format!("{path}: {e}"))?;
             }
-            println!("изменений: {}, окон: {}", r.changes, r.forms.len());
+            println!("{}", t(format!("changes: {}, dialogs: {}", r.changes, r.forms.len())));
             return Ok(());
         }
         "drawings" => {
@@ -126,9 +135,9 @@ fn run(args: &[String]) -> Result<(), String> {
             let parts = dowel::job::parts(&job)?;
             let pages = dowel::drawing::drawings(&parts, &job.name);
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("drawings.html"));
-            let data = if out.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf")) { dowel::pdf::from_svg_pages(&pages)? } else { report::document_html(&format!("{} — чертежи", job.name), &pages, "").into_bytes() };
+            let data = if out.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf")) { dowel::pdf::from_svg_pages(&pages)? } else { report::document_html(&t(format!("{} — drawings", job.name)), &pages, "").into_bytes() };
             std::fs::write(&out, data).map_err(|e| format!("{}: {e}", out.display()))?;
-            println!("листов {} → {}", parts.len().min(1) + dowel::panel::spec(&job.panels).len(), out.display());
+            println!("{}", t(format!("sheets {} → {}", parts.len().min(1) + dowel::panel::spec(&job.panels).len(), out.display())));
             return Ok(());
         }
         "check" => {
@@ -138,7 +147,7 @@ fn run(args: &[String]) -> Result<(), String> {
             for p in &problems {
                 println!("{}: {}", p.kind, p.message);
             }
-            println!("проблем: {}", problems.len());
+            println!("{}", t(format!("problems: {}", problems.len())));
             return Ok(());
         }
         "dump" => {
@@ -154,7 +163,7 @@ fn run(args: &[String]) -> Result<(), String> {
     }
     let job = Job::open(Path::new(path))?;
     if !job.skipped.is_empty() {
-        eprintln!("пропущено плит с неразобранным контуром: {} ({})", job.skipped.len(), job.skipped.join(", "));
+        eprintln!("{}", t(format!("boards skipped, contour not understood: {} ({})", job.skipped.len(), job.skipped.join(", "))));
     }
     let sheet = sheet_arg(args)?;
     let sheet_for = |m: &str| sheet.unwrap_or_else(|| job.sheet(m, DEFAULT_SHEET));
@@ -163,7 +172,7 @@ fn run(args: &[String]) -> Result<(), String> {
         "smeta" => {
             let coef = num(args, "--coef")?;
             let mut rows = panel::materials(&job.panels, |m| coef.unwrap_or_else(|| job.coef(m, 1.2)));
-            rows.extend(job.estimate(1.2).into_iter().filter(|r| r.unit == "шт"));
+            rows.extend(job.estimate(1.2).into_iter().filter(|r| r.unit == "pcs"));
             write_or_print(args, &report::materials_csv(&rows))?;
         }
         "raskroy" => {
@@ -171,9 +180,9 @@ fn run(args: &[String]) -> Result<(), String> {
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("xml"));
             std::fs::write(&out, xml).map_err(|e| format!("{}: {e}", out.display()))?;
             let holes: usize = job.panels.iter().map(|p| p.holes.len()).sum();
-            println!("деталей {}, отверстий присадки {holes} → {}", job.panels.len(), out.display());
+            println!("{}", t(format!("parts {}, drilling holes {holes} → {}", job.panels.len(), out.display())));
             if job.holes_lost > 0 {
-                eprintln!("  отверстий крепежа без плиты (не попали в выгрузку): {}", job.holes_lost);
+                eprintln!("  {}", t(format!("fastener holes without a board (not exported): {}", job.holes_lost)));
             }
         }
         "cut" => {
@@ -181,13 +190,13 @@ fn run(args: &[String]) -> Result<(), String> {
             let cuts = job::cut(&job, |m| Params { sheet: sheet_for(m), ..job.params(m, Params { sheet: DEFAULT_SHEET, kerf, trim }) });
             for c in &cuts {
                 let n: usize = c.layout.sheets.iter().map(|s| s.parts.len()).sum();
-                println!("{}: деталей {n}, листов {}", panel::material_name(&c.material), c.layout.sheets.len());
+                println!("{}", t(format!("{}: parts {n}, sheets {}", panel::material_name(&c.material), c.layout.sheets.len())));
                 for (k, s) in c.layout.sheets.iter().enumerate() {
-                    println!("  карта {}: {:.1}%", k + 1, s.usage(&c.params) * 100.0);
+                    println!("  {}", t(format!("map {}: {:.1}%", k + 1, s.usage(&c.params) * 100.0)));
                 }
                 for &id in &c.layout.too_big {
                     let (l, w) = job.panels[id].cut_size();
-                    eprintln!("  не помещается на лист: № {} «{}» {l:.0}x{w:.0}", job.number(id), job.panels[id].name);
+                    eprintln!("  {}", t(format!("does not fit a sheet: No. {} “{}” {l:.0}x{w:.0}", job.number(id), job.panels[id].name)));
                 }
             }
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("html"));
@@ -204,15 +213,15 @@ fn run(args: &[String]) -> Result<(), String> {
 /// Command on a .dcraft project: load (or create), execute, save if changed.
 fn design_cmd(path: &str, rest: &[String]) -> Result<(), String> {
     if path == "--help" {
-        println!("Команды проекта:");
+        println!("{}", t("Project commands:"));
         for (name, help) in design::COMMANDS {
-            println!("  {name:18} {help}");
+            println!("  {name:18} {}", t(help));
         }
         return Ok(());
     }
-    let cmd = rest.first().ok_or("нужна команда, см. dowel-craft design --help")?;
+    let cmd = rest.first().ok_or_else(|| t("a command is required, see dowel-craft design --help"))?;
     let params: serde_json::Value = match rest.get(1) {
-        Some(j) => serde_json::from_str(j).map_err(|e| format!("параметры: {e}"))?,
+        Some(j) => serde_json::from_str(j).map_err(|e| t(format!("parameters: {e}")))?,
         None => serde_json::json!({}),
     };
     let project = match std::fs::read_to_string(path) {

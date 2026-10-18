@@ -1,6 +1,6 @@
 [package]
 name = "dowel"
-description = "Чтение моделей Базис-Мебельщика (.b3d/.fr3d), спецификация деталей и раскрой"
+description = "Cabinet furniture core of dowel-craft: Bazis-Mebelshchik models (.b3d/.fr3d), parts, sheet cutting, drilling, documents"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

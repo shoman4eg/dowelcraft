@@ -8,6 +8,7 @@
 use std::f64::consts::{FRAC_PI_2, TAU};
 use std::fmt::Write;
 
+use crate::i18n::bazis;
 use crate::contour::Seg;
 use crate::panel::{Edge, Panel, RectSide, Texture};
 
@@ -75,8 +76,8 @@ fn material_body(x: &mut X, full: &str, thickness: f64, sheet: (f64, f64), core:
     x.text("SUPPLIER", "");
     x.open("PRICE");
     x.leaf("VALUE", 0);
-    x.text("CURRENCY", "Рубль");
-    x.text("SIGN", "руб.");
+    x.text("CURRENCY", bazis("raskroy.currency"));
+    x.text("SIGN", bazis("raskroy.sign"));
     x.close("PRICE");
     x.leaf("MESUREUNIT", 1);
     x.leaf("OVERRUN", 1);
@@ -247,7 +248,7 @@ fn edge(x: &mut X, tag: &str, index: usize, e: Option<&Edge>) {
     x.open(tag);
     x.leaf("INDEX", index);
     x.leaf("GUID", SMOOTH_EDGE);
-    x.text("NAME", "Гладкий торец");
+    x.text("NAME", bazis("raskroy.smooth_edge"));
     x.qty0("PARAM");
     if let Some(e) = e {
         x.open("MATERIAL");

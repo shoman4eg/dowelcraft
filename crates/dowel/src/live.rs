@@ -37,18 +37,18 @@ pub struct Client {
 
 impl Client {
     pub fn connect(path: &Path) -> Result<Self, String> {
-        let s = name(path).and_then(Stream::connect).map_err(|e| format!("окно dowel-craft не запущено или недоступно ({}: {e})", path.display()))?;
+        let s = name(path).and_then(Stream::connect).map_err(|e| format!("the dowel-craft window is not running or not reachable ({}: {e})", path.display()))?;
         Ok(Client { conn: BufReader::new(s) })
     }
 
     /// Command to the window; a link error starts with the Russian "connection to window" prefix.
     pub fn call(&mut self, command: &str, params: &Value) -> Result<Value, String> {
-        writeln!(self.conn.get_mut(), "{}", json!({ "command": command, "params": params })).map_err(|e| format!("связь с окном: {e}"))?;
+        writeln!(self.conn.get_mut(), "{}", json!({ "command": command, "params": params })).map_err(|e| format!("window link: {e}"))?;
         let mut line = String::new();
-        if self.conn.read_line(&mut line).map_err(|e| format!("связь с окном: {e}"))? == 0 {
-            return Err("связь с окном: окно закрыто".into());
+        if self.conn.read_line(&mut line).map_err(|e| format!("window link: {e}"))? == 0 {
+            return Err("window link: the window is closed".into());
         }
-        let v: Value = serde_json::from_str(&line).map_err(|e| format!("связь с окном: {e}"))?;
+        let v: Value = serde_json::from_str(&line).map_err(|e| format!("window link: {e}"))?;
         match v.get("error").and_then(Value::as_str) {
             Some(e) => Err(e.to_string()),
             None => Ok(v.get("ok").cloned().unwrap_or(Value::Null)),

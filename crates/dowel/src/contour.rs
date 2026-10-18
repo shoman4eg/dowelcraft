@@ -98,7 +98,7 @@ pub fn loops(segs: &[Seg]) -> Result<Vec<Loop>, String> {
                 }
             });
             let Some((i, rev)) = next else {
-                return Err(format!("контур не замкнут: от точки {end:?} нет продолжения"));
+                return Err(format!("the contour is not closed: nothing continues from point {end:?}"));
             };
             used[i] = true;
             lp.push((i, rev));
@@ -149,7 +149,7 @@ pub fn tessellate(s: &Seg, tol: f64) -> Vec<[f64; 2]> {
 /// intersects itself or another, cutouts lie inside the outer contour.
 pub fn validate(segs: &[Seg]) -> Result<(), String> {
     if segs.is_empty() {
-        return Err("контур пуст".into());
+        return Err("the contour is empty".into());
     }
     let rings: Vec<Vec<[f64; 2]>> = loops(segs)?
         .into_iter()
@@ -157,7 +157,7 @@ pub fn validate(segs: &[Seg]) -> Result<(), String> {
         .collect();
     let area = |p: &[[f64; 2]]| (0..p.len()).map(|i| { let (a, b) = (p[i], p[(i + 1) % p.len()]); a[0] * b[1] - b[0] * a[1] }).sum::<f64>() / 2.0;
     if rings.iter().any(|r| r.len() < 3 || area(r).abs() < 1e-6) {
-        return Err("контур вырожден: нулевая площадь".into());
+        return Err("the contour is degenerate: zero area".into());
     }
     // Edges of all contours: (contour, index, start, end).
     let edges: Vec<(usize, usize, [f64; 2], [f64; 2])> = rings.iter().enumerate().flat_map(|(r, pts)| (0..pts.len()).map(move |i| (r, i, pts[i], pts[(i + 1) % pts.len()]))).collect();
@@ -171,7 +171,7 @@ pub fn validate(segs: &[Seg]) -> Result<(), String> {
             }
             let (d1, d2, d3, d4) = (o(b0, b1, a0), o(b0, b1, a1), o(a0, a1, b0), o(a0, a1, b1));
             if d1 * d2 < -1e-9 && d3 * d4 < -1e-9 {
-                return Err(format!("контур пересекает себя около точки ({:.1}, {:.1})", a0[0], a0[1]));
+                return Err(format!("the contour crosses itself near ({:.1}, {:.1})", a0[0], a0[1]));
             }
         }
     }
@@ -188,7 +188,7 @@ pub fn validate(segs: &[Seg]) -> Result<(), String> {
     };
     for (i, r) in rings.iter().enumerate() {
         if i != outer && !inside(r[0], &rings[outer]) {
-            return Err(format!("вырез у точки ({:.1}, {:.1}) лежит вне панели", r[0][0], r[0][1]));
+            return Err(format!("the cut-out at ({:.1}, {:.1}) lies outside the panel", r[0][0], r[0][1]));
         }
     }
     Ok(())
@@ -282,11 +282,11 @@ mod tests {
         validate(&with_hole).unwrap();
         let mut outside = rect(100.0, 50.0, 0.0, 0.0);
         outside.push(Seg::Circle { c: [500.0, 25.0], r: 10.0 });
-        assert!(validate(&outside).unwrap_err().contains("вне"));
+        assert!(validate(&outside).unwrap_err().contains("outside"));
         // "Bow tie": self-intersection.
         let bow = [[0.0, 0.0], [10.0, 10.0], [10.0, 0.0], [0.0, 6.0]];
         let bow: Vec<Seg> = (0..4).map(|i| Seg::Line { a: bow[i], b: bow[(i + 1) % 4] }).collect();
-        assert!(validate(&bow).unwrap_err().contains("пересекает"));
-        assert!(validate(&rect(100.0, 50.0, 0.0, 0.0)[..3]).is_err(), "незамкнут");
+        assert!(validate(&bow).unwrap_err().contains("crosses itself"));
+        assert!(validate(&rect(100.0, 50.0, 0.0, 0.0)[..3]).is_err(), "not closed");
     }
 }

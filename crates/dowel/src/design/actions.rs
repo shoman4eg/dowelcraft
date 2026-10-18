@@ -40,7 +40,7 @@ fn axis_index(a: Option<char>) -> Result<usize, String> {
         Some('x') => Ok(0),
         Some('y') => Ok(1),
         Some('z') => Ok(2),
-        _ => Err("axis: \"x\", \"y\" или \"z\"".into()),
+        _ => Err("axis: \"x\", \"y\" or \"z\"".into()),
     }
 }
 
@@ -68,7 +68,7 @@ fn shift(pr: &mut Project, id: u32, d: [f64; 3]) -> Result<(), String> {
             Some(Object::Panel(p)) => add(&mut p.frame.origin),
             Some(Object::Block(b)) => add(&mut b.frame.origin),
             Some(Object::Furniture(f)) => add(&mut f.frame.origin),
-            None => return Err(format!("нет объекта {id}")),
+            None => return Err(format!("no object {id}")),
         }
     }
     Ok(())
@@ -92,20 +92,20 @@ fn rotate_frame(f: &Frame, axis: usize, deg: f64, center: [f64; 3]) -> Frame {
 
 fn tree_frame(pr: &mut Project, id: u32) -> Result<&mut Frame, String> {
     if pr.cabinets.iter().any(|c| c.id == id) || pr.corners.iter().any(|c| c.id == id) || pr.countertops.iter().any(|c| c.id == id) {
-        return Err(format!("объект {id} — шаблон: поворот и зеркало доступны после «Разрушить»"));
+        return Err(format!("object {id} is a template: rotate and mirror it after “Explode”"));
     }
     match find_mut(&mut pr.objects, id) {
         Some(Object::Panel(p)) => Ok(&mut p.frame),
         Some(Object::Block(b)) => Ok(&mut b.frame),
         Some(Object::Furniture(f)) => Ok(&mut f.frame),
-        None => Err(format!("нет объекта {id}")),
+        None => Err(format!("no object {id}")),
     }
 }
 
 /// Mirrors a panel in the plane `axis = at` (parent coordinates). Mirroring flips the handedness,
 /// so the panel contour is mirrored along its own X axis: x → width − x, and the panel X axis is reversed.
 fn mirror_panel(p: &mut FreePanel, axis: usize, at: f64) -> Result<(), String> {
-    let w = contour::bounds(&p.segs).ok_or("пустой контур")?.1[0];
+    let w = contour::bounds(&p.segs).ok_or("empty contour")?.1[0];
     let m = |v: [f64; 3]| { let mut r = v; r[axis] = -r[axis]; r };
     let f = p.frame;
     let (mx, my, mz) = (m(f.x), m(f.y), m(f.z));
@@ -134,7 +134,7 @@ fn mirror_object(o: &mut Object, axis: usize, at: f64) -> Result<(), String> {
     match o {
         Object::Panel(p) => mirror_panel(p, axis, at),
         // Mirrored hardware is a different product (left/right): it is placed from the library.
-        Object::Furniture(f) => Err(format!("«{}»: фурнитуру не отражают — поставьте зеркальное исполнение из библиотеки", f.name)),
+        Object::Furniture(f) => Err(format!("“{}”: hardware is not mirrored — insert the mirrored version from the library", f.name)),
         // Block: its panels are mirrored in project coordinates, the block position becomes zero.
         Object::Block(b) => {
             let f = b.frame;
@@ -167,7 +167,7 @@ fn duplicate(pr: &mut Project, id: u32) -> Result<u32, String> {
     } else if let Some(c) = pr.countertops.iter().find(|c| c.id == id).cloned() {
         pr.countertops.push(super::Countertop { id: new, ..c });
     } else {
-        let mut o = find_mut(&mut pr.objects, id).ok_or_else(|| format!("нет объекта {id}"))?.clone();
+        let mut o = find_mut(&mut pr.objects, id).ok_or_else(|| format!("no object {id}"))?.clone();
         let mut next = new;
         renumber(&mut o, &mut next);
         pr.objects.push(o);
@@ -201,7 +201,7 @@ fn remove_any(pr: &mut Project, id: u32) -> Result<(), String> {
     if before != (pr.cabinets.len(), pr.corners.len(), pr.countertops.len()) || remove(&mut pr.objects, id).is_some() {
         Ok(())
     } else {
-        Err(format!("нет объекта {id}"))
+        Err(format!("no object {id}"))
     }
 }
 
@@ -209,7 +209,7 @@ fn remove_any(pr: &mut Project, id: u32) -> Result<(), String> {
 pub fn command(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
     let a: Args = serde_json::from_value(p.clone()).map_err(|e| format!("{cmd}: {e}"))?;
     if a.ids.is_empty() && cmd != "block.explode" {
-        return Err("ids: список номеров объектов пуст".into());
+        return Err("ids: the list of object numbers is empty".into());
     }
     match cmd {
         "object.move" => {
@@ -230,7 +230,7 @@ pub fn command(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> 
             for &id in &a.ids {
                 tree_frame(pr, id)?;
                 let target = if a.copy { duplicate(pr, id)? } else { id };
-                let o = find_mut(&mut pr.objects, target).ok_or_else(|| format!("нет объекта {target}"))?;
+                let o = find_mut(&mut pr.objects, target).ok_or_else(|| format!("no object {target}"))?;
                 mirror_object(o, axis, a.at)?;
                 out.push(target);
             }
@@ -238,7 +238,7 @@ pub fn command(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> 
         }
         "object.copy" => {
             if a.count == 0 || a.count > 500 {
-                return Err(format!("count {} вне 1…500", a.count));
+                return Err(format!("count {} outside 1…500", a.count));
             }
             let mut out = Vec::new();
             for &id in &a.ids {
@@ -259,23 +259,23 @@ pub fn command(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> 
             let mut children = Vec::new();
             for &id in &a.ids {
                 if pr.cabinets.iter().any(|c| c.id == id) || pr.corners.iter().any(|c| c.id == id) || pr.countertops.iter().any(|c| c.id == id) {
-                    return Err(format!("объект {id} — шаблон: в блок его кладут после «Разрушить»"));
+                    return Err(format!("object {id} is a template: put it into a block after “Explode”"));
                 }
                 // shortcut: an object from a nested block moves into the new block ignoring the old block's position.
-                children.push(remove(&mut pr.objects, id).ok_or_else(|| format!("нет объекта {id}"))?);
+                children.push(remove(&mut pr.objects, id).ok_or_else(|| format!("no object {id}"))?);
             }
             let id = pr.next_id();
-            let name = if a.name.is_empty() { format!("Блок {id}") } else { a.name };
+            let name = if a.name.is_empty() { crate::i18n::t(format!("Block {id}")) } else { a.name };
             pr.objects.push(Object::Block(Block { id, name, frame: Frame::IDENTITY, children }));
             return Ok(json!({ "id": id }));
         }
         "block.explode" => {
-            let id = p.get("id").and_then(Value::as_u64).ok_or("нужен id блока")? as u32;
+            let id = p.get("id").and_then(Value::as_u64).ok_or("a block id is required")? as u32;
             if !matches!(find_mut(&mut pr.objects, id), Some(Object::Block(_))) {
-                return Err(format!("нет блока {id}"));
+                return Err(format!("no block {id}"));
             }
             let Some(Object::Block(b)) = remove(&mut pr.objects, id) else {
-                return Err(format!("нет блока {id}"));
+                return Err(format!("no block {id}"));
             };
             // shortcut: a nested block's contents go to the project root, not to the parent block.
             for mut c in b.children {
@@ -283,7 +283,7 @@ pub fn command(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> 
                 pr.objects.push(c);
             }
         }
-        _ => return Err(format!("неизвестная команда «{cmd}»")),
+        _ => return Err(format!("unknown command “{cmd}”")),
     }
     Ok(Value::Null)
 }

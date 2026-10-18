@@ -63,7 +63,7 @@ impl Frame {
         let ortho = ok(dot(x, y), 0.0) && ok(dot(y, z), 0.0) && ok(dot(x, z), 0.0);
         let right = ok(dot(cross(x, y), z), 1.0);
         let finite = self.origin.iter().chain(&x).chain(&y).chain(&z).all(|v| v.is_finite());
-        if unit && ortho && right && finite { Ok(()) } else { Err(format!("оси положения не образуют правую ортонормированную систему: {self:?}")) }
+        if unit && ortho && right && finite { Ok(()) } else { Err(format!("the position axes are not a right-handed orthonormal frame: {self:?}")) }
     }
 
     /// Bounding box [lo, hi] of a local box in parent coordinates.

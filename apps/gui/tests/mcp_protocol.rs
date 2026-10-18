@@ -12,7 +12,7 @@ fn design_a_cabinet_over_mcp() {
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
-        .expect("сервер запускается");
+        .expect("the server starts");
     let mut stdin = child.stdin.take().unwrap();
     let mut out = BufReader::new(child.stdout.take().unwrap());
     let mut id = 0;
@@ -40,27 +40,27 @@ fn design_a_cabinet_over_mcp() {
         assert!(r.get("isError").is_none(), "{c}: {r}");
         r
     };
-    cmd(&mut rpc, "material.add", json!({"name": "ЛДСП 16", "thickness": 16}));
-    cmd(&mut rpc, "edge.add", json!({"name": "ПВХ", "thickness": 0.4}));
-    cmd(&mut rpc, "cabinet.add", json!({"width": 600, "height": 720, "depth": 560, "material": "ЛДСП 16", "edge": "ПВХ", "doors": 1}));
+    cmd(&mut rpc, "material.add", json!({"name": "Chipboard 16", "thickness": 16}));
+    cmd(&mut rpc, "edge.add", json!({"name": "PVC", "thickness": 0.4}));
+    cmd(&mut rpc, "cabinet.add", json!({"width": 600, "height": 720, "depth": 560, "material": "Chipboard 16", "edge": "PVC", "doors": 1}));
     cmd(&mut rpc, "shelf.add", json!({"cabinet": 1, "height": 300}));
 
     let bad = call(&mut rpc, "command", json!({"command": "shelf.add", "params": {"cabinet": 1, "height": 5000}}));
-    assert_eq!(bad["isError"], true, "ошибка модели возвращается как ошибка инструмента");
+    assert_eq!(bad["isError"], true, "a model error comes back as a tool error");
 
     let parts = call(&mut rpc, "parts", json!({}));
     let t = parts["content"][0]["text"].as_str().unwrap();
-    assert!(t.contains("Полка") && t.contains("Дверь"), "{t}");
+    assert!(t.contains("Shelf") && t.contains("Door"), "{t}");
 
     let img = call(&mut rpc, "render_front", json!({"width": 300}));
     assert_eq!(img["content"][0]["type"], "image");
-    assert!(img["content"][0]["data"].as_str().unwrap().starts_with("iVBOR"), "PNG в base64");
+    assert!(img["content"][0]["data"].as_str().unwrap().starts_with("iVBOR"), "PNG in base64");
 
     let iso = call(&mut rpc, "render_iso", json!({"width": 300}));
-    assert!(iso["content"][0]["data"].as_str().unwrap().starts_with("iVBOR"), "3D — тоже PNG");
+    assert!(iso["content"][0]["data"].as_str().unwrap().starts_with("iVBOR"), "3D is PNG too");
 
     let cut = call(&mut rpc, "cut", json!({}));
-    assert!(cut["content"][0]["text"].as_str().unwrap().contains("ЛДСП 16"));
+    assert!(cut["content"][0]["text"].as_str().unwrap().contains("Chipboard 16"));
 
     drop(stdin);
     child.wait().unwrap();

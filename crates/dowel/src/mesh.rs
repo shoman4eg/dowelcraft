@@ -66,7 +66,7 @@ fn rings(segs: &[Seg]) -> Result<Vec<Ring>, String> {
         })
         .filter(|r| r.pts.len() >= 3)
         .collect();
-    let outer = (0..rings.len()).max_by(|&a, &b| area(&rings[a].pts).abs().total_cmp(&area(&rings[b].pts).abs())).ok_or("пустой контур")?;
+    let outer = (0..rings.len()).max_by(|&a, &b| area(&rings[a].pts).abs().total_cmp(&area(&rings[b].pts).abs())).ok_or("empty contour")?;
     rings.swap(0, outer);
     for (i, r) in rings.iter_mut().enumerate() {
         if (area(&r.pts) > 0.0) != (i == 0) {
@@ -250,7 +250,7 @@ mod tests {
 
     fn part(segs: Vec<Seg>, size: (f64, f64)) -> Part {
         let panel = Panel {
-            name: "т".into(),
+            name: "t".into(),
             pos: String::new(),
             designation: String::new(),
             material: String::new(),
@@ -334,7 +334,8 @@ mod tests {
     /// of one face equals the polygon area.
     #[test]
     fn kitchen_panels_triangulate_fully() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/pairs/kuhnya-24-04/_Кухня 24.04.b3d");
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/pairs/kuhnya-24-04");
+        let Some(path) = std::fs::read_dir(&dir).into_iter().flatten().flatten().map(|e| e.path()).find(|p| p.extension().is_some_and(|x| x == "b3d")) else { return };
         let Ok(data) = std::fs::read(&path) else { return };
         let ex = crate::panel::panels(&crate::b3d::parse(&data).unwrap());
         let mut holes = 0;
@@ -346,9 +347,9 @@ mod tests {
             let want: f64 = rs.iter().map(|r| area(&r.pts)).sum();
             let sum: f64 = tris.iter().map(|t| area(&[pts[t[0]], pts[t[1]], pts[t[2]]])).sum();
             assert!((sum - want).abs() < 1e-6 * want.max(1.0), "{}: {sum} ≠ {want}", p.name);
-            assert!(tris.iter().all(|t| area(&[pts[t[0]], pts[t[1]], pts[t[2]]]) >= -1e-9), "{}: вывернутый треугольник", p.name);
+            assert!(tris.iter().all(|t| area(&[pts[t[0]], pts[t[1]], pts[t[2]]]) >= -1e-9), "{}: inverted triangle", p.name);
         }
-        eprintln!("вырезов: {holes}");
+        eprintln!("cut-outs: {holes}");
     }
 
     #[test]
@@ -362,7 +363,7 @@ mod tests {
         segs.push(Seg::Circle { c: [50.0, 50.0], r: 10.0 });
         let rs = rings(&segs).unwrap();
         assert_eq!(rs.len(), 2);
-        assert!(area(&rs[1].pts) < 0.0, "вырез обходится по часовой");
+        assert!(area(&rs[1].pts) < 0.0, "a cut-out runs clockwise");
         let pts = merge(&rs);
         let tris = triangulate(&pts);
         let sum: f64 = tris.iter().map(|t| area(&[pts[t[0]], pts[t[1]], pts[t[2]]])).sum();

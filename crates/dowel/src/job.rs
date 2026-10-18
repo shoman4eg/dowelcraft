@@ -32,7 +32,7 @@ impl Job {
         let data = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let name = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
         if crate::design::is_project_file(path) {
-            let text = String::from_utf8(data).map_err(|_| format!("{}: не UTF-8", path.display()))?;
+            let text = String::from_utf8(data).map_err(|_| format!("{}: not UTF-8", path.display()))?;
             Ok(Job::from_project(Project::load(&text)?))
         } else {
             let file = crate::b3d::parse(&data).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -87,7 +87,7 @@ impl Job {
     /// Cost estimate: panels and edge banding with coefficients (`default` if the project has none), then hardware in pieces.
     pub fn estimate(&self, default: f64) -> Vec<panel::MaterialRow> {
         let mut rows = panel::materials(&self.panels, |m| self.coef(m, default));
-        rows.extend(self.hardware.iter().map(|(n, q)| panel::MaterialRow { material: n.clone(), unit: "шт", coef: 1.0, qty: *q as f64 }));
+        rows.extend(self.hardware.iter().map(|(n, q)| panel::MaterialRow { material: n.clone(), unit: "pcs", coef: 1.0, qty: *q as f64 }));
         rows
     }
 
@@ -180,14 +180,14 @@ mod tests {
 
     #[test]
     fn material_cut_params_override_defaults() {
-        let mut s = design::Session::new(Project::new("т"));
-        s.execute("material.add", &json!({"name": "Столешница", "thickness": 38, "sheet": [3050, 600], "trim": 0})).unwrap();
-        s.execute("material.add", &json!({"name": "ЛДСП", "thickness": 16})).unwrap();
-        s.execute("countertop.add", &json!({"material": "Столешница", "length": 1400, "depth": 600})).unwrap();
+        let mut s = design::Session::new(Project::new("t"));
+        s.execute("material.add", &json!({"name": "Countertop", "thickness": 38, "sheet": [3050, 600], "trim": 0})).unwrap();
+        s.execute("material.add", &json!({"name": "Chipboard", "thickness": 16})).unwrap();
+        s.execute("countertop.add", &json!({"material": "Countertop", "length": 1400, "depth": 600})).unwrap();
         let job = Job::from_project(s.project);
         let d = Params { sheet: (2800.0, 2070.0), kerf: 4.0, trim: 10.0 };
-        assert_eq!(job.params("Столешница", d), Params { sheet: (3050.0, 600.0), kerf: 4.0, trim: 0.0 });
-        assert_eq!(job.params("ЛДСП", d), d);
+        assert_eq!(job.params("Countertop", d), Params { sheet: (3050.0, 600.0), kerf: 4.0, trim: 0.0 });
+        assert_eq!(job.params("Chipboard", d), d);
         // A countertop spanning the full sheet width fits, since there is no trim.
         let cuts = cut(&job, |m| job.params(m, d));
         assert!(cuts[0].layout.too_big.is_empty());

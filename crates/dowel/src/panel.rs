@@ -293,7 +293,7 @@ pub type Tri = [[f32; 3]; 3];
 pub fn tri_data(b: &[u8]) -> Result<Vec<Tri>, String> {
     let mut o = 0usize;
     let mut take = |n: usize| -> Result<&[u8], String> {
-        let s = b.get(o..o + n).ok_or_else(|| format!("TriData: обрыв на {o} (+{n} из {})", b.len()))?;
+        let s = b.get(o..o + n).ok_or_else(|| format!("TriData: ends at {o} (+{n} of {})", b.len()))?;
         o += n;
         Ok(s)
     };
@@ -543,7 +543,7 @@ pub fn hardware(file: &File) -> Vec<(String, usize)> {
         let ty = n.int("Type");
         let excluded = excluded || (ty.is_some() && n.int("BazisFlags").is_some_and(|f| f & 2 != 0));
         if matches!(ty, Some(3001 | 4001 | 4004)) && !excluded {
-            let name = n.str("Name").unwrap_or("Без имени").to_string();
+            let name = n.str("Name").map(str::to_string).unwrap_or_else(|| crate::i18n::t("Unnamed"));
             match out.iter_mut().find(|(m, _)| *m == name) {
                 Some(row) => row.1 += 1,
                 None => out.push((name, 1)),
@@ -585,9 +585,9 @@ pub fn materials(panels: &[Panel], coef: impl Fn(&str) -> f64) -> Vec<MaterialRo
         None => sums.push((m.to_string(), unit, v)),
     };
     for p in panels {
-        add(&p.material, "м2", p.size.0 * p.size.1 / 1e6);
+        add(&p.material, "m²", p.size.0 * p.size.1 / 1e6);
         for e in p.edges.iter().filter(|e| e.thickness > 0.0) {
-            add(&e.material, "м", p.segs.get(e.segment).map_or(0.0, contour::length) / 1e3);
+            add(&e.material, "m", p.segs.get(e.segment).map_or(0.0, contour::length) / 1e3);
         }
     }
     let mut rows: Vec<MaterialRow> = sums
@@ -596,7 +596,7 @@ pub fn materials(panels: &[Panel], coef: impl Fn(&str) -> f64) -> Vec<MaterialRo
             let k = coef(&material);
             // Drop float noise before rounding up: 2.0000000001 → 2.0.
             let up = |x: f64, step: f64| ((x / step - 1e-9).ceil() * step * 1e6).round() / 1e6;
-            let qty = if unit == "м" { up(v * k, 1.0) } else { up(v * k, 0.1) };
+            let qty = if unit == "m" { up(v * k, 1.0) } else { up(v * k, 0.1) };
             MaterialRow { material, unit, coef: k, qty }
         })
         .collect();
@@ -622,7 +622,7 @@ pub fn material_name(m: &str) -> &str {
 pub fn describe(v: &Value) -> String {
     match v {
         Value::Obj => String::new(),
-        Value::Blob(b) => format!("<{} байт>", b.len()),
+        Value::Blob(b) => format!("<{} bytes>", b.len()),
         Value::Str(s) => format!("{s:?}"),
         v => format!("{v:?}"),
     }

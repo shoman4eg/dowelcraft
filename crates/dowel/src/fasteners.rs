@@ -61,7 +61,7 @@ pub fn library() -> Vec<Def> {
     let (x, nx, ny) = ([1.0, 0.0, 0.0], [-1.0, 0.0, 0.0], [0.0, -1.0, 0.0]);
     vec![
         Def {
-            name: "Конфирмат 7х50".into(),
+            name: "Confirmat 7x50".into(),
             holes: vec![
                 // Through ⌀8 across face A from its outer side; ⌀5 into edge B: 50 − t + 3 mm.
                 HoleDef { at_t: [-1.0, 0.0, 0.0], depth_t: 1.0, ..h('a', [0.0; 3], x, 8.0, 0.0) },
@@ -74,7 +74,7 @@ pub fn library() -> Vec<Def> {
             items: Vec::new(),
         },
         Def {
-            name: "Эксцентрик Minifix 15".into(),
+            name: "Minifix 15 cam".into(),
             holes: vec![
                 h('b', [0.0; 3], x, 8.0, 34.0),
                 // Cup ⌀15×13 in face B, 34 mm from the joint, on the inner side of the carcass.
@@ -88,7 +88,7 @@ pub fn library() -> Vec<Def> {
             items: Vec::new(),
         },
         Def {
-            name: "Шкант 8х30".into(),
+            name: "Dowel 8x30".into(),
             holes: vec![h('b', [0.0; 3], x, 8.0, 20.0), h('a', [0.0; 3], nx, 8.0, 13.0)],
             offset: 32.0,
             step: 300.0,
@@ -97,7 +97,7 @@ pub fn library() -> Vec<Def> {
             items: Vec::new(),
         },
         Def {
-            name: "Полкодержатель 5".into(),
+            name: "Shelf support 5".into(),
             // Under the shelf: centre 2.5 mm below its bottom face, ⌀5×9 into face A.
             holes: vec![HoleDef { at_tb: [0.0, -0.5, 0.0], ..h('a', [0.0, -2.5, 0.0], nx, 5.0, 9.0) }],
             offset: 50.0,
@@ -107,7 +107,7 @@ pub fn library() -> Vec<Def> {
             items: Vec::new(),
         },
         Def {
-            name: "Minifix 15 + шкант 8х30".into(),
+            name: "Minifix 15 + dowel 8x30".into(),
             // At each point — a cam lock, next to it 32 mm closer to the joint middle — a dowel.
             holes: vec![
                 h('b', [0.0; 3], x, 8.0, 34.0),
@@ -120,7 +120,7 @@ pub fn library() -> Vec<Def> {
             step: 500.0,
             min: 2,
             max: 20,
-            items: vec![("Эксцентрик Minifix 15".into(), 1), ("Шкант 8х30".into(), 1)],
+            items: vec![("Minifix 15 cam".into(), 1), ("Dowel 8x30".into(), 1)],
         },
     ]
 }
@@ -207,7 +207,7 @@ pub fn holes(def: &Def, parts: &[Part], jt: &Joint, s: f64) -> Result<Vec<(usize
     for hd in &def.holes {
         let idx = if hd.panel == 'a' { jt.a } else { jt.b };
         let p = &parts[idx];
-        let f = p.panel.frame.ok_or("деталь без положения")?;
+        let f = p.panel.frame.ok_or("a part without a position")?;
         let mut at: [f64; 3] = std::array::from_fn(|k| hd.at[k] + hd.at_t[k] * t + hd.at_tb[k] * tb);
         at[2] *= toward;
         let mut dir = hd.dir;
@@ -225,7 +225,7 @@ pub fn holes(def: &Def, parts: &[Part], jt: &Joint, s: f64) -> Result<Vec<(usize
         let end: [f64; 3] = std::array::from_fn(|k| local[k] + ld[k] * depth);
         if !inside(local) || !inside(end) {
             return Err(format!(
-                "«{}»: отверстие ⌀{}×{} в «{}» выходит за деталь (вход {:?}, конец {:?})",
+                "“{}”: hole ⌀{}×{} in “{}” goes outside the part (entry {:?}, end {:?})",
                 def.name.split('\r').next().unwrap_or(&def.name), hd.diameter, depth, p.panel.name, local, end.map(clean)
             ));
         }

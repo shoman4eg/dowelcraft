@@ -67,17 +67,17 @@ pub fn analyze(p: &Project) -> Result<Vec<Problem>, String> {
             }
             let d: Vec<String> = (0..3).map(|k| format!("{:.1}", hi[k] - lo[k])).collect();
             out.push(Problem {
-                kind: "Пересечение",
-                message: format!("«{} {}» и «{} {}» пересекаются на {} мм", parts[i].panel.pos, parts[i].panel.name, parts[j].panel.pos, parts[j].panel.name, d.join(" × ")),
+                kind: "Overlap",
+                message: format!("“{} {}” and “{} {}” overlap by {} mm", parts[i].panel.pos, parts[i].panel.name, parts[j].panel.pos, parts[j].panel.name, d.join(" × ")),
                 parts: vec![i, j],
             });
         }
     }
     for (_, msg) in hanging_fasteners(p) {
-        out.push(Problem { kind: "Крепёж", message: msg, parts: Vec::new() });
+        out.push(Problem { kind: "Fasteners", message: msg, parts: Vec::new() });
     }
     for (name, n) in furniture_lost_holes(p) {
-        out.push(Problem { kind: "Фурнитура", message: format!("«{name}»: {n} отверстий не попали ни в одну панель"), parts: Vec::new() });
+        out.push(Problem { kind: "Hardware", message: format!("“{name}”: {n} holes hit no panel"), parts: Vec::new() });
     }
     for (i, part) in parts.iter().enumerate() {
         let name = crate::panel::material_name(&part.panel.material);
@@ -89,8 +89,8 @@ pub fn analyze(p: &Project) -> Result<Vec<Problem>, String> {
         let fits = if part.panel.grain() { l <= sl && w <= sw } else { (l <= sl && w <= sw) || (w <= sl && l <= sw) };
         if !fits {
             out.push(Problem {
-                kind: "Размер",
-                message: format!("«{} {}» {l:.1}×{w:.1} не помещается на лист {}×{} (обрезка {trim} мм)", part.panel.pos, part.panel.name, m.sheet.0, m.sheet.1),
+                kind: "Oversize",
+                message: format!("“{} {}” {l:.1}×{w:.1} does not fit a {}×{} sheet (trim {trim} mm)", part.panel.pos, part.panel.name, m.sheet.0, m.sheet.1),
                 parts: vec![i],
             });
         }

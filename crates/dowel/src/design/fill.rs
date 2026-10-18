@@ -31,11 +31,11 @@ fn bounds(parts: &[Part], at: [f64; 2], axis: usize) -> (Option<&Part>, Option<&
 /// Common Z range of two boundaries — the opening depth.
 fn depth(a: &Part, b: &Part) -> Result<(f64, f64), String> {
     let (z0, z1) = (a.origin[2].max(b.origin[2]), (a.origin[2] + a.size[2]).min(b.origin[2] + b.size[2]));
-    if z1 > z0 { Ok((z0, z1)) } else { Err(format!("границы «{}» и «{}» не перекрываются по глубине", a.panel.name, b.panel.name)) }
+    if z1 > z0 { Ok((z0, z1)) } else { Err(format!("the bounds “{}” and “{}” do not overlap in depth", a.panel.name, b.panel.name)) }
 }
 
 fn need<'a>(b: Option<&'a Part>, side: &str, at: [f64; 2]) -> Result<&'a Part, String> {
-    b.ok_or_else(|| format!("нет границы проёма {side} от точки {at:?}"))
+    b.ok_or_else(|| format!("no opening bound {side} of point {at:?}"))
 }
 
 /// Panel in the opening at point `at` (X, Y on the front view, mm). `gaps` are offsets from the boundaries in contour axes:
@@ -45,12 +45,12 @@ fn need<'a>(b: Option<&'a Part>, side: &str, at: [f64; 2]) -> Result<&'a Part, S
 pub fn fill(parts: &[Part], plane: Plane, at: [f64; 2], thickness: f64, gaps: [f64; 4]) -> Result<Fill, String> {
     let [g0, g1, g2, g3] = gaps;
     let check = |size: [f64; 2]| {
-        if size[0] > 0.0 && size[1] > 0.0 { Ok(size) } else { Err(format!("проём за вычетом отступов пуст: {size:?}")) }
+        if size[0] > 0.0 && size[1] > 0.0 { Ok(size) } else { Err(format!("the opening minus the offsets is empty: {size:?}")) }
     };
     match plane {
         Plane::Horizontal => {
             let (l, r) = bounds(parts, at, 0);
-            let (l, r) = (need(l, "слева", at)?, need(r, "справа", at)?);
+            let (l, r) = (need(l, "on the left", at)?, need(r, "on the right", at)?);
             let (z0, z1) = depth(l, r)?;
             let x0 = l.origin[0] + l.size[0];
             let size = check([r.origin[0] - x0 - g0 - g1, z1 - z0 - g2 - g3])?;
@@ -58,7 +58,7 @@ pub fn fill(parts: &[Part], plane: Plane, at: [f64; 2], thickness: f64, gaps: [f
         }
         Plane::Vertical => {
             let (b, t) = bounds(parts, at, 1);
-            let (b, t) = (need(b, "снизу", at)?, need(t, "сверху", at)?);
+            let (b, t) = (need(b, "below", at)?, need(t, "above", at)?);
             let (z0, z1) = depth(b, t)?;
             let y0 = b.origin[1] + b.size[1];
             let size = check([z1 - z0 - g0 - g1, t.origin[1] - y0 - g2 - g3])?;
@@ -67,7 +67,7 @@ pub fn fill(parts: &[Part], plane: Plane, at: [f64; 2], thickness: f64, gaps: [f
         Plane::Front => {
             let (l, r) = bounds(parts, at, 0);
             let (b, t) = bounds(parts, at, 1);
-            let (l, r, b, t) = (need(l, "слева", at)?, need(r, "справа", at)?, need(b, "снизу", at)?, need(t, "сверху", at)?);
+            let (l, r, b, t) = (need(l, "on the left", at)?, need(r, "on the right", at)?, need(b, "below", at)?, need(t, "above", at)?);
             let (_, z1) = depth(l, r)?;
             let (x0, y0) = (l.origin[0] + l.size[0], b.origin[1] + b.size[1]);
             let size = check([r.origin[0] - x0 - g0 - g1, t.origin[1] - y0 - g2 - g3])?;

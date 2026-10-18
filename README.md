@@ -116,7 +116,7 @@ The macOS archive also has `Dowel Craft.app`.
 - Run BAZIS-Script scripts (`.js`) that build and change the model; script dialogs are shown. Details (in Russian): [docs/scripts.md](docs/scripts.md).
 
 ### Other
-- English and Russian interface.
+- English and Russian: the window (Edit → Settings → Language; English by default), and the command line and MCP server with `--lang ru` or `DOWEL_LANG=ru` (messages, part names, cutting maps, drawings, CSV).
 - Every hotkey is configurable.
 - An AI assistant can edit the project right in the open window (Linux and macOS).
 
@@ -179,6 +179,8 @@ A model is a Bazis `.b3d` file or your own `.dcraft` project.
 | `dowel-craft design <project.dcraft> <command> ['{json}']` | a project command; the file is created if missing |
 
 `--sheet` is the sheet size in mm, `--kerf` the saw kerf, `--trim` the edge trim, `--coef` the usage factor. For a `.dcraft` project they come from the materials unless given.
+
+Output is in English; add `--lang ru` (or set `DOWEL_LANG=ru`) for Russian messages, part names and documents.
 
 A whole project from the command line:
 
@@ -268,7 +270,8 @@ Some tests compare results with Bazis sample files kept in local `reference/` an
   - `nest.rs` — sheet cutting; `report.rs` — maps and tables; `raskroy.rs` — Raskroy XML;
   - `drawing.rs`, `pdf.rs` — drawings and PDF; `export.rs` — `.b3d` export;
   - `job.rs` — “open → cut → documents” for the CLI and the window;
-  - `live.rs` — the MCP link to the open window.
+  - `live.rs` — the MCP link to the open window;
+  - `i18n.rs` and `lang/` — the interface language: code is English, `lang/ru.tsv` holds the Russian (english<TAB>russian), `lang/bazis.tsv` the Russian names Bazis needs (formula letters, XML values). A test fails if Cyrillic gets into code.
 - `crates/script` — the BAZIS-Script runtime (Boa engine).
 - `apps/gui` — the `dowel-craft` program: the window (egui 0.36, 3D on wgpu); commands and `mcp` are handed to:
   - `apps/cli` — the command line;

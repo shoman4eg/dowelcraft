@@ -82,7 +82,7 @@ impl Host {
         let p = Path::new(path);
         let rel: PathBuf = p.components().filter(|c| matches!(c, Component::Normal(_))).collect();
         if p.components().any(|c| matches!(c, Component::ParentDir)) {
-            return Err(format!("путь «{path}» выходит из папки скрипта"));
+            return Err(dowel::i18n::t(format!("path “{path}” leaves the script folder")));
         }
         // An absolute path inside the sandbox is allowed; otherwise the name is taken relative to the sandbox.
         if p.is_absolute() && p.starts_with(&self.opts.sandbox) {
@@ -96,7 +96,7 @@ impl Host {
         match cmd {
             "parts" => Ok(Value::Array((0..self.parts.len()).map(|i| Self::key(&self.parts, i)).collect())),
             "part" => {
-                let i = self.find(&a).ok_or("деталь больше не существует")?;
+                let i = self.find(&a).ok_or_else(|| dowel::i18n::t("the part no longer exists"))?;
                 Ok(self.part_json(i))
             }
             "revision" => Ok(json!(self.revision)),
@@ -115,7 +115,7 @@ impl Host {
                 Ok(Value::Null)
             }
             "exec" => {
-                let out = self.session.execute(a["cmd"].as_str().ok_or("exec: нет cmd")?, &a["args"])?;
+                let out = self.session.execute(a["cmd"].as_str().ok_or("exec: no cmd")?, &a["args"])?;
                 self.run.changes += 1;
                 self.refresh();
                 Ok(out)
@@ -153,11 +153,11 @@ impl Host {
             "fs.isdir" => Ok(json!(self.sandboxed(&text(&a)).map(|p| p.is_dir()).unwrap_or(false))),
             "include" => {
                 let name = text(&a);
-                let p = self.opts.script_dir.join(Path::new(&name).file_name().ok_or("include: пустое имя")?);
+                let p = self.opts.script_dir.join(Path::new(&name).file_name().ok_or("include: empty name")?);
                 read_script(&p)
                     .map(Value::String)
             }
-            _ => Err(format!("мост: неизвестная команда «{cmd}»")),
+            _ => Err(format!("bridge: unknown command “{cmd}”")),
         }
     }
 }
@@ -178,7 +178,7 @@ fn bridge(_: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue>
     let cmd = args.first().map(|v| v.to_string(ctx)).transpose()?.map(|s| s.to_std_string_escaped()).unwrap_or_default();
     let raw = args.get(1).map(|v| v.to_string(ctx)).transpose()?.map(|s| s.to_std_string_escaped()).unwrap_or_else(|| "null".into());
     let a: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
-    let host = ctx.get_data::<Rc<RefCell<Host>>>().cloned().expect("мост установлен");
+    let host = ctx.get_data::<Rc<RefCell<Host>>>().cloned().expect("bridge is installed");
     let r = host.borrow_mut().call(&cmd, a);
     match r {
         Ok(v) => Ok(JsValue::from(JsString::from(v.to_string()))),
@@ -212,7 +212,7 @@ impl Runtime {
             return rt;
         }
         if let Err(e) = rt.ctx.eval(Source::from_bytes(PRELUDE)) {
-            rt.error = Some(format!("пролог: {e}"));
+            rt.error = Some(format!("prelude: {e}"));
             return rt;
         }
         rt.eval(source);
@@ -260,7 +260,7 @@ impl Runtime {
         let error = self.error.take();
         drop(self.ctx);
         let Ok(host) = Rc::try_unwrap(self.host).map(RefCell::into_inner) else {
-            return Run { error: Some("внутренняя ошибка: мост не освобождён".into()), ..Run::default() };
+            return Run { error: Some("internal error: the bridge was not released".into()), ..Run::default() };
         };
         let mut out = host.run;
         out.error = error;

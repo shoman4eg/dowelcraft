@@ -75,7 +75,7 @@ pub struct Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "b3d: {} (смещение {})", self.msg, self.offset)
+        write!(f, "b3d: {} (offset {})", self.msg, self.offset)
     }
 }
 impl std::error::Error for Error {}
@@ -98,7 +98,7 @@ impl File {
 
 pub fn parse(data: &[u8]) -> Result<File> {
     if data.get(..4) != Some(MAGIC) {
-        return Err(Error { offset: 0, msg: "нет сигнатуры BZ85".into() });
+        return Err(Error { offset: 0, msg: "no BZ85 signature".into() });
     }
     let mut r = Reader { b: data, p: 4 };
     let mut sections = Vec::new();
@@ -118,7 +118,7 @@ pub fn parse(data: &[u8]) -> Result<File> {
         }
     }
     if sections.is_empty() {
-        return Err(Error { offset: r.p, msg: "нет ни одной секции".into() });
+        return Err(Error { offset: r.p, msg: "no sections".into() });
     }
     Ok(File { sections })
 }
@@ -138,7 +138,7 @@ impl<'a> Reader<'a> {
                 self.p += n;
                 Ok(s)
             }
-            None => self.err(format!("обрыв данных, нужно {n} байт")),
+            None => self.err(format!("data ends early, {n} bytes needed")),
         }
     }
     fn u8(&mut self) -> Result<u8> {
@@ -156,7 +156,7 @@ impl<'a> Reader<'a> {
     fn len(&mut self, unit: usize) -> Result<usize> {
         let n = self.u32()? as usize;
         if n.saturating_mul(unit) > self.b.len() - self.p {
-            return self.err(format!("длина {n} больше остатка файла"));
+            return self.err(format!("length {n} exceeds the rest of the file"));
         }
         Ok(n)
     }
@@ -176,7 +176,7 @@ impl<'a> Reader<'a> {
     /// Node: i32 name index (-1 for list elements), u32 child count, u8 type, value, children.
     fn node(&mut self, names: &[String], depth: usize) -> Result<Node> {
         if depth > MAX_DEPTH {
-            return self.err("слишком глубокое дерево");
+            return self.err("tree too deep");
         }
         let at = self.p;
         let ni = self.i32()?;
@@ -184,7 +184,7 @@ impl<'a> Reader<'a> {
             -1 => String::new(),
             _ => match names.get(ni as usize) {
                 Some(s) => s.clone(),
-                None => return Err(Error { offset: at, msg: format!("индекс имени {ni} вне словаря") }),
+                None => return Err(Error { offset: at, msg: format!("name index {ni} outside the dictionary") }),
             },
         };
         // Every node takes at least 9 bytes — this rejects fake huge counts.
@@ -209,7 +209,7 @@ impl<'a> Reader<'a> {
             }
             8 => Value::Nil,
             9 => Value::DateTime(self.f64()?),
-            t => return Err(Error { offset: at, msg: format!("неизвестный тип {t} у «{name}»") }),
+            t => return Err(Error { offset: at, msg: format!("unknown type {t} of “{name}”") }),
         };
         let children = (0..n).map(|_| self.node(names, depth + 1)).collect::<Result<_>>()?;
         Ok(Node { name, value, children })
@@ -231,8 +231,8 @@ pub fn write(file: &File) -> Vec<u8> {
         } else {
             out.push(1);
             let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
-            z.write_all(&body).expect("запись в память");
-            out.extend_from_slice(&z.finish().expect("запись в память"));
+            z.write_all(&body).expect("writing to memory");
+            out.extend_from_slice(&z.finish().expect("writing to memory"));
         }
     }
     out
@@ -255,7 +255,7 @@ fn section_bytes(root: &Node) -> Vec<u8> {
         out.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
         out.extend_from_slice(&bytes);
     }
-    let index = |name: &str| -> i32 { if name.is_empty() { -1 } else { names.iter().position(|n| *n == name).expect("имя в словаре") as i32 } };
+    let index = |name: &str| -> i32 { if name.is_empty() { -1 } else { names.iter().position(|n| *n == name).expect("name in the dictionary") as i32 } };
     fn node(n: &Node, index: &dyn Fn(&str) -> i32, out: &mut Vec<u8>, root: bool) {
         // The section root is written with its own name index; list elements with −1.
         let i = if root && n.name.is_empty() { 0 } else { index(&n.name) };
@@ -313,7 +313,8 @@ mod tests {
                     children: vec![Node {
                         name: "Model".into(),
                         value: Value::Obj,
-                        children: vec![Node { name: String::new(), value: Value::Obj, children: vec![leaf("Name", Value::Str("Полка «1»".into())), leaf("ID", Value::I32(-7)), leaf("X", Value::F64(1.5)), leaf("Clip", Value::False), leaf("N", Value::Nil), leaf("T", Value::DateTime(46000.5))] }],
+                        // Cyrillic on purpose: the name must round-trip through the Bazis code page.
+                        children: vec![Node { name: String::new(), value: Value::Obj, children: vec![leaf("Name", Value::Str("\u{41f}\u{43e}\u{43b}\u{43a}\u{430} \u{ab}1\u{bb}".into())), leaf("ID", Value::I32(-7)), leaf("X", Value::F64(1.5)), leaf("Clip", Value::False), leaf("N", Value::Nil), leaf("T", Value::DateTime(46000.5))] }],
                     }],
                 },
             ],

@@ -1,6 +1,6 @@
 //! Interface language. The source text (the key) is English; `lang/ru.tsv` ("english<TAB>russian") translates it.
 //! Strings with numbers and names are translated by template: `{}` in the table marks an insertion,
-//! e.g. "Delete ({})" → "Удалить ({})" turns "Delete (3)" into "Удалить (3)".
+//! e.g. the pair "Delete ({})" / its Russian template translates "Delete (3)" keeping the 3.
 //! The window, the CLI and the MCP server share it; English is the default.
 
 use std::collections::HashMap;
@@ -26,6 +26,10 @@ fn table() -> &'static Table {
                 continue;
             }
             if en.contains("{}") {
+                // A template of insertions only would match anything and recurse forever.
+                if en.split("{}").all(str::is_empty) {
+                    continue;
+                }
                 templates.push((en.split("{}").collect(), ru.split("{}").collect()));
             } else {
                 exact.insert(en, ru);
@@ -128,6 +132,16 @@ mod tests {
             assert!(!bazis(k).is_empty(), "{k}");
         }
         assert_eq!(bazis("no.such.key"), "");
+    }
+
+    /// Every template has some text of its own, and the same number of insertions in both languages.
+    #[test]
+    fn table_is_well_formed() {
+        for line in include_str!("../lang/ru.tsv").lines().filter(|l| !l.starts_with('#') && !l.is_empty()) {
+            let (en, ru) = line.split_once('\t').unwrap_or_else(|| panic!("no tab: {line}"));
+            assert_eq!(en.matches("{}").count(), ru.matches("{}").count(), "{line}");
+            assert!(!en.contains("{}") || !en.split("{}").all(str::is_empty), "{line}");
+        }
     }
 
     #[test]

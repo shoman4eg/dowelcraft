@@ -11,7 +11,7 @@ var __exec = function (cmd, args) { return __call('exec', { cmd: cmd, args: args
 var __finishers = [];
 var __finish = function () { var f = __finishers; __finishers = []; f.forEach(function (fn) { fn(); }); };
 var __text = function (args) { return Array.prototype.map.call(args, function (a) { return typeof a === 'object' ? JSON.stringify(a) : String(a); }).join(' '); };
-var __unsupported = function (what) { return function () { throw new Error(what + ': недоступно в dowel-craft'); }; };
+var __unsupported = function (what) { return function () { throw new Error(what + ': not available in dowel-craft'); }; };
 
 // ── Vectors and points ──
 function NewVector(x, y, z) { return { x: x || 0, y: y || 0, z: z || 0 }; }
@@ -171,7 +171,7 @@ function NewContour(segs, edges) {
   c.OrderContours = function () {};
   // Offset: only for a rectangular contour (bounding box ± offset).
   c.AddEquidistant = function (src, offset) {
-    if (!src.IsContourRectangle()) throw new Error('AddEquidistant: для фигурного контура недоступно');
+    if (!src.IsContourRectangle()) throw new Error('AddEquidistant: not available for a shaped contour');
     var g = src.Gabarits();
     this.AddRectangle(g.Min.x - offset, g.Min.y - offset, g.Max.x + offset, g.Max.y + offset);
   };
@@ -190,11 +190,11 @@ function __panel(key) {
   };
   var set = function (field, value) {
     var x = d();
-    if (!x.id) throw new Error('«' + x.name + '» — деталь шаблона (корпуса, модуля): править отдельно можно после «Разрушить»');
+    if (!x.id) throw new Error('“' + x.name + '” is a template part (of a cabinet or unit): edit it on its own after “Explode”');
     var a = { id: x.id }; a[field] = value;
     __exec('panel.set', a);
   };
-  var prop = function (name, get, put) { Object.defineProperty(p, name, { get: get, set: put || function () { throw new Error(name + ': только чтение'); }, enumerable: true }); };
+  var prop = function (name, get, put) { Object.defineProperty(p, name, { get: get, set: put || function () { throw new Error(name + ': read-only'); }, enumerable: true }); };
   prop('Name', function () { return d().name; }, function (v) { set('name', String(v)); });
   prop('ArtPos', function () { return d().pos; }, function (v) { set('pos', String(v)); });
   prop('Designation', function () { return d().designation; }, function (v) { set('designation', String(v)); });
@@ -220,7 +220,7 @@ function __panel(key) {
   prop('Kind', function () { return d().kind; });
   p.Selected = false; p.Visible = true; p.UserProperty = {};
   p.Build = function () {
-    if (p.__contour) { var x = d(); if (!x.id) throw new Error('контур детали шаблона правят после «Разрушить»'); __exec('panel.contour', { id: x.id, segs: p.__contour.Objects.map(__seg) }); p.__contour = null; }
+    if (p.__contour) { var x = d(); if (!x.id) throw new Error('edit the contour of a template part after “Explode”'); __exec('panel.contour', { id: x.id, segs: p.__contour.Objects.map(__seg) }); p.__contour = null; }
   };
   p.SetContour = function (c) { p.__contour = c; };
   var frame = function () { return d().frame; };
@@ -263,7 +263,7 @@ function __panel(key) {
   var local = function (k) {
     return function (angle) {
       var f = d().frame, ax = [f.x, f.y, f.z][k], i = ax.findIndex(function (v) { return Math.abs(Math.abs(v) - 1) < 1e-9; });
-      if (i < 0) throw new Error('поворот вокруг наклонной оси детали недоступен');
+      if (i < 0) throw new Error('rotation about a tilted part axis is not available');
       __exec('object.rotate', { ids: ids(), axis: 'xyz'[i], angle: angle * ax[i], center: f.origin });
     };
   };
@@ -286,7 +286,7 @@ var Model = (function () {
     return order.map(function (o) {
       var list = by[o];
       if (list.length === 1 && list[0].__key[1] === o) return list[0];
-      var b = { List: true, Name: 'Объект ' + o, Objects: list, Count: list.length };
+      var b = { List: true, Name: 'Object ' + o, Objects: list, Count: list.length };
       b.forEach = function (fn) { list.forEach(fn); };
       return b;
     });
@@ -315,7 +315,7 @@ var __activeMaterial = null, __activeEdge = null;
 function __material() {
   if (__activeMaterial) return __activeMaterial;
   var p = __call('project');
-  if (!p.materials.length) { __exec('material.add', { name: 'ЛДСП 16', thickness: 16 }); return 'ЛДСП 16'; }
+  if (!p.materials.length) { __exec('material.add', { name: 'Chipboard 16', thickness: 16 }); return 'Chipboard 16'; }
   return p.materials[0].name;
 }
 function __newPanel(plane, a, b, pos) {
@@ -334,7 +334,7 @@ var objects3d = {
   DeleteObject: DeleteObject,
 };
 var panelOperations = {
-  AddButt: function (panel, elem) { if (!__activeEdge) throw new Error('нет активной кромки: materialData.SetupActiveButtMaterial'); panel.AddButt(__activeEdge, elem); },
+  AddButt: function (panel, elem) { if (!__activeEdge) throw new Error('no active edge banding: materialData.SetupActiveButtMaterial'); panel.AddButt(__activeEdge, elem); },
 };
 var materialData = {
   SetupActiveFurnMaterial: function (name, thickness) {
@@ -380,8 +380,8 @@ Object.defineProperty(Action, 'OnFinish', { set: function (fn) { if (typeof fn =
 // ── Messages ──
 function alert() { __call('log', __text(arguments)); }
 function MessageBox() { __call('log', __text(arguments)); return 1; }
-function ErrorBox() { __call('log', 'Ошибка: ' + __text(arguments)); }
-function RunYesNoDialog() { __call('log', 'Вопрос (ответ «Да»): ' + __text(arguments)); return true; }
+function ErrorBox() { __call('log', 'Error: ' + __text(arguments)); }
+function RunYesNoDialog() { __call('log', 'Question (answered “Yes”): ' + __text(arguments)); return true; }
 var console = { log: function () { __call('log', __text(arguments)); }, warn: function () { __call('log', __text(arguments)); }, error: function () { __call('log', __text(arguments)); } };
 
 // ── Windows (old API): the description is stored; the program window shows it as a dialog ──
@@ -402,7 +402,7 @@ function __control(kind, owner, parent) {
 }
 var __plain = function (o) { return JSON.parse(JSON.stringify(o, function (k, v) { return typeof v === 'function' ? undefined : v; })); };
 function __forms() {
-  var props = Action.Properties.__items.length ? [{ Kind: 'Form', __id: -1, Caption: 'Параметры скрипта', Children: Action.Properties.__items }] : [];
+  var props = Action.Properties.__items.length ? [{ Kind: 'Form', __id: -1, Caption: 'Script parameters', Children: Action.Properties.__items }] : [];
   return __plain(__shown.filter(function (f) { return f.Visible; }).concat(props));
 }
 function __find(id) { return id >= 0 ? __controls[id] : null; }
@@ -419,7 +419,7 @@ function __change(id, field, value) {
   if (typeof c.OnChange === 'function') c.OnChange(c);
 }
 function NewForm() {
-  var f = __control('Form'); f.Caption = 'Форма';
+  var f = __control('Form'); f.Caption = 'Form';
   f.Show = function () { f.Visible = true; if (__shown.indexOf(f) < 0) __shown.push(f); __call('form', __plain(f)); return 1; };
   f.ShowModal = f.Show;
   f.Close = function () { f.Visible = false; };
@@ -454,7 +454,7 @@ function require(name) {
   if (name === 'fs') return fs;
   if (name === 'path') return path;
   if (name === 'os') return os;
-  throw new Error('require(«' + name + '»): модуль недоступен');
+  throw new Error('require(“' + name + '”): module not available');
 }
 var system = {
   log: function () { __call('log', __text(arguments)); },
@@ -466,7 +466,7 @@ var system = {
   askFileName: function () { return ''; }, askFolder: function () { return ''; }, askWriteTextFile: function () { return ''; },
   secureExec: __unsupported('system.secureExec'),
 };
-function NewCOMObject(name) { throw new Error('COM-объект «' + name + '» недоступен: скрипт рассчитан на Windows'); }
+function NewCOMObject(name) { throw new Error('COM object “' + name + '” is not available: the script expects Windows'); }
 var COM = NewCOMObject;
 var execution = { Finish: function () {}, Continue: function () {} };
 
@@ -474,11 +474,11 @@ var execution = { Finish: function () {}, Continue: function () {} };
 var __noop = function () {};
 // A module the program lacks: any call is a clear error.
 var __missing = function (module) {
-  return new Proxy({}, { get: function (t, k) { if (k in t) return t[k]; if (typeof k !== 'string') return undefined; return function () { throw new Error(module + '.' + k + ': недоступно в dowel-craft'); }; } });
+  return new Proxy({}, { get: function (t, k) { if (k in t) return t[k]; if (typeof k !== 'string') return undefined; return function () { throw new Error(module + '.' + k + ': not available in dowel-craft'); }; } });
 };
 // An object with known methods; unknown ones are an error naming them.
 var __module = function (name, known) {
-  return new Proxy(known, { get: function (t, k) { if (k in t) return t[k]; if (typeof k !== 'string') return undefined; return function () { throw new Error(name + '.' + k + ': недоступно в dowel-craft'); }; } });
+  return new Proxy(known, { get: function (t, k) { if (k in t) return t[k]; if (typeof k !== 'string') return undefined; return function () { throw new Error(name + '.' + k + ': not available in dowel-craft'); }; } });
 };
 var Undo = __module('Undo', { Changing: __noop, RecursiveChanging: __noop, BeginOper: __noop, EndOper: __noop, Commit: __noop, Rollback: __noop, Last: null, OnClick: null, Width: 0, Top: 0, ShowHint: __noop, message: '' });
 var currentFileData = { model: Model, filename: '', article: { Name: '' }, updateView: __noop };
@@ -512,7 +512,7 @@ materialData = __module('materialData', Object.assign(materialData, {
 objects3d = __module('objects3d', Object.assign(objects3d, { NewContour: function () { return NewContour(); } }));
 panelOperations = __module('panelOperations', Object.assign(panelOperations, { faceType: { front: 0, back: 1 } }));
 var fastenerOperations = __module('fastenerOperations', { FindConnectedFasteners: function () { return []; } });
-var elasticTransformation = __missing('elasticTransformation (эластичность)');
+var elasticTransformation = __missing('elasticTransformation (elasticity)');
 var objectTransformation = __missing('objectTransformation');
 var arrangePositions = __missing('arrangePositions');
 var modelIOOperations = __missing('modelIOOperations');
@@ -522,12 +522,12 @@ var AxisX = NewVector(1, 0, 0), AxisY = NewVector(0, 1, 0), AxisZ = NewVector(0,
 var ActiveMaterial = {};
 Object.defineProperty(ActiveMaterial, 'Name', { get: function () { return __material(); } });
 // Picking an object with the mouse: without a window — the first selected part (or null).
-function GetPanel(text) { __call('log', 'Указать панель: ' + (text || '')); return Model.Selected; }
+function GetPanel(text) { __call('log', 'Pick a panel: ' + (text || '')); return Model.Selected; }
 function GetObject(text) { return GetPanel(text); }
-function prompt(text, def) { __call('log', 'Запрос (ответ по умолчанию): ' + text); return def === undefined ? '' : def; }
-function confirm(text) { __call('log', 'Подтверждение (ответ «Да»): ' + text); return true; }
+function prompt(text, def) { __call('log', 'Prompt (default answer): ' + text); return def === undefined ? '' : def; }
+function confirm(text) { __call('log', 'Confirm (answered “Yes”): ' + text); return true; }
 function setTimeout(fn) { __finishers.push(fn); return 0; }
-function setInterval() { throw new Error('setInterval: таймеры недоступны'); }
+function setInterval() { throw new Error('setInterval: timers are not available'); }
 
 // Export: globals are ordinary (overwritable) properties so a script can declare its own fs, path etc.
 G['__call'] = __call;

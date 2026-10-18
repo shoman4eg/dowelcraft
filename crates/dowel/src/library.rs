@@ -115,8 +115,8 @@ mod tests {
         }
         let (models, bad) = scan(&dir);
         assert!(bad.is_empty(), "{bad:?}");
-        let tandem = models.iter().find(|m| m.name.contains("TANDEM")).expect("Tandem в примерах");
-        assert_eq!(tandem.kind, "Ящик");
+        let tandem = models.iter().find(|m| m.name.contains("TANDEM")).expect("Tandem in the examples");
+        assert_eq!(tandem.kind, crate::i18n::bazis("library.drawer"));
         assert!(tandem.thumbnail.as_ref().is_some_and(|t| t.starts_with(b"\x89PNG")));
         assert!(!tandem.holes.is_empty());
     }
@@ -124,7 +124,10 @@ mod tests {
     #[test]
     fn baltlaminat_models_have_mesh_and_volume() {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example");
-        if !dir.join("Антрацит").exists() {
+        // The Baltlaminat "Anthracite" basket 600 by its article; the folder name is Russian.
+        let is_basket = |p: &Path| p.file_name().is_some_and(|n| n.to_string_lossy().starts_with("WG-KOSZ60-60 "));
+        let has_basket = |d: &Path| std::fs::read_dir(d).into_iter().flatten().flatten().any(|e| is_basket(&e.path()));
+        if !std::fs::read_dir(&dir).into_iter().flatten().flatten().any(|e| e.path().is_dir() && has_basket(&e.path())) {
             return;
         }
         let (models, bad) = scan(&dir);
@@ -137,12 +140,12 @@ mod tests {
                 panel::tri_data(d).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             }
         }
-        let basket = models.iter().find(|m| m.name == "GTV Ажурная корзина ELITE, Антрацит, 600").expect("корзина 600");
+        let basket = models.iter().find(|m| is_basket(&m.path)).expect("basket 600");
         assert!(basket.mesh.len() > 1000, "{}", basket.mesh.len());
         // Volumetric: the bounding box used to be computed from holes and the height was 0.
         assert!((0..3).all(|k| basket.hi[k] - basket.lo[k] > 100.0), "{:?} {:?}", basket.lo, basket.hi);
         let flat = models.iter().filter(|m| (0..3).any(|k| m.hi[k] - m.lo[k] < 1.0)).map(|m| m.name.as_str()).collect::<Vec<_>>();
-        println!("плоских: {flat:?}");
+        println!("flat: {flat:?}");
     }
 
     /// Baltlaminat fragments (locks, magnets, lighting, sockets): all are read, each has a mesh and volume.
@@ -154,12 +157,12 @@ mod tests {
         }
         let t = std::time::Instant::now();
         let (models, bad) = scan(&dir);
-        println!("моделей {}, ошибок {}, {:?}", models.len(), bad.len(), t.elapsed());
+        println!("models {}, errors {}, {:?}", models.len(), bad.len(), t.elapsed());
         assert!(bad.is_empty(), "{bad:?}");
         let flat: Vec<&str> = models.iter().filter(|m| (0..3).any(|k| m.hi[k] - m.lo[k] < 1.0)).map(|m| m.name.as_str()).collect();
         let no_mesh: Vec<&str> = models.iter().filter(|m| m.mesh.is_empty()).map(|m| m.name.as_str()).collect();
         let holes: usize = models.iter().map(|m| m.holes.len()).sum();
-        println!("плоских {}: {flat:?}\nбез сетки {}: {no_mesh:?}\nотверстий всего {holes}", flat.len(), no_mesh.len());
+        println!("flat {}: {flat:?}\nwithout mesh {}: {no_mesh:?}\nholes in total {holes}", flat.len(), no_mesh.len());
         assert!(flat.is_empty() && no_mesh.is_empty());
     }
 }

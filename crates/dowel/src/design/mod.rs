@@ -278,7 +278,7 @@ impl Object {
 
 /// Thickness of a tree panel (from its material).
 fn panels_thickness(p: &Project, id: u32) -> Result<f64, String> {
-    let fp = p.panels().into_iter().find(|f| f.id == id).ok_or_else(|| format!("нет панели {id}"))?;
+    let fp = p.panels().into_iter().find(|f| f.id == id).ok_or_else(|| format!("no panel {id}"))?;
     Ok(p.material(&fp.material)?.thickness)
 }
 
@@ -397,22 +397,39 @@ impl Project {
         self.defs()
             .into_iter()
             .find(|d| d.name == name || d.name.split('\r').next() == Some(name))
-            .ok_or_else(|| format!("нет крепежа «{name}» в справочнике"))
+            .ok_or_else(|| format!("no fastener “{name}” in the catalogue"))
     }
 
     pub fn load(json: &str) -> Result<Self, String> {
-        let v: Value = serde_json::from_str(json).map_err(|e| format!("проект: {e}"))?;
+        let v: Value = serde_json::from_str(json).map_err(|e| format!("project: {e}"))?;
         let format = v.get("format").and_then(Value::as_str).unwrap_or_default();
         if format == FORMAT_V1 && v.get("panels").and_then(Value::as_array).is_some_and(|a| !a.is_empty()) {
-            return Err("проект старого формата с деталями из модели Базиса: импортируйте модель заново".into());
+            return Err("an old-format project with parts from a Bazis model: import the model again".into());
         }
         if format != FORMAT && format != FORMAT_OLD_NAME && format != FORMAT_V1 {
-            return Err(format!("проект: неизвестный формат «{format}»"));
+            return Err(format!("project: unknown format “{format}”"));
         }
-        let mut p: Project = serde_json::from_value(v).map_err(|e| format!("проект: {e}"))?;
+        let mut p: Project = serde_json::from_value(v).map_err(|e| format!("project: {e}"))?;
         p.format = FORMAT.into();
+        p.rename_legacy_fasteners();
         build(&p)?;
         Ok(p)
+    }
+
+    /// Projects saved before the built-in catalogue was in English name its fasteners in Russian (`lang/bazis.tsv`).
+    fn rename_legacy_fasteners(&mut self) {
+        let legacy: std::collections::HashMap<&str, String> = crate::fasteners::library()
+            .into_iter()
+            .filter_map(|d| Some((Some(crate::i18n::bazis(&format!("fastener.{}", d.name))).filter(|o| !o.is_empty())?, d.name)))
+            .collect();
+        let rename = |k: &mut String| {
+            if let Some(n) = legacy.get(k.as_str()) {
+                *k = n.clone();
+            }
+        };
+        self.cabinets.iter_mut().filter_map(|c| c.fastener.as_mut()).for_each(rename);
+        self.corners.iter_mut().filter_map(|c| c.fastener.as_mut()).for_each(rename);
+        self.fasteners.iter_mut().for_each(|f| rename(&mut f.kind));
     }
 
     /// All panels of the object tree, depth-first.
@@ -432,16 +449,16 @@ impl Project {
     }
 
     pub fn save(&self) -> String {
-        serde_json::to_string_pretty(self).expect("проект сериализуется")
+        serde_json::to_string_pretty(self).expect("the project serialises")
     }
 
     pub fn material(&self, name: &str) -> Result<&Material, String> {
-        self.materials.iter().find(|m| m.name == name).ok_or_else(|| format!("нет материала «{name}»"))
+        self.materials.iter().find(|m| m.name == name).ok_or_else(|| format!("no material “{name}”"))
     }
 
     fn edge(&self, name: &Option<String>) -> Result<Option<&EdgeMaterial>, String> {
         name.as_ref()
-            .map(|n| self.edges.iter().find(|e| &e.name == n).ok_or_else(|| format!("нет кромки «{n}»")))
+            .map(|n| self.edges.iter().find(|e| &e.name == n).ok_or_else(|| format!("no edge banding “{n}”")))
             .transpose()
     }
 }
@@ -455,9 +472,11 @@ fn full(name: &str, article: &str) -> String {
 /// shortcut: guessed from the words for front, door and back panel; refine if the model has a marker.
 pub fn guess_kind(p: &Panel) -> Kind {
     let name = p.name.to_lowercase();
-    if name.contains("фасад") || name.contains("двер") {
+    // Word stems from Bazis models (`lang/bazis.tsv`): any of the door ones; all of the back panel ones.
+    let words = |key| crate::i18n::bazis(key).split(',');
+    if words("guess.door").any(|w| name.contains(w)) {
         Kind::Door
-    } else if name.contains("задн") && name.contains("стен") && p.thickness <= 6.0 {
+    } else if words("guess.back").all(|w| name.contains(w)) && p.thickness <= 6.0 {
         Kind::Back
     } else {
         Kind::Body
@@ -578,7 +597,7 @@ pub struct Part {
 impl Part {
     /// Positioned part: the bounding box is computed from the position, contour and thickness.
     fn new(owner: u32, kind: Kind, panel: Panel) -> Result<Part, String> {
-        let (lo, hi) = panel.bounds().ok_or_else(|| format!("деталь «{}» без положения", panel.name))?;
+        let (lo, hi) = panel.bounds().ok_or_else(|| format!("part “{}” has no position", panel.name))?;
         Ok(Part { owner, id: 0, kind, panel, origin: lo, size: std::array::from_fn(|k| hi[k] - lo[k]) })
     }
 
@@ -590,7 +609,7 @@ impl Part {
         let part = Part::new(owner, kind, panel)?;
         let same = (0..3).all(|k| (part.origin[k] - origin[k]).abs() < 1e-6 && (part.size[k] - size[k]).abs() < 1e-6);
         if !same {
-            return Err(format!("деталь «{}»: положение не совпало с габаритом {origin:?} {size:?}", part.panel.name));
+            return Err(format!("part “{}”: the position does not match the box {origin:?} {size:?}", part.panel.name));
         }
         Ok(part)
     }
@@ -608,7 +627,7 @@ fn place(panel: &Panel, o: [f64; 3], size: [f64; 3]) -> Result<Frame, String> {
     } else if eq(size[0], t) && eq(size[2], sx) && eq(size[1], sy) {
         Ok(Frame::new([o[0] + t, o[1], o[2]], z, y))
     } else {
-        Err(format!("деталь «{}» {sx}×{sy}×{t} не ложится в габарит {size:?}", panel.name))
+        Err(format!("part “{}” {sx}×{sy}×{t} does not fit the box {size:?}", panel.name))
     }
 }
 
@@ -655,7 +674,8 @@ fn poly(name: &str, mat: &Material, pts: &[[f64; 2]], texture: Texture, edged: &
         })
         .unwrap_or_default();
     Panel {
-        name: name.into(),
+        // Template part names are made in the current language (they show in lists, maps and drawings).
+        name: crate::i18n::t(name),
         pos: String::new(),
         designation: String::new(),
         material: full(&mat.name, &mat.article),
@@ -674,16 +694,16 @@ fn poly(name: &str, mat: &Material, pts: &[[f64; 2]], texture: Texture, edged: &
 pub fn build(p: &Project) -> Result<Vec<Part>, String> {
     let mut parts = Vec::new();
     for c in &p.cabinets {
-        cabinet(p, c, &mut parts).map_err(|e| format!("корпус {} «{}»: {e}", c.id, c.name))?;
+        cabinet(p, c, &mut parts).map_err(|e| format!("cabinet {} “{}”: {e}", c.id, c.name))?;
     }
     for c in &p.corners {
-        corner(p, c, &mut parts).map_err(|e| format!("угловой модуль {} «{}»: {e}", c.id, c.name))?;
+        corner(p, c, &mut parts).map_err(|e| format!("corner unit {} “{}”: {e}", c.id, c.name))?;
     }
     for o in &p.objects {
         objects(p, o.id(), std::slice::from_ref(o), &Frame::IDENTITY, &mut parts)?;
     }
     for ct in &p.countertops {
-        countertop(p, ct, &mut parts).map_err(|e| format!("столешница {} «{}»: {e}", ct.id, ct.name))?;
+        countertop(p, ct, &mut parts).map_err(|e| format!("countertop {} “{}”: {e}", ct.id, ct.name))?;
     }
     drill(p, &mut parts)?;
     // Item numbers follow the part order in the project; imported parts keep their own.
@@ -704,13 +724,13 @@ pub fn fastener_joints(p: &Project, parts: &[Part]) -> Result<Vec<(crate::fasten
     for (owner, fastener) in templates {
         let Some(name) = fastener else { continue };
         let main = p.def(name)?;
-        let shelf = p.def("Полкодержатель 5").ok();
+        let shelf = p.def("Shelf support 5").ok();
         // Drawer boxes, back panels and fronts get no cabinet fasteners.
         let ids: Vec<usize> = (0..parts.len())
-            .filter(|&i| parts[i].owner == owner && parts[i].kind == Kind::Body && !parts[i].panel.name.contains("ящика"))
+            .filter(|&i| parts[i].owner == owner && parts[i].kind == Kind::Body && !parts[i].panel.name.to_lowercase().contains(&crate::i18n::t("drawer")))
             .collect();
         for j in joints(parts, &ids) {
-            let def = match (&shelf, parts[j.b].panel.name.starts_with("Полка")) {
+            let def = match (&shelf, parts[j.b].panel.name.to_lowercase().contains(&crate::i18n::t("Shelf").to_lowercase())) {
                 (Some(s), true) => s.clone(),
                 _ => main.clone(),
             };
@@ -818,8 +838,8 @@ pub fn hanging_fasteners(p: &Project) -> Vec<(u32, String)> {
             let find = |id: u32| parts.iter().position(|q| q.id == id);
             match (find(f.a), find(f.b)) {
                 (Some(a), Some(b)) if crate::fasteners::joint(&parts, a, b).or_else(|| crate::fasteners::joint(&parts, b, a)).is_some() => None,
-                (Some(_), Some(_)) => Some((f.id, format!("«{}» {}: панели {} и {} больше не стыкуются", f.kind, f.id, f.a, f.b))),
-                _ => Some((f.id, format!("«{}» {}: нет панели {} или {}", f.kind, f.id, f.a, f.b))),
+                (Some(_), Some(_)) => Some((f.id, format!("“{}” {}: panels {} and {} no longer join", f.kind, f.id, f.a, f.b))),
+                _ => Some((f.id, format!("“{}” {}: no panel {} or {}", f.kind, f.id, f.a, f.b))),
             }
         })
         .collect()
@@ -830,18 +850,18 @@ fn objects(p: &Project, owner: u32, list: &[Object], parent: &Frame, out: &mut V
     for o in list {
         match o {
             Object::Block(b) => {
-                b.frame.check().map_err(|e| format!("блок {} «{}»: {e}", b.id, b.name))?;
+                b.frame.check().map_err(|e| format!("block {} “{}”: {e}", b.id, b.name))?;
                 objects(p, owner, &b.children, &parent.then(&b.frame), out)?;
             }
             // Hardware yields no parts; its holes are drilled by `drill`.
-            Object::Furniture(f) => f.frame.check().map_err(|e| format!("фурнитура {} «{}»: {e}", f.id, f.name))?,
+            Object::Furniture(f) => f.frame.check().map_err(|e| format!("hardware {} “{}”: {e}", f.id, f.name))?,
             Object::Panel(fp) => {
-                let err = |e: String| format!("деталь {} «{}»: {e}", fp.id, fp.name);
+                let err = |e: String| format!("part {} “{}”: {e}", fp.id, fp.name);
                 let m = p.material(&fp.material).map_err(err)?;
                 fp.frame.check().map_err(err)?;
-                let (lo, hi) = crate::contour::bounds(&fp.segs).ok_or_else(|| err("пустой контур".into()))?;
+                let (lo, hi) = crate::contour::bounds(&fp.segs).ok_or_else(|| err("empty contour".into()))?;
                 if lo[0].abs() > 1e-6 || lo[1].abs() > 1e-6 {
-                    return Err(err(format!("габарит контура должен начинаться в (0, 0), а начинается в {lo:?}")));
+                    return Err(err(format!("the contour box must start at (0, 0), it starts at {lo:?}")));
                 }
                 let panel = Panel {
                     name: fp.name.clone(),
@@ -872,7 +892,7 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
     let inner_w = w - 2.0 * t;
     let inner_h = h - c.plinth - 2.0 * t;
     if !(t > 0.0 && d > 0.0 && inner_w > 0.0 && inner_h > 0.0 && c.plinth >= 0.0) {
-        return Err(format!("габариты {w}×{h}×{d} с плитой {t} мм и цоколем {} мм не дают внутреннего объёма", c.plinth));
+        return Err(format!("size {w}×{h}×{d} with {t} mm boards and a {} mm plinth leaves no inner space", c.plinth));
     }
     let o = c.position;
     let mut add = |kind: Kind, panel: Panel, origin: [f64; 3], size: [f64; 3]| -> Result<(), String> {
@@ -884,12 +904,12 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
     // Horizontal: X — length, Y — depth (front edge is the contour top), grain along the length.
     let horizontal = |name: &str, length: f64| rect(name, m, length, d, Texture::Horizontal, &[TOP], edge);
 
-    add(Kind::Body, vertical("Боковина левая", h), [0.0, 0.0, 0.0], [t, h, d])?;
-    add(Kind::Body, vertical("Боковина правая", h), [w - t, 0.0, 0.0], [t, h, d])?;
-    add(Kind::Body, horizontal("Дно", inner_w), [t, c.plinth, 0.0], [inner_w, t, d])?;
-    add(Kind::Body, horizontal("Крыша", inner_w), [t, h - t, 0.0], [inner_w, t, d])?;
+    add(Kind::Body, vertical("Left side", h), [0.0, 0.0, 0.0], [t, h, d])?;
+    add(Kind::Body, vertical("Right side", h), [w - t, 0.0, 0.0], [t, h, d])?;
+    add(Kind::Body, horizontal("Bottom", inner_w), [t, c.plinth, 0.0], [inner_w, t, d])?;
+    add(Kind::Body, horizontal("Top panel", inner_w), [t, h - t, 0.0], [inner_w, t, d])?;
     if c.plinth > 0.0 {
-        add(Kind::Body, rect("Цоколь", m, inner_w, c.plinth, Texture::Horizontal, &[], None), [t, 0.0, d - t], [inner_w, c.plinth, t])?;
+        add(Kind::Body, rect("Plinth", m, inner_w, c.plinth, Texture::Horizontal, &[], None), [t, 0.0, d - t], [inner_w, c.plinth, t])?;
     }
 
     // Partitions and the sections between them.
@@ -899,20 +919,20 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
     let mut left = t;
     for &x in &xs {
         if x < left || x + t > w - t {
-            return Err(format!("перегородка на {x} мм не помещается (свободно от {left} до {} мм)", w - 2.0 * t));
+            return Err(format!("a partition at {x} mm does not fit (free from {left} to {} mm)", w - 2.0 * t));
         }
         sections.push((left, x - left));
-        add(Kind::Body, vertical("Перегородка", inner_h), [x, c.plinth + t, 0.0], [t, inner_h, d])?;
+        add(Kind::Body, vertical("Partition", inner_h), [x, c.plinth + t, 0.0], [t, inner_h, d])?;
         left = x + t;
     }
     sections.push((left, w - t - left));
     if let Some(&(_, sw)) = sections.iter().find(|s| s.1 <= 0.0) {
-        return Err(format!("перегородки оставляют секцию шириной {sw} мм"));
+        return Err(format!("the partitions leave a section {sw} mm wide"));
     }
 
     let &(dsx, dsw) = sections
         .get(c.drawer_section)
-        .ok_or_else(|| format!("ящики: нет секции {} (всего {})", c.drawer_section, sections.len()))?;
+        .ok_or_else(|| format!("drawers: no section {} (there are {})", c.drawer_section, sections.len()))?;
     // Drawer runner length is a multiple of 50 mm; the drawer zone top is above the top front, measured from the top of the bottom.
     let drawer_depth = c.drawer_depth.unwrap_or(((d - 10.0) / 50.0).floor() * 50.0);
     let drawer_zone = if c.drawers.is_empty() {
@@ -923,20 +943,20 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
     for s in &c.shelves {
         let &(sx, sw) = sections
             .get(s.section)
-            .ok_or_else(|| format!("нет секции {} (всего {})", s.section, sections.len()))?;
+            .ok_or_else(|| format!("no section {} (there are {})", s.section, sections.len()))?;
         if s.height < 0.0 || s.height + t > inner_h {
-            return Err(format!("полка на высоте {} мм не помещается (внутри {inner_h} мм)", s.height));
+            return Err(format!("a shelf at {} mm does not fit (inside is {inner_h} mm)", s.height));
         }
         if s.section == c.drawer_section && s.height < drawer_zone {
-            return Err(format!("полка на высоте {} мм попадает в зону ящиков (до {drawer_zone} мм)", s.height));
+            return Err(format!("a shelf at {} mm falls into the drawer zone (up to {drawer_zone} mm)", s.height));
         }
-        add(Kind::Body, horizontal("Полка", sw), [sx, c.plinth + t + s.height, 0.0], [sw, t, d])?;
+        add(Kind::Body, horizontal("Shelf", sw), [sx, c.plinth + t + s.height, 0.0], [sw, t, d])?;
     }
 
     if let Some(name) = &c.back {
         let bm = p.material(name)?;
         let bh = h - c.plinth;
-        add(Kind::Back, rect("Задняя стенка", bm, w, bh, Texture::Default, &[], None), [0.0, c.plinth, -bm.thickness], [w, bh, bm.thickness])?;
+        add(Kind::Back, rect("Back panel", bm, w, bh, Texture::Default, &[], None), [0.0, c.plinth, -bm.thickness], [w, bh, bm.thickness])?;
     }
 
     let dm = match &c.door_material {
@@ -955,23 +975,23 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         let bh = hf - 40.0;
         let bd = drawer_depth;
         if !(hf > 0.0 && fw > 0.0 && bw > 2.0 * t && bh >= 60.0 && bd >= 250.0 && bd <= d) {
-            return Err(format!("ящик {} (фасад {hf} мм, короб {bw:.0}×{bh:.0}×{bd:.0}) не строится: нужен фасад ≥ 100 мм и глубина ≥ 250 мм", i + 1));
+            return Err(format!("drawer {} (front {hf} mm, box {bw:.0}×{bh:.0}×{bd:.0}) cannot be built: a front ≥ 100 mm and depth ≥ 250 mm are required", i + 1));
         }
-        let facade = rect("Фасад ящика", dm, fw, hf, Texture::Horizontal, &[BOTTOM, LEFT, TOP, RIGHT], edge);
+        let facade = rect("Drawer front", dm, fw, hf, Texture::Horizontal, &[BOTTOM, LEFT, TOP, RIGHT], edge);
         add(Kind::Drawer, facade, [fx0 + g, front_y, d], [fw, hf, dm.thickness])?;
         let (bx, by, bz) = (dsx + RAIL_GAP, front_y + 20.0, d - bd);
         // Box: side panels (X — depth, Y — height), walls between the side panels, bottom under the box.
         let side = |name| rect(name, m, bd, bh, Texture::Horizontal, &[TOP], edge);
-        add(Kind::Body, side("Боковина ящика"), [bx, by, bz], [t, bh, bd])?;
-        add(Kind::Body, side("Боковина ящика"), [bx + bw - t, by, bz], [t, bh, bd])?;
+        add(Kind::Body, side("Drawer side"), [bx, by, bz], [t, bh, bd])?;
+        add(Kind::Body, side("Drawer side"), [bx + bw - t, by, bz], [t, bh, bd])?;
         let wall = |name| rect(name, m, bw - 2.0 * t, bh, Texture::Horizontal, &[TOP], edge);
-        add(Kind::Body, wall("Передняя стенка ящика"), [bx + t, by, d - t], [bw - 2.0 * t, bh, t])?;
-        add(Kind::Body, wall("Задняя стенка ящика"), [bx + t, by, bz], [bw - 2.0 * t, bh, t])?;
+        add(Kind::Body, wall("Drawer front wall"), [bx + t, by, d - t], [bw - 2.0 * t, bh, t])?;
+        add(Kind::Body, wall("Drawer back wall"), [bx + t, by, bz], [bw - 2.0 * t, bh, t])?;
         let bm = match &c.back {
             Some(n) => p.material(n)?,
             None => m,
         };
-        add(Kind::Body, rect("Дно ящика", bm, bw, bd, Texture::Default, &[], None), [bx, by - bm.thickness, bz], [bw, bm.thickness, bd])?;
+        add(Kind::Body, rect("Drawer bottom", bm, bw, bd, Texture::Default, &[], None), [bx, by - bm.thickness, bz], [bw, bm.thickness, bd])?;
         front_y += hf + g;
     }
 
@@ -979,15 +999,15 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         let n = c.doors as f64;
         let (dw, dh) = ((w - (n + 1.0) * g) / n, h - front_y - g);
         if !(dw > 0.0 && dh > 0.0 && g >= 0.0) {
-            return Err(format!("{} дверей с зазором {g} мм не помещаются над ящиками", c.doors));
+            return Err(format!("{} doors with a {g} mm gap do not fit above the drawers", c.doors));
         }
         for i in 0..c.doors {
             let x = g + i as f64 * (dw + g);
-            let door = rect("Дверь", dm, dw, dh, Texture::Vertical, &[BOTTOM, LEFT, TOP, RIGHT], edge);
+            let door = rect("Door", dm, dw, dh, Texture::Vertical, &[BOTTOM, LEFT, TOP, RIGHT], edge);
             add(Kind::Door, door, [x, front_y, d], [dw, dh, dm.thickness])?;
         }
     } else if front_y > h {
-        return Err(format!("ящики выше корпуса: фасады до {front_y} мм при высоте {h} мм"));
+        return Err(format!("drawers are higher than the cabinet: fronts up to {front_y} mm with a height of {h} mm"));
     }
     Ok(())
 }
@@ -1000,7 +1020,7 @@ fn corner(p: &Project, c: &Corner, out: &mut Vec<Part>) -> Result<(), String> {
     let (ax, bz) = (c.width_x - t, c.width_z - t);
     let inner_h = h - c.plinth - 2.0 * t;
     if !(ax >= d + 100.0 && bz >= d + 100.0 && inner_h > 0.0 && c.plinth >= 0.0) {
-        return Err(format!("крылья {}×{} должны быть хотя бы на 100 мм больше глубины {d} плюс плита; внутри по высоте {inner_h} мм", c.width_x, c.width_z));
+        return Err(format!("the wings {}×{} must be at least 100 mm more than depth {d} plus the board; inner height {inner_h} mm", c.width_x, c.width_z));
     }
     let o = c.position;
     let mut add = |kind: Kind, panel: Panel, origin: [f64; 3], size: [f64; 3]| -> Result<(), String> {
@@ -1011,25 +1031,25 @@ fn corner(p: &Project, c: &Corner, out: &mut Vec<Part>) -> Result<(), String> {
     // shortcut: on views an L-part is drawn as its bounding box (a square); exact 3D needs polyhedra.
     let l_shape = |name| poly(name, m, &[[ax, 0.0], [0.0, 0.0], [0.0, bz], [d, bz], [d, d], [ax, d]], Texture::Horizontal, &[3, 4], edge);
     let side = |name| rect(name, m, d, h, Texture::Vertical, &[RIGHT], edge);
-    add(Kind::Body, side("Боковина крыла X"), [ax, 0.0, 0.0], [t, h, d])?;
-    add(Kind::Body, side("Боковина крыла Z"), [0.0, 0.0, bz], [d, h, t])?;
-    add(Kind::Body, l_shape("Дно угловое"), [0.0, c.plinth, 0.0], [ax, t, bz])?;
-    add(Kind::Body, l_shape("Крыша угловая"), [0.0, h - t, 0.0], [ax, t, bz])?;
+    add(Kind::Body, side("Wing X side"), [ax, 0.0, 0.0], [t, h, d])?;
+    add(Kind::Body, side("Wing Z side"), [0.0, 0.0, bz], [d, h, t])?;
+    add(Kind::Body, l_shape("Corner bottom"), [0.0, c.plinth, 0.0], [ax, t, bz])?;
+    add(Kind::Body, l_shape("Corner top"), [0.0, h - t, 0.0], [ax, t, bz])?;
     for &sh in &c.shelves {
         if sh < 0.0 || sh + t > inner_h {
-            return Err(format!("полка на высоте {sh} мм не помещается (внутри {inner_h} мм)"));
+            return Err(format!("a shelf at {sh} mm does not fit (inside is {inner_h} mm)"));
         }
-        add(Kind::Body, l_shape("Полка угловая"), [0.0, c.plinth + t + sh, 0.0], [ax, t, bz])?;
+        add(Kind::Body, l_shape("Corner shelf"), [0.0, c.plinth + t + sh, 0.0], [ax, t, bz])?;
     }
     if c.plinth > 0.0 {
-        add(Kind::Body, rect("Цоколь", m, ax - d + t, c.plinth, Texture::Horizontal, &[], None), [d - t, 0.0, d - t], [ax - d + t, c.plinth, t])?;
-        add(Kind::Body, rect("Цоколь", m, bz - d, c.plinth, Texture::Horizontal, &[], None), [d - t, 0.0, d], [t, c.plinth, bz - d])?;
+        add(Kind::Body, rect("Plinth", m, ax - d + t, c.plinth, Texture::Horizontal, &[], None), [d - t, 0.0, d - t], [ax - d + t, c.plinth, t])?;
+        add(Kind::Body, rect("Plinth", m, bz - d, c.plinth, Texture::Horizontal, &[], None), [d - t, 0.0, d], [t, c.plinth, bz - d])?;
     }
     if let Some(name) = &c.back {
         let bm = p.material(name)?;
         let bh = h - c.plinth;
-        add(Kind::Back, rect("Задняя стенка", bm, c.width_x, bh, Texture::Default, &[], None), [0.0, c.plinth, -bm.thickness], [c.width_x, bh, bm.thickness])?;
-        add(Kind::Back, rect("Задняя стенка", bm, c.width_z, bh, Texture::Default, &[], None), [-bm.thickness, c.plinth, 0.0], [bm.thickness, bh, c.width_z])?;
+        add(Kind::Back, rect("Back panel", bm, c.width_x, bh, Texture::Default, &[], None), [0.0, c.plinth, -bm.thickness], [c.width_x, bh, bm.thickness])?;
+        add(Kind::Back, rect("Back panel", bm, c.width_z, bh, Texture::Default, &[], None), [-bm.thickness, c.plinth, 0.0], [bm.thickness, bh, c.width_z])?;
     }
     if c.doors {
         let dm = match &c.door_material {
@@ -1040,9 +1060,9 @@ fn corner(p: &Project, c: &Corner, out: &mut Vec<Part>) -> Result<(), String> {
         // The X-wing door starts past the Z-wing door so they don't collide in the inner corner.
         let (dwx, dwz) = (c.width_x - d - dm.thickness - 2.0 * g, c.width_z - d - 2.0 * g);
         if !(dwx > 0.0 && dwz > 0.0 && dh > 0.0) {
-            return Err("двери не помещаются".into());
+            return Err("the doors do not fit".into());
         }
-        let door = |w| rect("Дверь", dm, w, dh, Texture::Vertical, &[BOTTOM, LEFT, TOP, RIGHT], edge);
+        let door = |w| rect("Door", dm, w, dh, Texture::Vertical, &[BOTTOM, LEFT, TOP, RIGHT], edge);
         add(Kind::Door, door(dwx), [d + dm.thickness + g, c.plinth + g, d], [dwx, dh, dm.thickness])?;
         add(Kind::Door, door(dwz), [d, c.plinth + g, d + g], [dm.thickness, dh, dwz])?;
     }
@@ -1055,9 +1075,9 @@ const RAIL_GAP: f64 = 13.0;
 fn countertop(p: &Project, ct: &Countertop, out: &mut Vec<Part>) -> Result<(), String> {
     let m = p.material(&ct.material)?;
     if !(ct.length > 0.0 && ct.depth > 0.0) {
-        return Err(format!("размеры {}×{} должны быть больше нуля", ct.length, ct.depth));
+        return Err(format!("size {}×{} must be greater than zero", ct.length, ct.depth));
     }
-    let panel = rect("Столешница", m, ct.length, ct.depth, Texture::Horizontal, &[TOP], p.edge(&ct.edge)?);
+    let panel = rect("Countertop", m, ct.length, ct.depth, Texture::Horizontal, &[TOP], p.edge(&ct.edge)?);
     out.push(Part::placed(ct.id, Kind::Body, panel, ct.position, [ct.length, m.thickness, ct.depth])?);
     Ok(())
 }

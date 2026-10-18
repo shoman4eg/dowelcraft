@@ -191,21 +191,21 @@ mod tests {
 
     fn check(items: &[Item], lay: &Layout) {
         let placed: usize = lay.sheets.iter().map(|s| s.parts.len()).sum();
-        assert_eq!(placed + lay.too_big.len(), items.len(), "каждая деталь либо уложена, либо в too_big");
+        assert_eq!(placed + lay.too_big.len(), items.len(), "every part is either placed or in too_big");
         for s in &lay.sheets {
             for (i, a) in s.parts.iter().enumerate() {
                 assert!(a.x >= P.trim - 1e-9 && a.y >= P.trim - 1e-9);
                 assert!(a.x + a.w <= P.sheet.0 - P.trim + 1e-9 && a.y + a.h <= P.sheet.1 - P.trim + 1e-9);
                 let it = items.iter().find(|it| it.id == a.id).unwrap();
                 if it.grain {
-                    assert!(!a.rotated, "деталь с текстурой повёрнута");
+                    assert!(!a.rotated, "a part with grain is rotated");
                 }
                 for b in &s.parts[i + 1..] {
                     let apart = a.x + a.w + P.kerf <= b.x + 1e-9
                         || b.x + b.w + P.kerf <= a.x + 1e-9
                         || a.y + a.h + P.kerf <= b.y + 1e-9
                         || b.y + b.h + P.kerf <= a.y + 1e-9;
-                    assert!(apart, "детали {} и {} ближе пропила", a.id, b.id);
+                    assert!(apart, "parts {} and {} are closer than the kerf", a.id, b.id);
                 }
             }
         }
@@ -254,7 +254,7 @@ mod tests {
         let lay = nest(&items, &p);
         assert_eq!(lay.sheets.len(), 1);
         let biggest = lay.sheets[0].free.iter().map(|r| r.w * r.h).fold(0.0, f64::max);
-        eprintln!("самый большой обрезок {biggest}, обрезков {}: {:?}", lay.sheets[0].free.len(), lay.sheets[0].free);
+        eprintln!("largest offcut {biggest}, offcuts {}: {:?}", lay.sheets[0].free.len(), lay.sheets[0].free);
         assert!(biggest > 1058.0 * 948.0 * 1.2, "{biggest}");
     }
 

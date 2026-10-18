@@ -44,21 +44,29 @@ fn reference(name: &str) -> Option<String> {
     Some(encoding_rs::WINDOWS_1251.decode(&bytes).0.into_owned())
 }
 
+const TAGS: [&str; 9] = ["PROJECT", "MATERIALROOTNODE", "BOARDROOTNODE", "BINDINGROOTNODE", "MATERIALCORE", "MATERIALOUTER", "BOARDSMP", "EDGEBOT", "CONTITEMPLINE"];
+
+/// Our export of the first sample in `example/` (by name) that has every compared element.
 fn ours() -> Option<String> {
-    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example/обшивка.b3d");
-    let file = dowel::b3d::parse(&std::fs::read(p).ok()?).unwrap();
-    let ex = dowel::panel::panels(&file);
-    let bytes = dowel::raskroy::project_xml("тест", &ex.panels, |_| (2800.0, 2070.0));
-    Some(encoding_rs::WINDOWS_1251.decode(&bytes).0.into_owned())
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example");
+    let mut files: Vec<_> = std::fs::read_dir(dir).ok()?.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "b3d")).collect();
+    files.sort();
+    files.into_iter().find_map(|p| {
+        let file = dowel::b3d::parse(&std::fs::read(&p).ok()?).ok()?;
+        let ex = dowel::panel::panels(&file);
+        let bytes = dowel::raskroy::project_xml("test", &ex.panels, |_| (2800.0, 2070.0));
+        let xml = encoding_rs::WINDOWS_1251.decode(&bytes).0.into_owned();
+        TAGS.iter().all(|t| xml.contains(&format!("<{t}>")) || xml.contains(&format!("<{t} "))).then_some(xml)
+    })
 }
 
 #[test]
 fn structure_matches_reference() {
     let (Some(r), Some(o)) = (reference("raskroy-project-tribuny.xml"), ours()) else {
-        eprintln!("нет reference/ или example/ — тест пропущен");
+        eprintln!("no reference/ or example/ — test skipped");
         return;
     };
-    for tag in ["PROJECT", "MATERIALROOTNODE", "BOARDROOTNODE", "BINDINGROOTNODE", "MATERIALCORE", "MATERIALOUTER", "BOARDSMP", "EDGEBOT", "CONTITEMPLINE"] {
+    for tag in TAGS {
         let mut want = children(&r, tag);
         // COMMENT is an optional comment; drilling is not exported.
         want.retain(|t| t != "COMMENT");
@@ -73,6 +81,6 @@ fn structure_matches_reference() {
             want.retain(|t| t != "DRILLING");
             got.retain(|t| t != "DRILLING");
         }
-        assert_eq!(got, want, "потомки <{tag}>");
+        assert_eq!(got, want, "children of <{tag}>");
     }
 }

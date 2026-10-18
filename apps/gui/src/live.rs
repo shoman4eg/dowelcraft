@@ -190,7 +190,7 @@ mod tests {
             std::thread::sleep(Duration::from_millis(5));
         }
         let (bad, p) = client.join().unwrap();
-        assert!(bad.contains("уже есть"), "{bad}");
+        assert!(bad.contains("already exists"), "{bad}");
         assert_eq!(p["materials"][0]["name"], "Chipboard 16");
         assert!(app.dirty);
         assert_eq!(app.session.as_ref().unwrap().project.materials.len(), 1);

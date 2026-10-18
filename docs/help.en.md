@@ -30,7 +30,8 @@ dowel-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 
 - **Several projects.** Each project is a tab under the menu. “+” or “New” opens a new tab, so does opening a file. “*” after the name means unsaved changes; closing asks whether to save.
 - **Material texture.** “Project” → “Choose…” at a material (or in the new material form): an image library by folders with previews and search. Add your folders with “+ Add folder…”. “by article” finds the Baltlaminat image by the material article. See it in the 3D “Textured” mode.
-- **The grid** in the front view and in 3D is infinite and its spacing grows when you zoom out. Toggle it with F7 or the grid icon at the bottom right; spacing and major lines — the gear or “Edit → Settings…”, which also has the program language.
+- **The grid** in the front view and in 3D is infinite and its spacing grows when you zoom out. Toggle it with F7 or the grid icon at the bottom right; spacing and major lines — the gear or “Edit → Settings…”, which also has the program language (English by default). New parts and cabinets get names in the chosen language.
+- **The 3D grid** lies on the floor and moves to a wall only when you look almost level with the floor (the Front and Left views); zooming out goes 10 → 20 → 50 → 100 mm.
 
 ## Model structure
 

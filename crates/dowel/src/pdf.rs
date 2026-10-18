@@ -116,7 +116,7 @@ impl PdfTrueTypeFont {
                 }
             }
         }
-        Err("Не удалось найти системный шрифт TrueType (Segoe UI / Arial) для экспорта в PDF".to_string())
+        Err("No system TrueType font (Segoe UI / Arial) found for PDF export".to_string())
     }
 
     fn glyph_width_1000(&self, gid: GlyphId) -> i32 {
@@ -435,10 +435,11 @@ mod tests {
 
     #[test]
     fn svg_page_becomes_pdf() {
-        let svg = r##"<svg viewBox="0 0 297 210"><g font-weight="bold"><text x="10" y="12" font-size="6">Заказ «1»</text></g><rect x="10" y="20" width="50" height="30" fill="url(#waste)" stroke="#000" stroke-width="0.3"/><line x1="0" y1="0" x2="10" y2="0" stroke="#000" stroke-width="0.2" marker-end="url(#a)"/><circle cx="5" cy="5" r="2" fill="none" stroke="#000"/><text x="50" y="50" font-size="3" text-anchor="middle" transform="rotate(-90 50 50)">500</text></svg>"##;
+        // Cyrillic on purpose: checks that non-Latin glyphs are embedded.
+        let svg = concat!(r##"<svg viewBox="0 0 297 210"><g font-weight="bold"><text x="10" y="12" font-size="6">"##, "\u{417}\u{430}\u{43a}\u{430}\u{437} \u{ab}1\u{bb}", r##"</text></g><rect x="10" y="20" width="50" height="30" fill="url(#waste)" stroke="#000" stroke-width="0.3"/><line x1="0" y1="0" x2="10" y2="0" stroke="#000" stroke-width="0.2" marker-end="url(#a)"/><circle cx="5" cy="5" r="2" fill="none" stroke="#000"/><text x="50" y="50" font-size="3" text-anchor="middle" transform="rotate(-90 50 50)">500</text></svg>"##);
         let Ok(pdf) = from_svg_pages(&[svg.to_string(), svg.to_string()]) else { return }; // no system font — nothing to check
         assert!(pdf.starts_with(b"%PDF-1.4") && pdf.ends_with(b"%%EOF\n"));
         let s = String::from_utf8_lossy(&pdf);
-        assert!(s.contains("/Count 2") && s.contains("BT /F2 17.01 Tf") && s.contains(" re W n"), "жирный текст и штриховка");
+        assert!(s.contains("/Count 2") && s.contains("BT /F2 17.01 Tf") && s.contains(" re W n"), "bold text and hatching");
     }
 }

@@ -105,7 +105,7 @@ fn paint_order(boxes: &[IsoBox]) -> Vec<usize> {
         let pick = (0..n)
             .filter(|&i| !done[i])
             .min_by(|&a, &b| (pending[a] > 0).cmp(&(pending[b] > 0)).then(boxes[a].0.total_cmp(&boxes[b].0)))
-            .expect("есть ненарисованные");
+            .expect("some are not drawn");
         done[pick] = true;
         order.push(pick);
         for &b in &before[pick] {

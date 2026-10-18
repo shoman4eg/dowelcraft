@@ -13,8 +13,10 @@ fn reference_scripts() {
 fn run_all() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let dir = root.join("reference/scripts");
-    let model = root.join("reference/pairs/kuhnya-24-04/_Кухня 24.04.b3d");
-    let (Ok(rd), Ok(job)) = (std::fs::read_dir(&dir), dowel::job::Job::open(&model)) else { return };
+    // The kitchen model of the local sample pair (the only .b3d in its folder).
+    let pair = root.join("reference/pairs/kuhnya-24-04");
+    let model = std::fs::read_dir(&pair).into_iter().flatten().flatten().map(|e| e.path()).find(|p| p.extension().is_some_and(|x| x == "b3d"));
+    let (Ok(rd), Some(Ok(job))) = (std::fs::read_dir(&dir), model.map(|m| dowel::job::Job::open(&m))) else { return };
     let project = job.import();
     let mut files: Vec<_> = rd.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "js")).collect();
     files.sort();
@@ -39,8 +41,8 @@ fn run_all() {
     for (e, v) in &by {
         eprintln!("{:3}  {e}  [{}]", v.len(), v.iter().take(2).cloned().collect::<Vec<_>>().join("; "));
     }
-    eprintln!("выполнено без ошибок: {ok} из {}", files.len());
-    assert!(ok >= MIN_OK, "регрессия: {ok} < {MIN_OK}");
+    eprintln!("ran without errors: {ok} of {}", files.len());
+    assert!(ok >= MIN_OK, "regression: {ok} < {MIN_OK}");
 }
 
 /// Lower bound of successful scripts (raised as the prelude develops).

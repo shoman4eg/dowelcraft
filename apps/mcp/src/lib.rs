@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use dowel::design::{self, Kind, Project, Session};
 use dowel::job::{self, Job};
 use dowel::nest::Params;
+use dowel::i18n::t;
 use dowel::panel;
 use serde_json::{Value, json};
 
@@ -46,7 +47,7 @@ struct Server {
 
 impl Default for Server {
     fn default() -> Self {
-        let p = Project::new("Новый проект");
+        let p = Project::new(&dowel::i18n::t("New project"));
         Server {
             job: Job::from_project(p.clone()),
             session: Some(Session::new(p)),
@@ -66,47 +67,47 @@ fn text(s: impl Into<String>) -> Vec<Value> {
 fn tools() -> Value {
     let commands: String = design::COMMANDS.iter().map(|(n, h)| format!("\n- {n}: {h}")).collect();
     json!([
-        {"name": "window_connect", "description": "Подключиться к открытому окну dowel-craft: дальше command, run_script и project_save меняют проект в активной вкладке окна (пользователь видит сразу, Ctrl+Z в окне отменяет), а parts, cut, render_*, export читают его. project_new/open/import недоступны до window_disconnect.",
+        {"name": "window_connect", "description": "Connect to the open dowel-craft window: from then on command, run_script and project_save change the project in the window's active tab (the user sees it at once, Ctrl+Z in the window undoes it), and parts, cut, render_*, export read it. project_new/open/import are unavailable until window_disconnect.",
          "inputSchema": {"type": "object", "properties": {}}},
-        {"name": "window_disconnect", "description": "Отключиться от окна и снова работать со своей копией проекта.",
+        {"name": "window_disconnect", "description": "Disconnect from the window and work with your own copy of the project again.",
          "inputSchema": {"type": "object", "properties": {}}},
-        {"name": "project_new", "description": "Создать пустой проект мебели.",
+        {"name": "project_new", "description": "Create an empty furniture project.",
          "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
-        {"name": "project_open", "description": "Открыть свой проект .dcraft (можно править) или модель Базиса .b3d/.fr3d (только чтение).",
+        {"name": "project_open", "description": "Open your .dcraft project (editable) or a Bazis model .b3d/.fr3d (read-only).",
          "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}},
-        {"name": "project_import", "description": "Открыть модель Базиса .b3d как свой проект: плиты станут свободными деталями, которые можно править (panel.set, panel.remove) и дополнять корпусами.",
+        {"name": "project_import", "description": "Open a Bazis .b3d model as your own project: its boards become free parts you can edit (panel.set, panel.remove) and add cabinets to.",
          "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}},
-        {"name": "project_save", "description": "Сохранить проект в .dcraft. Без path — в файл, из которого открыт.",
+        {"name": "project_save", "description": "Save the project to .dcraft. Without path — to the file it was opened from.",
          "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}}},
         {"name": "command", "description": format!(
-            "Выполнить команду над проектом. Размеры в мм. Оси корпуса: X вправо, Y вверх, Z к фасаду. \
-             Изменение, после которого изделие не собирается, отклоняется с объяснением. Команды:{commands}"),
+            "Run a command on the project. Sizes in mm. Cabinet axes: X right, Y up, Z towards the front. \
+             A change after which the product cannot be built is refused with an explanation. Commands:{commands}"),
          "inputSchema": {"type": "object", "properties": {
              "command": {"type": "string"}, "params": {"type": "object"}}, "required": ["command"]}},
-        {"name": "parts", "description": "Список деталей: №, наименование, материал, пильные длина×ширина×толщина, кромка.",
+        {"name": "parts", "description": "The parts list: No., name, material, cut length×width×thickness, edge banding.",
          "inputSchema": {"type": "object", "properties": {}}},
-        {"name": "smeta", "description": "Расход материалов: плиты (м²), кромка (м) и фурнитура из моделей Базиса (шт), как смета Базиса.",
+        {"name": "smeta", "description": "Material usage: boards (m²), edge banding (m) and hardware from Bazis models (pcs), like the Bazis estimate.",
          "inputSchema": {"type": "object", "properties": {}}},
-        {"name": "cut", "description": "Раскроить детали по листам. Итог по материалам: листов, % использования, не поместившиеся детали.",
+        {"name": "cut", "description": "Nest the parts on sheets. Totals per material: sheets, % used, parts that did not fit.",
          "inputSchema": {"type": "object", "properties": {
-             "sheet": {"type": "array", "items": {"type": "number"}, "description": "лист по умолчанию [длина, ширина]"},
+             "sheet": {"type": "array", "items": {"type": "number"}, "description": "default sheet [length, width]"},
              "kerf": {"type": "number"}, "trim": {"type": "number"}}}},
-        {"name": "export", "description": "Сохранить документ: cards_html (карты раскроя и «Панели в производство»), raskroy_xml (проект БАЗИС-Раскроя), spec_csv, smeta_csv, b3d (модель Базис-Мебельщика из своего проекта), drawings_html (сборочный и рабочие чертежи деталей с отверстиями).",
+        {"name": "export", "description": "Save a document: cards_html (cutting maps and “Panels for production”), raskroy_xml (a BAZIS-Raskroy project), spec_csv, smeta_csv, b3d (a Bazis-Mebelshchik model from your project), drawings_html (assembly and part drawings with holes).",
          "inputSchema": {"type": "object", "properties": {
              "kind": {"type": "string", "enum": ["cards_html", "raskroy_xml", "spec_csv", "smeta_csv", "b3d", "drawings_html"]},
              "path": {"type": "string"}}, "required": ["kind", "path"]}},
-        {"name": "render_iso", "description": "3D-картинка (PNG, аксонометрия спереди-справа-сверху) проекта или модели Базиса.",
+        {"name": "render_iso", "description": "A 3D picture (PNG, axonometric from front-right-top) of the project or a Bazis model.",
          "inputSchema": {"type": "object", "properties": {
-             "width": {"type": "integer", "description": "ширина картинки, пикселей (по умолчанию 900)"},
-             "doors": {"type": "boolean", "description": "рисовать двери и фасады (по умолчанию да)"}}}},
-        {"name": "run_script", "description": "Выполнить скрипт Базиса (BAZIS-Script, JavaScript) над открытым проектом: Model, AddFrontPanel/AddHorizPanel/AddVertPanel, objects3d, panelOperations, fs (только в папке скрипта). Изменения проверяются и применяются одной записью отмены; при ошибке модель не меняется.",
+             "width": {"type": "integer", "description": "picture width, pixels (900 by default)"},
+             "doors": {"type": "boolean", "description": "draw doors and fronts (yes by default)"}}}},
+        {"name": "run_script", "description": "Run a Bazis script (BAZIS-Script, JavaScript) on the open project: Model, AddFrontPanel/AddHorizPanel/AddVertPanel, objects3d, panelOperations, fs (only in the script's folder). Changes are checked and applied as one undo step; on an error the model is unchanged.",
          "inputSchema": {"type": "object", "properties": {
-             "source": {"type": "string", "description": "текст скрипта"},
-             "path": {"type": "string", "description": "или путь к файлу .js; его папка — песочница для файлов скрипта"}}}},
-        {"name": "render_front", "description": "Картинка вида спереди (PNG) проекта или модели Базиса: корпус — бежевый, двери — голубые полупрозрачные, задняя стенка — серая.",
+             "source": {"type": "string", "description": "the script text"},
+             "path": {"type": "string", "description": "or a path to a .js file; its folder is the sandbox for the script's files"}}}},
+        {"name": "render_front", "description": "A front view picture (PNG) of the project or a Bazis model: carcass beige, doors light blue and translucent, back panel grey.",
          "inputSchema": {"type": "object", "properties": {
-             "width": {"type": "integer", "description": "ширина картинки, пикселей (по умолчанию 800)"},
-             "doors": {"type": "boolean", "description": "рисовать двери (по умолчанию да)"}}}},
+             "width": {"type": "integer", "description": "picture width, pixels (800 by default)"},
+             "doors": {"type": "boolean", "description": "draw doors (yes by default)"}}}},
     ])
 }
 
@@ -122,8 +123,8 @@ impl Server {
                 "protocolVersion": params.get("protocolVersion").and_then(Value::as_str).unwrap_or(PROTOCOL),
                 "capabilities": {"tools": {}},
                 "serverInfo": {"name": "dowel-craft", "version": env!("CARGO_PKG_VERSION")},
-                "instructions": "Проектирование корпусной мебели и раскрой. Сначала добавьте материал (material.add) и кромку (edge.add), \
-                                 затем корпус (cabinet.add), полки и перегородки. Смотрите результат через render_front, parts, cut."
+                "instructions": "Cabinet furniture design and sheet cutting. First add a material (material.add) and an edge banding (edge.add), \
+                                 then a cabinet (cabinet.add), shelves and partitions. Check the result with render_front, parts, cut."
             })),
             "ping" => Ok(json!({})),
             "tools/list" => Ok(json!({"tools": tools()})),
@@ -132,10 +133,11 @@ impl Server {
                 let args = params.get("arguments").cloned().unwrap_or(json!({}));
                 Ok(match self.call(name, &args) {
                     Ok(content) => json!({"content": content}),
-                    Err(e) => json!({"content": text(e), "isError": true}),
+                    // Messages from the project come in English; translated here if Russian is on.
+                    Err(e) => json!({"content": text(t(&e)), "isError": true}),
                 })
             }
-            _ => Err(json!({"code": -32601, "message": format!("неизвестный метод {method}")})),
+            _ => Err(json!({"code": -32601, "message": format!("unknown method {method}")})),
         };
         Some(match result {
             Ok(r) => json!({"jsonrpc": "2.0", "id": id, "result": r}),
@@ -153,12 +155,12 @@ impl Server {
     fn call_live(&mut self, name: &str, a: &Value) -> Option<ToolResult> {
         let live = self.live.as_mut()?;
         let r = match name {
-            "project_new" | "project_open" | "project_import" => Err("подключено к окну: сначала window_disconnect (или откройте файл в окне)".into()),
+            "project_new" | "project_open" | "project_import" => Err(t("connected to the window: window_disconnect first (or open the file in the window)")),
             "command" => match a.get("command").and_then(Value::as_str) {
                 Some(cmd) => live.call(cmd, a.get("params").unwrap_or(&json!({}))).map(|out| text(if out.is_null() { "ok".into() } else { serde_json::to_string_pretty(&out).unwrap_or_default() })),
-                None => Err("нужен параметр «command»".into()),
+                None => Err(t("the “command” parameter is required")),
             },
-            "project_save" => live.call("save", &json!({ "path": a.get("path") })).map(|p| text(format!("Сохранено: {}", p.as_str().unwrap_or_default()))),
+            "project_save" => live.call("save", &json!({ "path": a.get("path") })).map(|p| text(t(format!("Saved: {}", p.as_str().unwrap_or_default())))),
             "window_connect" | "window_disconnect" => return None,
             _ => {
                 // Reads and scripts run on a fresh copy of the window's project.
@@ -179,10 +181,10 @@ impl Server {
         };
         // The window was closed — keep working with our own copy.
         if let Err(e) = &r
-            && e.starts_with("связь с окном")
+            && e.starts_with("window link")
         {
             self.live = None;
-            return Some(Err(format!("{e}. Отключено от окна, дальше — своя копия проекта.")));
+            return Some(Err(format!("{}. {}", t(e), t("Disconnected from the window, working on our own copy of the project from now on."))));
         }
         Some(r)
     }
@@ -195,39 +197,39 @@ impl Server {
     }
 
     fn call_local(&mut self, name: &str, a: &Value) -> ToolResult {
-        let str_arg = |k: &str| a.get(k).and_then(Value::as_str).ok_or(format!("нужен параметр «{k}»"));
+        let str_arg = |k: &str| a.get(k).and_then(Value::as_str).ok_or_else(|| t(format!("the “{k}” parameter is required")));
         match name {
             "window_connect" => {
                 let mut c = dowel::live::Client::connect(&dowel::live::socket_path())?;
                 let info = c.call("window.info", &json!({}))?;
                 self.live = Some(c);
                 Ok(text(format!(
-                    "Подключено к окну: вкладка «{}»{}{}. Команды идут в неё.",
+                    "Connected to the window: tab “{}”{}{}. Commands go to it.",
                     info["name"].as_str().unwrap_or_default(),
-                    info["path"].as_str().map(|p| format!(", файл {p}")).unwrap_or_default(),
-                    if info["editable"].as_bool() == Some(false) { " (модель Базиса только для просмотра — менять нельзя)" } else { "" }
+                    info["path"].as_str().map(|p| format!(", file {p}")).unwrap_or_default(),
+                    if info["editable"].as_bool() == Some(false) { " (a read-only Bazis model — it cannot be changed)" } else { "" }
                 )))
             }
             "window_disconnect" => {
                 self.live = None;
-                Ok(text("Отключено от окна."))
+                Ok(text(t("Disconnected from the window.")))
             }
             "project_new" => {
                 let p = Project::new(str_arg("name")?);
                 self.session = Some(Session::new(p));
                 self.path = None;
                 self.refresh();
-                Ok(text("Создан пустой проект. Добавьте материал, кромку и корпус командами."))
+                Ok(text(t("An empty project is created. Add a material, an edge banding and a cabinet with commands.")))
             }
             "project_open" => {
                 let path = PathBuf::from(str_arg("path")?);
                 let job = Job::open(&path)?;
                 self.session = job.project.clone().map(Session::new);
                 let msg = format!(
-                    "Открыт {}: деталей {}{}",
+                    "Opened {}: parts {}{}",
                     path.display(),
                     job.panels.len(),
-                    if self.session.is_some() { "" } else { " (модель Базиса, только чтение)" }
+                    if self.session.is_some() { "" } else { " (a Bazis model, read-only)" }
                 );
                 self.job = job;
                 self.path = Some(path);
@@ -237,30 +239,30 @@ impl Server {
                 let path = PathBuf::from(str_arg("path")?);
                 let job = Job::open(&path)?;
                 let p = job.import();
-                let msg = format!("Импортировано деталей: {}, материалов: {}. Сохраните project_save с путём .dcraft.", p.panels().len(), p.materials.len());
+                let msg = t(format!("Imported parts: {}, materials: {}. Save it with project_save and a .dcraft path.", p.panels().len(), p.materials.len()));
                 self.session = Some(Session::new(p));
                 self.path = None;
                 self.refresh();
                 Ok(text(msg))
             }
             "project_save" => {
-                let s = self.session.as_ref().ok_or("открыта модель Базиса — сохранять нечего")?;
+                let s = self.session.as_ref().ok_or_else(|| t("a Bazis model is open — nothing to save"))?;
                 let path = match a.get("path").and_then(Value::as_str) {
                     Some(p) => PathBuf::from(p),
-                    None => self.path.clone().filter(|p| dowel::design::is_project_file(p)).ok_or("укажите path")?,
+                    None => self.path.clone().filter(|p| dowel::design::is_project_file(p)).ok_or_else(|| t("give a path"))?,
                 };
                 std::fs::write(&path, s.project.save()).map_err(|e| format!("{}: {e}", path.display()))?;
                 self.path = Some(path.clone());
-                Ok(text(format!("Сохранено: {}", path.display())))
+                Ok(text(t(format!("Saved: {}", path.display()))))
             }
             "command" => {
-                let s = self.session.as_mut().ok_or("открыта модель Базиса — она только для чтения; создайте проект project_new")?;
+                let s = self.session.as_mut().ok_or_else(|| t("a Bazis model is open — it is read-only; create a project with project_new"))?;
                 let out = s.execute(str_arg("command")?, a.get("params").unwrap_or(&json!({})))?;
                 self.refresh();
                 Ok(text(if out.is_null() { "ok".into() } else { serde_json::to_string_pretty(&out).unwrap_or_default() }))
             }
             "parts" => {
-                let mut t = String::from("№ | наименование | материал | длина × ширина × толщина | кромка L1/L2/W1/W2\n");
+                let mut t = String::from("No. | name | material | length × width × thickness | edge banding L1/L2/W1/W2\n");
                 for (i, p) in self.job.panels.iter().enumerate() {
                     let (l, w) = p.cut_size();
                     let e = job::label(&self.job, i).edges.map(|b| if b { "+" } else { "-" }).join("");
@@ -278,12 +280,12 @@ impl Server {
                 let mut t = String::new();
                 for c in &cuts {
                     let usage: Vec<String> = c.layout.sheets.iter().map(|s| format!("{:.0}%", s.usage(&c.params) * 100.0)).collect();
-                    t += &format!("{} (лист {}×{}): листов {}, заполнение {}\n", panel::material_name(&c.material), c.params.sheet.0, c.params.sheet.1, c.layout.sheets.len(), usage.join(", "));
+                    t += &format!("{} (sheet {}×{}): sheets {}, usage {}\n", panel::material_name(&c.material), c.params.sheet.0, c.params.sheet.1, c.layout.sheets.len(), usage.join(", "));
                     for &id in &c.layout.too_big {
-                        t += &format!("  не помещается: № {} «{}»\n", self.job.number(id), self.job.panels[id].name);
+                        t += &format!("  does not fit: No. {} “{}”\n", self.job.number(id), self.job.panels[id].name);
                     }
                 }
-                Ok(text(if t.is_empty() { "Нет деталей.".into() } else { t }))
+                Ok(text(if t.is_empty() { "No parts.".into() } else { t }))
             }
             "export" => {
                 let path = PathBuf::from(str_arg("path")?);
@@ -298,29 +300,29 @@ impl Server {
                     "spec_csv" => dowel::report::spec_csv(&panel::spec(&job.panels)).into_bytes(),
                     "smeta_csv" => dowel::report::materials_csv(&job.estimate(1.2)).into_bytes(),
                     "drawings_html" => dowel::report::document_html(&job.name, &dowel::drawing::drawings(&job::parts(job)?, &job.name), "").into_bytes(),
-                    "b3d" => dowel::export::b3d(job.project.as_ref().ok_or("b3d пишется из своего проекта: откройте или импортируйте его")?)?,
-                    k => return Err(format!("неизвестный вид документа «{k}»")),
+                    "b3d" => dowel::export::b3d(job.project.as_ref().ok_or_else(|| t("b3d is written from your own project: open or import one"))?)?,
+                    k => return Err(t(format!("unknown document kind “{k}”"))),
                 };
                 std::fs::write(&path, bytes).map_err(|e| format!("{}: {e}", path.display()))?;
-                Ok(text(format!("Сохранено: {}", path.display())))
+                Ok(text(t(format!("Saved: {}", path.display()))))
             }
             "run_script" => {
-                let s = self.session.as_mut().ok_or("открыта модель Базиса — сначала project_import")?;
+                let s = self.session.as_mut().ok_or_else(|| t("a Bazis model is open — project_import first"))?;
                 let (source, dir) = match (a.get("source").and_then(Value::as_str), a.get("path").and_then(Value::as_str)) {
                     (Some(src), _) => (src.to_string(), std::env::temp_dir().join("dowel-craft-mcp-script")),
                     (None, Some(p)) => {
                         let p = PathBuf::from(p);
                         (script::read_script(&p)?, p.parent().map(PathBuf::from).unwrap_or_default())
                     }
-                    _ => return Err("нужен source или path".into()),
+                    _ => return Err(t("source or path is required")),
                 };
                 std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
                 let r = script::run(s, &source, script::Options { sandbox: dir.clone(), script_dir: dir, ..Default::default() });
                 self.refresh();
                 let mut t = r.log.join("\n");
-                t += &format!("\nизменений: {}, окон: {}", r.changes, r.forms.len());
+                t += &format!("\nchanges: {}, dialogs: {}", r.changes, r.forms.len());
                 match r.error {
-                    Some(e) => Err(format!("{t}\nОшибка: {e} (модель не изменена)")),
+                    Some(e) => Err(format!("{t}\n{}", dowel::i18n::t(format!("Error: {e} (the model is unchanged)")))),
                     None => Ok(text(t)),
                 }
             }
@@ -338,7 +340,7 @@ impl Server {
                 let png = render_iso(&parts, width, doors)?;
                 Ok(vec![json!({"type": "image", "data": base64(&png), "mimeType": "image/png"})])
             }
-            _ => Err(format!("неизвестный инструмент «{name}»")),
+            _ => Err(t(format!("unknown tool “{name}”"))),
         }
     }
 
@@ -355,11 +357,11 @@ impl Server {
 fn render_front(parts: &[design::Part], width: u32, doors: bool) -> Result<Vec<u8>, String> {
     use tiny_skia::{Color, FillRule, Paint, PathBuilder, Pixmap, Stroke, Transform};
     let rects = design::front_view(parts, doors);
-    let (lo, hi) = design::bounds(&rects).ok_or("в проекте нет деталей")?;
+    let (lo, hi) = design::bounds(&rects).ok_or_else(|| t("the project has no parts"))?;
     let pad = 20.0;
     let k = (width as f64 - 2.0 * pad) / (hi[0] - lo[0]);
     let height = ((hi[1] - lo[1]) * k + 2.0 * pad).ceil().clamp(50.0, 8000.0) as u32;
-    let mut pm = Pixmap::new(width, height).ok_or("нельзя создать картинку")?;
+    let mut pm = Pixmap::new(width, height).ok_or_else(|| t("cannot create the picture"))?;
     pm.fill(Color::from_rgba8(250, 250, 250, 255));
     let stroke = Stroke { width: 1.0, ..Default::default() };
     let mut edge = Paint::default();
@@ -386,7 +388,7 @@ fn render_iso(parts: &[design::Part], width: u32, doors: bool) -> Result<Vec<u8>
     use tiny_skia::{Color, FillRule, Paint, PathBuilder, Pixmap, Stroke, Transform};
     let faces = design::iso_view(parts, doors);
     if faces.is_empty() {
-        return Err("нет деталей".into());
+        return Err(t("no parts"));
     }
     let (lo, hi) = faces.iter().flat_map(|f| f.pts).fold(([f64::MAX; 2], [f64::MIN; 2]), |(lo, hi), p| {
         ([lo[0].min(p[0]), lo[1].min(p[1])], [hi[0].max(p[0]), hi[1].max(p[1])])
@@ -394,7 +396,7 @@ fn render_iso(parts: &[design::Part], width: u32, doors: bool) -> Result<Vec<u8>
     let pad = 20.0;
     let k = (width as f64 - 2.0 * pad) / (hi[0] - lo[0]);
     let height = ((hi[1] - lo[1]) * k + 2.0 * pad).ceil().clamp(50.0, 8000.0) as u32;
-    let mut pm = Pixmap::new(width, height).ok_or("нельзя создать картинку")?;
+    let mut pm = Pixmap::new(width, height).ok_or_else(|| t("cannot create the picture"))?;
     pm.fill(Color::from_rgba8(250, 250, 250, 255));
     let mut edge = Paint::default();
     edge.set_color_rgba8(70, 70, 70, 255);
@@ -448,7 +450,7 @@ mod tests {
         let sock = dir.join(format!("w-{}.sock", std::process::id()));
         let listener = ListenerOptions::new().name(dowel::live::name(&sock).unwrap()).create_sync().unwrap();
         let window = std::thread::spawn(move || {
-            let mut s = Session::new(Project::new("Окно"));
+            let mut s = Session::new(Project::new("Window"));
             let conn = listener.accept().unwrap();
             let mut out = &conn;
             let mut seen = Vec::new();
@@ -456,7 +458,7 @@ mod tests {
                 let v: Value = serde_json::from_str(&line.unwrap()).unwrap();
                 let cmd = v["command"].as_str().unwrap().to_string();
                 let r = match cmd.as_str() {
-                    "window.info" => Ok(json!({"name": "Окно", "path": null, "editable": true})),
+                    "window.info" => Ok(json!({"name": "Window", "path": null, "editable": true})),
                     _ => s.execute(&cmd, &v["params"]),
                 };
                 seen.push(cmd);
@@ -466,11 +468,11 @@ mod tests {
             (seen, s.project.materials.len())
         });
         let mut server = Server { live: Some(dowel::live::Client::connect(&sock).unwrap()), ..Default::default() };
-        server.call("command", &json!({"command": "material.add", "params": {"name": "ЛДСП 16", "thickness": 16}})).unwrap();
+        server.call("command", &json!({"command": "material.add", "params": {"name": "Chipboard 16", "thickness": 16}})).unwrap();
         assert!(server.call("project_new", &json!({"name": "x"})).is_err());
         // Reads come from the window's project: the material is there, no parts.
         let parts = server.call("parts", &json!({})).unwrap();
-        assert!(parts[0]["text"].as_str().unwrap().starts_with("№"));
+        assert!(parts[0]["text"].as_str().unwrap().starts_with("No."));
         assert_eq!(server.session.as_ref().unwrap().project.materials.len(), 1);
         server.call("window_disconnect", &json!({})).unwrap();
         let (seen, materials) = window.join().unwrap();

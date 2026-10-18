@@ -33,8 +33,8 @@ fn opening<'a>(parts: &'a [Part], at: [f64; 2]) -> Result<[&'a Part; 4], String>
             c.filter(|p| p.origin[axis] >= at[axis]).min_by(|a, b| a.origin[axis].total_cmp(&b.origin[axis]))
         }
     };
-    let need = |p: Option<&'a Part>, s: &str| p.ok_or_else(|| format!("нет границы проёма {s} от точки {at:?}"));
-    Ok([need(side(0, true), "слева")?, need(side(0, false), "справа")?, need(side(1, true), "снизу")?, need(side(1, false), "сверху")?])
+    let need = |p: Option<&'a Part>, s: &str| p.ok_or_else(|| format!("no opening bound {s} of point {at:?}"));
+    Ok([need(side(0, true), "on the left")?, need(side(0, false), "on the right")?, need(side(1, true), "below")?, need(side(1, false), "above")?])
 }
 
 /// Front edges along an axis between boundaries `lo` and `hi`: overlay — at outer faces, half-overlay — at middles,
@@ -55,7 +55,7 @@ fn occupied(parts: &[Part], x: (f64, f64), y: (f64, f64)) -> Result<(), String> 
         p.origin[0] < x.1 - 1.0 && x.0 + 1.0 < p.origin[0] + p.size[0] && p.origin[1] < y.1 - 1.0 && y.0 + 1.0 < p.origin[1] + p.size[1]
     });
     match hit {
-        Some(p) => Err(format!("в проёме уже стоит «{}» — удалите её или выберите другой проём", p.panel.name)),
+        Some(p) => Err(format!("the opening already has “{}” — delete it or choose another opening", p.panel.name)),
         None => Ok(()),
     }
 }
@@ -69,8 +69,8 @@ fn hinge(edge_x: f64, inward: f64, y: f64, door_back: f64, stand_face: f64, stan
     let x1 = 50.0 * inward;
     Furniture {
         id: 0,
-        name: "Петля накладная с доводчиком".into(),
-        kind: "Петля".into(),
+        name: crate::i18n::t("Overlay hinge with soft close"),
+        kind: crate::i18n::bazis("library.hinge").into(),
         source: String::new(),
         frame: Frame { origin: [edge_x, y, door_back], ..Frame::IDENTITY },
         holes: vec![
@@ -108,7 +108,7 @@ pub fn door(pr: &mut Project, p: &Value) -> Result<Value, String> {
     fn overlay() -> Mount { Mount::Overlay }
     fn two() -> f64 { 2.0 }
     fn left() -> String { "left".into() }
-    let a: A = serde_json::from_value(p.clone()).map_err(|e| format!("дверь: {e}"))?;
+    let a: A = serde_json::from_value(p.clone()).map_err(|e| format!("door: {e}"))?;
     let parts = build(pr)?;
     let [l, r, b, t] = opening(&parts, a.at)?;
     let m = pr.material(&a.material)?.clone();
@@ -122,18 +122,18 @@ pub fn door(pr: &mut Project, p: &Value) -> Result<Value, String> {
     let w = (x1 - x0 - a.gap * (leaves - 1) as f64) / leaves as f64;
     let h = y1 - y0;
     if !(w > 50.0 && h > 50.0) {
-        return Err(format!("дверь {w:.1}×{h:.1} мм — слишком мала"));
+        return Err(format!("door {w:.1}×{h:.1} mm is too small"));
     }
     let mut next = pr.next_id();
     let mut children = Vec::new();
     for i in 0..leaves {
         let x = x0 + i as f64 * (w + a.gap);
-        let panel = rect("Дверь", &m, w, h, Texture::Vertical, &[0, 1, 2, 3], edge.as_ref());
+        let panel = rect("Door", &m, w, h, Texture::Vertical, &[0, 1, 2, 3], edge.as_ref());
         let frame = place(&panel, [x, y0, z], [w, h, m.thickness])?;
         let id = next;
         next += 1;
         children.push(Object::Panel(FreePanel {
-            id, name: "Дверь".into(), pos: String::new(), designation: String::new(), material: m.name.clone(),
+            id, name: panel.name.clone(), pos: String::new(), designation: String::new(), material: m.name.clone(),
             segs: panel.segs, texture: Texture::Vertical, edges: panel.edges, holes: Vec::new(), grooves: Vec::new(), kind: Kind::Door, frame,
         }));
         // Hinges: on a double door each leaf on its own side, otherwise as chosen.
@@ -160,7 +160,7 @@ pub fn door(pr: &mut Project, p: &Value) -> Result<Value, String> {
         }
     }
     let id = next;
-    pr.objects.push(Object::Block(Block { id, name: if a.double { "Дверь двойная".into() } else { "Дверь".into() }, frame: Frame::IDENTITY, children }));
+    pr.objects.push(Object::Block(Block { id, name: crate::i18n::t(if a.double { "Double door" } else { "Door" }), frame: Frame::IDENTITY, children }));
     Ok(json!({ "id": id }))
 }
 
@@ -185,9 +185,9 @@ pub fn drawers(pr: &mut Project, p: &Value) -> Result<Value, String> {
     }
     fn overlay() -> Mount { Mount::Overlay }
     fn two() -> f64 { 2.0 }
-    let a: A = serde_json::from_value(p.clone()).map_err(|e| format!("ящики: {e}"))?;
+    let a: A = serde_json::from_value(p.clone()).map_err(|e| format!("drawers: {e}"))?;
     if a.heights.is_empty() {
-        return Err("heights: нужна хотя бы одна высота фасада".into());
+        return Err("heights: at least one front height is required".into());
     }
     let parts = build(pr)?;
     let [l, r, b, t] = opening(&parts, a.at)?;
@@ -202,12 +202,12 @@ pub fn drawers(pr: &mut Project, p: &Value) -> Result<Value, String> {
     let (fy0, fy1) = span(b, t, 1, a.mount, a.gap);
     let total: f64 = a.heights.iter().sum::<f64>() + a.gap * (a.heights.len() - 1) as f64;
     if total > fy1 - fy0 + 1e-6 {
-        return Err(format!("фасады {total} мм не помещаются в проём {:.1} мм", fy1 - fy0));
+        return Err(format!("fronts of {total} mm do not fit the {:.1} mm opening", fy1 - fy0));
     }
     occupied(&parts, (fx0, fx1), (fy0, fy0 + total))?;
     let bw = inner1 - inner0 - 2.0 * super::RAIL_GAP;
     if !(depth >= 250.0 && depth <= z1 - z0 && bw > 2.0 * tt) {
-        return Err(format!("короб {bw:.0}×{depth:.0} не строится: нужна глубина ≥ 250 мм"));
+        return Err(format!("box {bw:.0}×{depth:.0} cannot be built: depth ≥ 250 mm is required"));
     }
     let front_z = if a.mount == Mount::Inset { z1 - m.thickness } else { z1 };
     let mut next = pr.next_id();
@@ -216,7 +216,7 @@ pub fn drawers(pr: &mut Project, p: &Value) -> Result<Value, String> {
         let panel = rect(name, mat, sx, sy, tex, edged, edge.as_ref());
         let frame = place(&panel, origin, size)?;
         children.push(Object::Panel(FreePanel {
-            id: next, name: name.into(), pos: String::new(), designation: String::new(), material: mat.name.clone(),
+            id: next, name: panel.name.clone(), pos: String::new(), designation: String::new(), material: mat.name.clone(),
             segs: panel.segs, texture: tex, edges: panel.edges, holes: Vec::new(), grooves: Vec::new(), kind, frame,
         }));
         next += 1;
@@ -226,17 +226,17 @@ pub fn drawers(pr: &mut Project, p: &Value) -> Result<Value, String> {
     let mut runners = Vec::new();
     for &hf in &a.heights {
         let fw = fx1 - fx0;
-        add("Фасад ящика", Kind::Drawer, &m, fw, hf, Texture::Horizontal, &[0, 1, 2, 3], [fx0, y, front_z], [fw, hf, m.thickness])?;
+        add("Drawer front", Kind::Drawer, &m, fw, hf, Texture::Horizontal, &[0, 1, 2, 3], [fx0, y, front_z], [fw, hf, m.thickness])?;
         let bh = hf - 40.0;
         if bh < 60.0 {
-            return Err(format!("фасад {hf} мм мал для короба (нужно ≥ 100 мм)"));
+            return Err(format!("a {hf} mm front is too small for a box (≥ 100 mm is required)"));
         }
         let (bx, by, bz) = (inner0 + super::RAIL_GAP, y + 20.0, front_z - depth);
-        add("Боковина ящика", Kind::Body, &m, depth, bh, Texture::Horizontal, &[2], [bx, by, bz], [tt, bh, depth])?;
-        add("Боковина ящика", Kind::Body, &m, depth, bh, Texture::Horizontal, &[2], [bx + bw - tt, by, bz], [tt, bh, depth])?;
-        add("Передняя стенка ящика", Kind::Body, &m, bw - 2.0 * tt, bh, Texture::Horizontal, &[2], [bx + tt, by, front_z - tt], [bw - 2.0 * tt, bh, tt])?;
-        add("Задняя стенка ящика", Kind::Body, &m, bw - 2.0 * tt, bh, Texture::Horizontal, &[2], [bx + tt, by, bz], [bw - 2.0 * tt, bh, tt])?;
-        add("Дно ящика", Kind::Body, &bm, bw, depth, Texture::Default, &[], [bx, by - bm.thickness, bz], [bw, bm.thickness, depth])?;
+        add("Drawer side", Kind::Body, &m, depth, bh, Texture::Horizontal, &[2], [bx, by, bz], [tt, bh, depth])?;
+        add("Drawer side", Kind::Body, &m, depth, bh, Texture::Horizontal, &[2], [bx + bw - tt, by, bz], [tt, bh, depth])?;
+        add("Drawer front wall", Kind::Body, &m, bw - 2.0 * tt, bh, Texture::Horizontal, &[2], [bx + tt, by, front_z - tt], [bw - 2.0 * tt, bh, tt])?;
+        add("Drawer back wall", Kind::Body, &m, bw - 2.0 * tt, bh, Texture::Horizontal, &[2], [bx + tt, by, bz], [bw - 2.0 * tt, bh, tt])?;
+        add("Drawer bottom", Kind::Body, &bm, bw, depth, Texture::Default, &[], [bx, by - bm.thickness, bz], [bw, bm.thickness, depth])?;
         // Drawer runners (pair): ⌀4×12 screws into the uprights at 37 and 261 mm from the front edge, 10 mm above the box bottom.
         for (stand_face, dir) in [(inner0, -1.0), (inner1, 1.0)] {
             let holes = [37.0, 261.0f64.min(depth - 20.0)]
@@ -248,12 +248,12 @@ pub fn drawers(pr: &mut Project, p: &Value) -> Result<Value, String> {
     }
     for holes in runners {
         children.push(Object::Furniture(Furniture {
-            id: next, name: format!("Направляющие шариковые {depth:.0} мм (половина пары)"), kind: "Ящик".into(), source: String::new(),
+            id: next, name: crate::i18n::t(format!("Ball-bearing runner {depth:.0} mm (half a pair)")), kind: crate::i18n::bazis("library.drawer").into(), source: String::new(),
             frame: Frame::IDENTITY, holes, lo: [0.0; 3], hi: [0.0; 3],
         }));
         next += 1;
     }
     let id = next;
-    pr.objects.push(Object::Block(Block { id, name: "Ящики".into(), frame: Frame::IDENTITY, children }));
+    pr.objects.push(Object::Block(Block { id, name: crate::i18n::t("Drawers"), frame: Frame::IDENTITY, children }));
     Ok(json!({ "id": id }))
 }

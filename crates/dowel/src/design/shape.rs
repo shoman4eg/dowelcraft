@@ -26,7 +26,7 @@ fn shift(s: Seg, d: [f64; 2]) -> Seg {
 /// New panel contour: validate, shift to (0, 0) moving the axes origin, drop edge banding from edges that no longer exist.
 pub fn set_contour(fp: &mut FreePanel, segs: Vec<Seg>) -> Result<(), String> {
     contour::validate(&segs)?;
-    let (lo, _) = contour::bounds(&segs).ok_or("пустой контур")?;
+    let (lo, _) = contour::bounds(&segs).ok_or("empty contour")?;
     fp.frame.origin = fp.frame.apply([lo[0], lo[1], 0.0]);
     fp.segs = segs.into_iter().map(|s| shift(s, lo)).collect();
     let n = fp.segs.len();
@@ -37,21 +37,21 @@ pub fn set_contour(fp: &mut FreePanel, segs: Vec<Seg>) -> Result<(), String> {
 /// Fillet (`radius`) or chamfer (`chamfer` — leg length) of the corner at vertex `at` between two line segments.
 /// The new edge gets edge banding if it is the same on both neighbours.
 pub fn corner(fp: &FreePanel, at: [f64; 2], radius: Option<f64>, chamfer: Option<f64>) -> Result<(Vec<Seg>, Vec<crate::panel::Edge>), String> {
-    let size = radius.or(chamfer).ok_or("нужен radius или chamfer")?;
+    let size = radius.or(chamfer).ok_or("radius or chamfer is required")?;
     if !(size > 0.0 && size.is_finite()) {
-        return Err(format!("размер скругления/фаски {size} должен быть больше нуля"));
+        return Err(format!("the fillet/chamfer size {size} must be greater than zero"));
     }
     // Traversal order: the first edge ends at the vertex, the second starts there.
     let lp = contour::loops(&fp.segs)?.into_iter().find(|lp| lp.iter().any(|&(i, _)| {
         let (a, b) = contour::ends(&fp.segs[i]);
         near(a, at) || near(b, at)
-    })).ok_or_else(|| format!("в точке {at:?} нет вершины контура"))?;
+    })).ok_or_else(|| format!("there is no contour vertex at {at:?}"))?;
     let end = |&(i, rev): &(usize, bool)| { let (a, b) = contour::ends(&fp.segs[i]); if rev { a } else { b } };
-    let k = lp.iter().position(|x| near(end(x), at)).ok_or_else(|| format!("в точке {at:?} нет вершины контура"))?;
+    let k = lp.iter().position(|x| near(end(x), at)).ok_or_else(|| format!("there is no contour vertex at {at:?}"))?;
     let (first, second) = (lp[k], lp[(k + 1) % lp.len()]);
     let line = |(i, rev): (usize, bool)| match fp.segs[i] {
         Seg::Line { a, b } => Ok(if rev { (b, a) } else { (a, b) }),
-        _ => Err("скруглить или срезать можно только угол между двумя отрезками".to_string()),
+        _ => Err("only a corner between two lines can be filleted or chamfered".to_string()),
     };
     let ((a, v), (_, b)) = (line(first)?, line(second)?);
     let unit = |p: [f64; 2]| { let l = (p[0] - v[0]).hypot(p[1] - v[1]); ([(p[0] - v[0]) / l, (p[1] - v[1]) / l], l) };
@@ -59,11 +59,11 @@ pub fn corner(fp: &FreePanel, at: [f64; 2], radius: Option<f64>, chamfer: Option
     let cos = (u1[0] * u2[0] + u1[1] * u2[1]).clamp(-1.0, 1.0);
     let theta = cos.acos();
     if theta < 1e-6 || (std::f64::consts::PI - theta) < 1e-6 {
-        return Err("торцы в этой вершине лежат на одной прямой".into());
+        return Err("the edges at this vertex are on one line".into());
     }
     let d = if radius.is_some() { size / (theta / 2.0).tan() } else { size };
     if d >= l1 - EPS || d >= l2 - EPS {
-        return Err(format!("{size} мм не помещается: торцы у вершины {l1:.1} и {l2:.1} мм"));
+        return Err(format!("{size} mm does not fit: the edges at the vertex are {l1:.1} and {l2:.1} mm"));
     }
     let (p1, p2) = ([v[0] + u1[0] * d, v[1] + u1[1] * d], [v[0] + u2[0] * d, v[1] + u2[1] * d]);
     let mut segs = fp.segs.clone();
@@ -102,7 +102,7 @@ pub fn cutout(fp: &FreePanel, center: [f64; 2], radius: Option<f64>, size: Optio
             let p = [[x0, y0], [x0, y1], [x1, y1], [x1, y0]];
             segs.extend((0..4).map(|i| Seg::Line { a: p[i], b: p[(i + 1) % 4] }));
         }
-        _ => return Err("вырез: нужен radius > 0 или size: [ширина, высота] > 0".into()),
+        _ => return Err("cut-out: radius > 0 or size: [width, height] > 0 is required".into()),
     }
     Ok(segs)
 }
@@ -110,15 +110,15 @@ pub fn cutout(fp: &FreePanel, center: [f64; 2], radius: Option<f64>, size: Optio
 /// New size of a rectangular panel: vertices on the right and top sides are moved,
 /// edge order and edge banding are preserved.
 pub fn resize(fp: &FreePanel, size: [f64; 2]) -> Result<Vec<Seg>, String> {
-    let (lo, hi) = contour::bounds(&fp.segs).ok_or("пустой контур")?;
+    let (lo, hi) = contour::bounds(&fp.segs).ok_or("empty contour")?;
     let rect = fp.segs.len() == 4
         && fp.segs.iter().all(|s| matches!(s, Seg::Line { a, b } if (a[0] - b[0]).abs() < EPS || (a[1] - b[1]).abs() < EPS))
         && lo == [0.0, 0.0];
     if !rect {
-        return Err("размеры меняются только у прямоугольной панели; фигурную правьте контуром".into());
+        return Err("only a rectangular panel can be resized; edit a shaped one by its contour".into());
     }
     if !(size[0] > 0.0 && size[1] > 0.0) {
-        return Err(format!("размеры {size:?} должны быть больше нуля"));
+        return Err(format!("size {size:?} must be greater than zero"));
     }
     let m = |p: [f64; 2]| [if (p[0] - hi[0]).abs() < EPS { size[0] } else { p[0] }, if (p[1] - hi[1]).abs() < EPS { size[1] } else { p[1] }];
     Ok(fp.segs.iter().map(|s| match *s {
@@ -132,11 +132,11 @@ pub fn resize(fp: &FreePanel, size: [f64; 2]) -> Result<Vec<Seg>, String> {
 /// the bounding box lands exactly on [lo, hi].
 pub fn fit_box(fp: &mut FreePanel, thickness: f64, lo: [f64; 3], hi: [f64; 3]) -> Result<(), String> {
     let f = fp.frame;
-    let axis = |v: [f64; 3]| (0..3).find(|&k| (v[k].abs() - 1.0).abs() < 1e-9).ok_or("панель не вдоль осей проекта");
+    let axis = |v: [f64; 3]| (0..3).find(|&k| (v[k].abs() - 1.0).abs() < 1e-9).ok_or("the panel is not along the project axes");
     let (ax, ay, az) = (axis(f.x)?, axis(f.y)?, axis(f.z)?);
     let size = [hi[ax] - lo[ax], hi[ay] - lo[ay]];
     if (hi[az] - lo[az] - thickness).abs() > 1e-6 {
-        return Err(format!("по толщине габарит {} ≠ толщине {thickness}", hi[az] - lo[az]));
+        return Err(format!("across the thickness the box {} ≠ the thickness {thickness}", hi[az] - lo[az]));
     }
     let segs = resize(fp, size)?;
     // Bounding box: along each axis — from min to max of the projections of contour [0,size] and thickness [0,t].
@@ -167,29 +167,29 @@ pub fn command(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> 
     let a: Args = serde_json::from_value(p.clone()).map_err(|e| format!("{cmd}: {e}"))?;
     let pr_thickness = super::panels_thickness(pr, a.id)?;
     let Some(Object::Panel(fp)) = find_mut(&mut pr.objects, a.id) else {
-        return Err(format!("нет панели {}: контур деталей корпуса правят после «Разрушить»", a.id));
+        return Err(format!("no panel {}: edit the contour of cabinet parts after “Explode”", a.id));
     };
     let mut next = fp.clone();
     match cmd {
-        "panel.contour" => set_contour(&mut next, a.segs.ok_or("нужен segs")?)?,
+        "panel.contour" => set_contour(&mut next, a.segs.ok_or("segs is required")?)?,
         "panel.corner" => {
-            let (segs, edges) = corner(&next, a.at.ok_or("нужна вершина at: [x, y]")?, a.radius, a.chamfer)?;
+            let (segs, edges) = corner(&next, a.at.ok_or("a vertex at: [x, y] is required")?, a.radius, a.chamfer)?;
             next.edges = edges;
             set_contour(&mut next, segs)?;
         }
         "panel.cutout" => {
-            let segs = cutout(&next, a.center.ok_or("нужен center: [x, y]")?, a.radius, a.size)?;
+            let segs = cutout(&next, a.center.ok_or("center: [x, y] is required")?, a.radius, a.size)?;
             set_contour(&mut next, segs)?;
         }
         "panel.box" => {
             let t = pr_thickness;
-            fit_box(&mut next, t, a.lo.ok_or("нужен lo: [x,y,z]")?, a.hi.ok_or("нужен hi: [x,y,z]")?)?;
+            fit_box(&mut next, t, a.lo.ok_or("lo: [x,y,z] is required")?, a.hi.ok_or("hi: [x,y,z] is required")?)?;
         }
         "panel.resize" => {
-            let segs = resize(&next, a.size.ok_or("нужен size: [a, b]")?)?;
+            let segs = resize(&next, a.size.ok_or("size: [a, b] is required")?)?;
             set_contour(&mut next, segs)?;
         }
-        _ => return Err(format!("неизвестная команда «{cmd}»")),
+        _ => return Err(format!("unknown command “{cmd}”")),
     }
     *fp = next;
     Ok(Value::Null)

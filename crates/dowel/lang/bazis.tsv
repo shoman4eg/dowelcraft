@@ -9,3 +9,21 @@ alias.L	Д
 alias.WZ	ШZ
 # Unit accepted in number fields.
 unit.mm	мм
+# BAZIS-Raskroy XML values.
+raskroy.currency	Рубль
+raskroy.sign	руб.
+raskroy.smooth_edge	Гладкий торец
+# Purpose of a part in a Bazis model by word stems in its name (lowercase, comma-separated).
+guess.door	фасад,двер
+guess.back	задн,стен
+# Hardware kinds as Bazis libraries name them.
+library.drawer	Ящик
+library.hinge	Петля
+# Built-in fasteners by their former Russian names (projects saved before 0.5 still open).
+fastener.Confirmat 7x50	Конфирмат 7х50
+fastener.Minifix 15 cam	Эксцентрик Minifix 15
+fastener.Dowel 8x30	Шкант 8х30
+fastener.Shelf support 5	Полкодержатель 5
+fastener.Minifix 15 + dowel 8x30	Minifix 15 + шкант 8х30
+# The Russian letter typed for "x" in sizes like 2800х2070.
+times	х

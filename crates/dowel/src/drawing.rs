@@ -2,6 +2,7 @@
 //! in simplified form). A part is its contour at a standard scale (GOST 2.302), overall dimensions, edge banding,
 //! grooves, grain direction and holes with coordinates from the contour corner (0, 0) in a table.
 
+use crate::i18n::t as tr;
 use crate::contour::{self, Seg};
 use crate::design::{Kind, Part};
 use crate::panel::{Panel, Texture, material_name};
@@ -29,11 +30,11 @@ fn frame(title: &str, designation: &str, material: &str, qty: &str, scale: &str,
     s += &t(x0 + 3.0, y0 + 10.0, 6.0, designation);
     s += &t(x0 + 3.0, y0 + 26.0, 5.0, title);
     s += &t(x0 + 3.0, y0 + 46.0, 4.0, material);
-    s += &t(x0 + 122.0, y0 + 21.0, 2.5, "Кол.");
+    s += &t(x0 + 122.0, y0 + 21.0, 2.5, &tr("Qty"));
     s += &t(x0 + 136.0, y0 + 22.0, 4.0, qty);
-    s += &t(x0 + 152.0, y0 + 21.0, 2.5, "Масштаб");
+    s += &t(x0 + 152.0, y0 + 21.0, 2.5, &tr("Scale"));
     s += &t(x0 + 168.0, y0 + 22.0, 4.0, scale);
-    s += &t(x0 + 122.0, y0 + 31.0, 2.5, "Лист");
+    s += &t(x0 + 122.0, y0 + 31.0, 2.5, &tr("Sheet"));
     s += &t(x0 + 136.0, y0 + 32.0, 4.0, sheet);
     s += &t(x0 + 122.0, y0 + 45.0, 3.5, order);
     s
@@ -57,7 +58,7 @@ pub fn part_svg(p: &Panel, qty: usize, number: &str, order: &str, sheet: (usize,
     let to = |q: [f64; 2]| (ox + q[0] * k, oy - q[1] * k);
     let mut s = String::from(r##"<svg xmlns="http://www.w3.org/2000/svg" width="297mm" height="210mm" viewBox="0 0 297 210">"##);
     let scale_txt = if scale == 1.0 { "1:1".to_string() } else { format!("1:{}", n(scale)) };
-    s += &frame(&p.name, format!("{number} {}", p.designation).trim(), &format!("{} — {} мм", material_name(&p.material), n(p.thickness)), &qty.to_string(), &scale_txt, &format!("{} / {}", sheet.0, sheet.1), order);
+    s += &frame(&p.name, format!("{number} {}", p.designation).trim(), &tr(format!("{} — {} mm", material_name(&p.material), n(p.thickness))), &qty.to_string(), &scale_txt, &format!("{} / {}", sheet.0, sheet.1), order);
     for (i, sg) in p.segs.iter().enumerate() {
         let path: Vec<String> = pts(sg).into_iter().map(|q| { let (x, y) = to(q); format!("{x:.2},{y:.2}") }).collect();
         s += &format!(r##"<polyline points="{}" fill="none" stroke="#000" stroke-width="0.6"/>"##, path.join(" "));
@@ -115,14 +116,14 @@ pub fn part_svg(p: &Panel, qty: usize, number: &str, order: &str, sheet: (usize,
     if p.texture != Texture::Default {
         let (cx, cy) = (x1 + 6.0, (y0 + y1) / 2.0);
         let (dx, dy) = if p.texture == Texture::Horizontal { (8.0, 0.0) } else { (0.0, -8.0) };
-        s += &format!(r##"<line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="#555" stroke-width="0.4" marker-start="url(#a)" marker-end="url(#a)"/><text x="{:.2}" y="{:.2}" font-size="2.2" fill="#555" font-family="Arial">текстура</text>"##, cx - dx / 2.0, cy - dy / 2.0, cx + dx / 2.0, cy + dy / 2.0, cx + 2.0, cy + 6.0);
+        s += &format!(r##"<line x1="{:.2}" y1="{:.2}" x2="{:.2}" y2="{:.2}" stroke="#555" stroke-width="0.4" marker-start="url(#a)" marker-end="url(#a)"/><text x="{:.2}" y="{:.2}" font-size="2.2" fill="#555" font-family="Arial">{}</text>"##, cx - dx / 2.0, cy - dy / 2.0, cx + dx / 2.0, cy + dy / 2.0, cx + 2.0, cy + 6.0, crate::i18n::t("grain"));
     }
     // Holes: numbers on the drawing, coordinates in the table.
     let mut rows = String::new();
     for (i, hl) in p.holes.iter().enumerate() {
         let (x, y) = to([hl.pos[0], hl.pos[1]]);
         let face = hl.dir[2].abs() > 0.5;
-        let side = if !face { "торец" } else if hl.dir[2] < 0.0 { "пласть" } else { "тыл" };
+        let side = tr(if !face { "edge" } else if hl.dir[2] < 0.0 { "face" } else { "back" });
         if face {
             let r = (hl.diameter / 2.0 * k).max(0.6);
             s += &format!(r##"<circle cx="{x:.2}" cy="{y:.2}" r="{r:.2}" fill="none" stroke="#000" stroke-width="0.3"/>"##);
@@ -137,12 +138,12 @@ pub fn part_svg(p: &Panel, qty: usize, number: &str, order: &str, sheet: (usize,
         }
     }
     if !p.holes.is_empty() {
-        for (x, h) in [(210, "№"), (220, "X"), (236, "Y"), (252, "Ø × глуб."), (272, "сторона")] {
-            s += &format!(r##"<text x="{x}" y="15" font-size="2.8" font-weight="bold" font-family="Arial">{h}</text>"##);
+        for (x, h) in [(210, "№"), (220, "X"), (236, "Y"), (252, "Ø × depth"), (272, "side")] {
+            s += &format!(r##"<text x="{x}" y="15" font-size="2.8" font-weight="bold" font-family="Arial">{}</text>"##, tr(h));
         }
         s += &rows;
         if p.holes.len() > 30 {
-            s += &format!(r##"<text x="210" y="145" font-size="2.6" font-family="Arial">… ещё {} отверстий</text>"##, p.holes.len() - 30);
+            s += &format!(r##"<text x="210" y="145" font-size="2.6" font-family="Arial">{}</text>"##, crate::i18n::t(format!("… {} more holes", p.holes.len() - 30)));
         }
     }
     s += "</svg>";
@@ -156,7 +157,7 @@ pub fn assembly_svg(parts: &[Part], order: &str) -> String {
     let (ax, ay, aw, ah) = (30.0, 12.0, 160.0, 130.0);
     let bounds = crate::view::bounds(&rects);
     let scale = bounds.map_or(1.0, |(lo, hi)| SCALES.into_iter().chain([50.0, 75.0, 100.0]).find(|k| (hi[0] - lo[0]) / k <= aw && (hi[1] - lo[1]) / k <= ah).unwrap_or(200.0));
-    s += &frame("Сборочный чертёж", order, "", &parts.len().to_string(), &format!("1:{}", n(scale)), "1 / 1", order);
+    s += &frame(&tr("Assembly drawing"), order, "", &parts.len().to_string(), &format!("1:{}", n(scale)), "1 / 1", order);
     if let Some((lo, _)) = bounds {
         let k = 1.0 / scale;
         let to = |x: f64, y: f64| (ax + (x - lo[0]) * k, ay + ah - (y - lo[1]) * k);
@@ -180,12 +181,12 @@ pub fn assembly_svg(parts: &[Part], order: &str) -> String {
             let (cx, cy) = to(r.x + r.w / 2.0, r.y + r.h / 2.0);
             s += &format!(r##"<circle cx="{cx:.2}" cy="{cy:.2}" r="2.6" fill="#fff" stroke="#000" stroke-width="0.25"/><text x="{cx:.2}" y="{:.2}" font-size="2.6" text-anchor="middle" font-family="Arial">{}</text>"##, cy + 0.9, xml(pos));
         }
-        s += &format!(r##"<text x="30" y="148" font-size="3" font-family="Arial">Вид спереди, М 1:{}</text>"##, n(scale));
+        s += &format!(r##"<text x="30" y="148" font-size="3" font-family="Arial">{}</text>"##, crate::i18n::t(format!("Front view, scale 1:{}", n(scale))));
     }
     // Item table on the right.
     let rows = crate::panel::spec(&parts.iter().map(|p| p.panel.clone()).collect::<Vec<_>>());
-    for (x, h) in [(200, "Поз."), (210, "Наименование"), (280, "Кол.")] {
-        s += &format!(r##"<text x="{x}" y="15" font-size="2.8" font-weight="bold" font-family="Arial">{h}</text>"##);
+    for (x, h) in [(200, "Pos."), (210, "Item name"), (280, "Qty")] {
+        s += &format!(r##"<text x="{x}" y="15" font-size="2.8" font-weight="bold" font-family="Arial">{}</text>"##, tr(h));
     }
     for (i, r) in rows.iter().take(32).enumerate() {
         let y = 20.0 + i as f64 * 4.0;
@@ -216,20 +217,20 @@ mod tests {
 
     #[test]
     fn part_drawing_has_sizes_holes_and_title() {
-        let mut s = Session::new(Project::new("Заказ 7"));
-        s.execute("material.add", &json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
-        s.execute("edge.add", &json!({"name": "ПВХ 2", "thickness": 2})).unwrap();
-        s.execute("cabinet.add", &json!({"width": 800, "height": 2000, "depth": 600, "material": "ЛДСП 16", "edge": "ПВХ 2", "fastener": "Конфирмат 7х50"})).unwrap();
+        let mut s = Session::new(Project::new("Order 7"));
+        s.execute("material.add", &json!({"name": "Chipboard 16", "thickness": 16})).unwrap();
+        s.execute("edge.add", &json!({"name": "PVC 2", "thickness": 2})).unwrap();
+        s.execute("cabinet.add", &json!({"width": 800, "height": 2000, "depth": 600, "material": "Chipboard 16", "edge": "PVC 2", "fastener": "Confirmat 7x50"})).unwrap();
         let parts = build(&s.project).unwrap();
-        let side = parts.iter().find(|p| p.panel.name == "Боковина левая").unwrap();
-        let svg = part_svg(&side.panel, 2, &side.panel.pos, "Заказ 7", (1, 5));
+        let side = parts.iter().find(|p| p.panel.name == "Left side").unwrap();
+        let svg = part_svg(&side.panel, 2, &side.panel.pos, "Order 7", (1, 5));
         // Scale 1:20 (2000 mm in a 115 mm area), dimensions 600 and 2000, edge banding 2, holes in the table.
         assert!(svg.contains(">1:20<") && svg.contains(">600<") && svg.contains(">2000<"), "{svg}");
-        assert!(svg.contains(">2<"), "толщина кромки");
-        assert!(svg.contains("пласть") && svg.contains("Ø8×16"), "сквозные Ø8 конфирматов в таблице");
-        assert!(svg.contains("Боковина левая") && svg.contains("ЛДСП 16"));
-        let all = drawings(&parts, "Заказ 7");
+        assert!(svg.contains(">2<"), "edge banding thickness");
+        assert!(svg.contains("face") && svg.contains("Ø8×16"), "through Ø8 confirmat holes in the table");
+        assert!(svg.contains("Left side") && svg.contains("Chipboard 16"));
+        let all = drawings(&parts, "Order 7");
         assert_eq!(all.len(), 1 + crate::panel::spec(&parts.iter().map(|p| p.panel.clone()).collect::<Vec<_>>()).len());
-        assert!(all[0].contains("Сборочный чертёж"));
+        assert!(all[0].contains("Assembly drawing"));
     }
 }

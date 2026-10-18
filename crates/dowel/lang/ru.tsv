@@ -474,3 +474,294 @@ the project in the window changed while the script ran (an edit or another tab) 
 a project is saved to a .dcraft file	проект сохраняется в файл .dcraft
 the project has no file yet: give a path or save it in the window (Ctrl+S)	у проекта ещё нет файла: укажите path или сохраните в окне (Ctrl+S)
 command {} failed	команда {} не выполнена
+<{} bytes>	<{} байт>
+Assembly drawing	Сборочный чертёж
+Ball-bearing runner {} mm (half a pair)	Направляющие шариковые {} мм (половина пары)
+Block {}	Блок {}
+Bottom	Дно
+Cabinet {}	Корпус {}
+Confirmat 7x50	Конфирмат 7х50
+Corner bottom	Дно угловое
+Corner shelf	Полка угловая
+Corner top	Крыша угловая
+Double door	Дверь двойная
+Dowel 8x30	Шкант 8х30
+Drawer	Ящик
+Drawer back wall	Задняя стенка ящика
+Drawer bottom	Дно ящика
+Drawer front wall	Передняя стенка ящика
+Drawer side	Боковина ящика
+Front {}	Фронтальная {}
+Hinge	Петля
+Horizontal {}	Горизонтальная {}
+Left side	Боковина левая
+Minifix 15 + dowel 8x30	Minifix 15 + шкант 8х30
+Minifix 15 cam	Эксцентрик Minifix 15
+No system TrueType font (Segoe UI / Arial) found for PDF export	Не удалось найти системный шрифт TrueType (Segoe UI / Arial) для экспорта в PDF
+Offcut	Обрезок
+Overlap	Пересечение
+Overlay hinge with soft close	Петля накладная с доводчиком
+Pos.	Поз.
+Qty	Кол.
+Right side	Боковина правая
+Scale	Масштаб
+Sheet	Лист
+Shelf support 5	Полкодержатель 5
+TriData: ends at {} (+{} of {})	TriData: обрыв на {} (+{} из {})
+Unnamed	Без имени
+Vertical {}	Вертикальная {}
+Wing X side	Боковина крыла X
+Wing Z side	Боковина крыла Z
+a block id is required	нужен id блока
+a part without a position	деталь без положения
+a partition at {} mm does not fit (free from {} to {} mm)	перегородка на {} мм не помещается (свободно от {} до {} мм)
+a shelf at {} mm does not fit (inside is {} mm)	полка на высоте {} мм не помещается (внутри {} мм)
+a shelf at {} mm falls into the drawer zone (up to {} mm)	полка на высоте {} мм попадает в зону ящиков (до {} мм)
+a vertex at: [x, y] is required	нужна вершина at: [x, y]
+a {} mm front is too small for a box (≥ 100 mm is required)	фасад {} мм мал для короба (нужно ≥ 100 мм)
+above	сверху
+across the thickness the box {} ≠ the thickness {}	по толщине габарит {} ≠ толщине {}
+allowance {} mm outside 0…50	припуск {} мм вне 0…50
+an old-format project with parts from a Bazis model: import the model again	проект старого формата с деталями из модели Базиса: импортируйте модель заново
+axis: "x", "y" or "z"	axis: "x", "y" или "z"
+b3d: {} (offset {})	b3d: {} (смещение {})
+back	тыл
+below	снизу
+block	блока
+block {} “{}”: {}	блок {} «{}»: {}
+box {}×{} cannot be built: depth ≥ 250 mm is required	короб {}×{} не строится: нужна глубина ≥ 250 мм
+cabinet {} “{}”: {}	корпус {} «{}»: {}
+cabinet: {}	корпус: {}
+center: [x, y] is required	нужен center: [x, y]
+corner unit {} “{}”: {}	угловой модуль {} «{}»: {}
+count {} outside 1…500	count {} вне 1…500
+countertop {} “{}”: {}	столешница {} «{}»: {}
+cut-out: radius > 0 or size: [width, height] > 0 is required	вырез: нужен radius > 0 или size: [ширина, высота] > 0
+data ends early, {} bytes needed	обрыв данных, нужно {} байт
+door {}×{} mm is too small	дверь {}×{} мм — слишком мала
+door: {}	дверь: {}
+drawer	ящика
+drawer {} (front {} mm, box {}×{}×{}) cannot be built: a front ≥ 100 mm and depth ≥ 250 mm are required	ящик {} (фасад {} мм, короб {}×{}×{}) не строится: нужен фасад ≥ 100 мм и глубина ≥ 250 мм
+drawers are higher than the cabinet: fronts up to {} mm with a height of {} mm	ящики выше корпуса: фасады до {} мм при высоте {} мм
+drawers: no section {} (there are {})	ящики: нет секции {} (всего {})
+drawers: {}	ящики: {}
+edge	торец
+edge banding “{}” already exists	кромка «{}» уже есть
+edge banding “{}” is on parts — remove or replace it there first	кромка «{}» стоит на деталях — сначала снимите или замените её там
+edge banding: {}	кромка: {}
+empty contour	пустой контур
+face	пласть
+fastener: holes, step > 0, offset ≥ 0, 1 ≤ min ≤ max are required	крепёж: нужны отверстия, шаг > 0, отступ ≥ 0, 1 ≤ min ≤ max
+fastener: {}	крепёж: {}
+fronts of {} mm do not fit the {} mm opening	фасады {} мм не помещаются в проём {} мм
+hardware {} “{}”: {}	фурнитура {} «{}»: {}
+heights: at least one front height is required	heights: нужна хотя бы одна высота фасада
+hi: [x,y,z] is required	нужен hi: [x,y,z]
+ids: the list of object numbers is empty	ids: список номеров объектов пуст
+length {} exceeds the rest of the file	длина {} больше остатка файла
+lo: [x,y,z] is required	нужен lo: [x,y,z]
+m	м
+material “{}” already exists	материал «{}» уже есть
+material “{}” is used by parts — replace it there first	материал «{}» используется в деталях — сначала замените его там
+material: {}	материал: {}
+model check: overlapping panels, fasteners and hardware without a panel, parts larger than a sheet → [{}]	анализ модели: пересечения панелей, крепёж и фурнитура без панели, деталь больше листа → [{}]
+m²	м2
+name in the dictionary	имя в словаре
+name index {} outside the dictionary	индекс имени {} вне словаря
+no BZ85 signature	нет сигнатуры BZ85
+no block {}	нет блока {}
+no cabinet {}	нет корпуса {}
+no cabinet, corner unit or countertop {}	нет корпуса, углового модуля или столешницы {}
+no edge banding “{}”	нет кромки «{}»
+no fastener {}	нет крепежа {}
+no fastener “{}” in the catalogue	нет крепежа «{}» в справочнике
+no material “{}”	нет материала «{}»
+no object {}	нет объекта {}
+no opening bound {} of point {}	нет границы проёма {} от точки {}
+no panel {}	нет панели {}
+no panel {}: change cabinet parts' edge banding with the cabinet's “edge” parameter or after “Explode”	нет панели {}: кромку деталей корпуса меняют параметром «edge» корпуса или после «Разрушить»
+no panel {}: edit the contour of cabinet parts after “Explode”	нет панели {}: контур деталей корпуса правят после «Разрушить»
+no partition {}	нет перегородки {}
+no section {} (there are {})	нет секции {} (всего {})
+no sections	нет ни одной секции
+no shelf {}	нет полки {}
+no {} {}	нет {} {}
+nothing to undo/redo	нечего отменять/возвращать
+object {} is a template: put it into a block after “Explode”	объект {} — шаблон: в блок его кладут после «Разрушить»
+object {} is a template: rotate and mirror it after “Explode”	объект {} — шаблон: поворот и зеркало доступны после «Разрушить»
+on the left	слева
+on the right	справа
+only a corner between two lines can be filleted or chamfered	скруглить или срезать можно только угол между двумя отрезками
+only a rectangular panel can be resized; edit a shaped one by its contour	размеры меняются только у прямоугольной панели; фигурную правьте контуром
+outside: true or false	outside: true или false
+panel size {}×{} must be greater than zero	размеры панели {}×{} должны быть больше нуля
+panel: {}	панель: {}
+panels {} and {} do not join: the edge of one must touch the face of the other	панели {} и {} не стыкуются: торец одной должен касаться пласти другой
+parameters: {}	параметры: {}
+part	детали
+part {} “{}”: {}	деталь {} «{}»: {}
+part “{}” has no position	деталь «{}» без положения
+part “{}” {}×{}×{} does not fit the box {}	деталь «{}» {}×{}×{} не ложится в габарит {}
+part “{}”: the position does not match the box {} {}	деталь «{}»: положение не совпало с габаритом {} {}
+pcs	шт
+project: unknown format “{}”	проект: неизвестный формат «{}»
+project: {}	проект: {}
+radius or chamfer is required	нужен radius или chamfer
+redo what was undone	вернуть отменённое
+segs is required	нужен segs
+side	сторона
+size {} must be greater than zero	размеры {} должны быть больше нуля
+size {}×{} must be greater than zero	размеры {}×{} должны быть больше нуля
+size {}×{}×{} with {} mm boards and a {} mm plinth leaves no inner space	габариты {}×{}×{} с плитой {} мм и цоколем {} мм не дают внутреннего объёма
+size: [a, b] is required	нужен size: [a, b]
+some are not drawn	есть ненарисованные
+the bounds “{}” and “{}” do not overlap in depth	границы «{}» и «{}» не перекрываются по глубине
+the contour box must start at (0, 0), it starts at {}	габарит контура должен начинаться в (0, 0), а начинается в {}
+the contour crosses itself near ({}, {})	контур пересекает себя около точки ({}, {})
+the contour is degenerate: zero area	контур вырожден: нулевая площадь
+the contour is empty	контур пуст
+the contour is not closed: nothing continues from point {}	контур не замкнут: от точки {} нет продолжения
+the cut-out at ({}, {}) lies outside the panel	вырез у точки ({}, {}) лежит вне панели
+the doors do not fit	двери не помещаются
+the dowel-craft window is not running or not reachable ({}: {})	окно dowel-craft не запущено или недоступно ({}: {})
+the edges at this vertex are on one line	торцы в этой вершине лежат на одной прямой
+the fillet/chamfer size {} must be greater than zero	размер скругления/фаски {} должен быть больше нуля
+the opening already has “{}” — delete it or choose another opening	в проёме уже стоит «{}» — удалите её или выберите другой проём
+the opening minus the offsets is empty: {}	проём за вычетом отступов пуст: {}
+the panel has {} edges, there is no edge {}	у панели {} торцов, торца {} нет
+the panel is not along the project axes	панель не вдоль осей проекта
+the parameters must be an object	параметры должны быть объектом
+the partitions leave a section {} mm wide	перегородки оставляют секцию шириной {} мм
+the parts list: name, material, length, width, thickness, cabinet	список деталей: имя, материал, длина, ширина, толщина, корпус
+the position axes are not a right-handed orthonormal frame: {}	оси положения не образуют правую ортонормированную систему: {}
+the project serialises	проект сериализуется
+the whole project as JSON	весь проект в JSON
+the wings {}×{} must be at least 100 mm more than depth {} plus the board; inner height {} mm	крылья {}×{} должны быть хотя бы на 100 мм больше глубины {} плюс плита; внутри по высоте {} мм
+the “{}” parameter is missing	нет параметра «{}»
+there is no contour vertex at {}	в точке {} нет вершины контура
+thickness, sheet size and factor must be greater than zero	толщина, формат листа и коэффициент должны быть больше нуля
+tree too deep	слишком глубокое дерево
+undo the last change	отменить последнее изменение
+unknown command “{}”	неизвестная команда «{}»
+unknown type {} of “{}”	неизвестный тип {} у «{}»
+window link: the window is closed	связь с окном: окно закрыто
+window link: {}	связь с окном: {}
+writing to memory	запись в память
+yes	да
+{id, name?, material?, frame?: {}, ...fields} — a panel of the object tree	{id, name?, material?, frame?: {}, ...поля} — панель дерева объектов
+{id, segs: [{Line:{}} | {Arc:{}} | {Circle:{}}]} — the whole contour (in panel axes); closure and self-intersections are checked	{id, segs: [{Line:{}} | {Arc:{}} | {Circle:{}}]} — контур целиком (в осях панели); проверяется замкнутость и самопересечения
+{name, holes: [{}], offset, step, min, max} — a custom fastener for the catalogue (joint coordinates: X into panel b, Y along b's normal, Z along the joint)	{name, holes: [{}], offset, step, min, max} — свой крепёж в справочник (координаты в системе стыка: X внутрь панели b, Y по нормали b, Z вдоль стыка)
+{} doors with a {} mm gap do not fit above the drawers	{} дверей с зазором {} мм не помещаются над ящиками
+{} mm does not fit: the edges at the vertex are {} and {} mm	{} мм не помещается: торцы у вершины {} и {} мм
+{} — a block of the object tree	{} — блок дерева объектов
+{} — a block with all its contents	{} — блок со всем содержимым
+{} — a fillet or chamfer of a corner between two lines	{} — скругление или фаска угла между двумя отрезками
+{} — a round or rectangular cut-out	{} — круглый или прямоугольный вырез
+{} — an axis-aligned rectangular panel fills the box (size handles); across the thickness the box equals the thickness	{} — прямоугольная панель вдоль осей занимает габарит (маркеры размера); по толщине габарит = толщине
+{} — change a material	{} — изменить материал
+{} — change the parameters	{} — изменить параметры
+{} — delete a material; refused while it is in use	{} — удалить материал; отказ, если он используется
+{} — delete an edge banding; refused while parts use it	{} — удалить кромку; отказ, если она стоит на деталях
+{} — delete objects	{} — удалить объекты
+{} — edge banding on panel edges; null removes it	{} — кромка на торцах панели; null — снять
+{} — explode a block: its contents move to the project root	{} — разрушить блок: содержимое выходит в корень проекта
+{} — explode a cabinet: its parts become panels of a block with the same number (likewise corner.explode, countertop.explode)	{} — разрушить корпус: детали станут панелями блока с тем же номером (так же corner.explode, countertop.explode)
+{} — move cabinets, units, countertops, panels, blocks	{} — сдвиг корпусов, модулей, столешниц, панелей, блоков
+{} — new size of a rectangular panel (edge banding is kept)	{} — новые размеры прямоугольной панели (кромка сохраняется)
+{} — rotate panels and blocks (templates after “Explode”)	{} — поворот панелей и блоков (шаблоны — после «Разрушить»)
+{} — {} mm	{} — {} мм
+{} → {}	{} → {}
+{} → {} — copies offset by d, 2d, … (an array)	{} → {} — копии со сдвигом d, 2d, … (массив)
+{} → {} — fasteners on every panel joint (like “Fasteners on joints” in Bazis). Cabinets and corner units have the fastener parameter	{} → {} — крепёж на все стыки панелей (как «Крепёж на стыки» в Базисе). У корпусов и угловых модулей — параметр fastener
+{} → {} — group panels and blocks into a block	{} → {} — собрать панели и блоки в блок
+{} → {}. A door with hinges: a ⌀35 cup in the door, the plate in the side; the number of hinges depends on height	{} → {}. Дверь с петлями: чашка ⌀35 в двери, планка — в стойке; число петель по высоте
+{} → {}. A hardware model: its holes go into the panels it touches; move it with object.move/rotate	{} → {}. Модель фурнитуры: её отверстия садятся в панели, к которым она прижата; двигать — object.move/rotate
+{} → {}. A panel filling the opening between the nearest parts (doors don't count), like “~” in Bazis. horizontal — bottom face at height y, gaps [left, right, back, front]; vertical — left face at x, gaps [back, front, bottom, top]; front — flush with the front of the opening, gaps [left, right, bottom, top]	{} → {}. Панель во весь проём между ближайшими деталями (двери не в счёт), как «~» в Базисе. horizontal — нижней пластью на высоту y, gaps [слева, справа, сзади, спереди]; vertical — левой пластью на x, gaps [сзади, спереди, снизу, сверху]; front — вровень с передом проёма, gaps [слева, справа, снизу, сверху]
+{} → {}. A wall unit: plinth 0 and a position with height, e.g. [0, 1400, 250]	{} → {}. Навесной модуль — plinth 0 и position с высотой, например [0, 1400, 250]
+{} → {}. An L-shaped corner unit: wings along X and Z from the room corner	{} → {}. Г-образный угловой модуль: крылья вдоль X и Z от угла комнаты
+{} → {}. Contour size: front — width×height, horizontal — width×depth, vertical — depth×height; thickness comes from the material	{} → {}. Размеры контура: front — ширина×высота, horizontal — ширина×глубина, vertical — глубина×высота; толщина — из материала
+{} → {}. Drawers into an opening: boxes, fronts, runners with drilling in the sides	{} → {}. Ящики в проём: короба, фасады, направляющие с присадкой в стойках
+{} → {}. Holes with coordinates appear on both panels; built-in kinds: “Confirmat 7x50”, “Minifix 15 cam”, “Dowel 8x30”, “Shelf support 5”	{} → {}. Отверстия с координатами появятся на обеих панелях; справочник по умолчанию: «Конфирмат 7х50», «Эксцентрик Minifix 15», «Шкант 8х30», «Полкодержатель 5»
+{}: no number {}	{}: нет номера {}
+{}: not UTF-8	{}: не UTF-8
+Ø × depth	Ø × глуб.
+“edge” is an edge banding name or null	«edge» — имя кромки или null
+“{} {}” and “{} {}” overlap by {} mm	«{} {}» и «{} {}» пересекаются на {} мм
+“{} {}” {}×{} does not fit a {}×{} sheet (trim {} mm)	«{} {}» {}×{} не помещается на лист {}×{} (обрезка {} мм)
+“{}” must be a number	«{}» должно быть числом
+“{}” must be a string	«{}» должно быть строкой
+“{}” must be a whole number ≥ 0	«{}» должно быть целым ≥ 0
+“{}” {}: no panel {} or {}	«{}» {}: нет панели {} или {}
+“{}” {}: panels {} and {} no longer join	«{}» {}: панели {} и {} больше не стыкуются
+“{}”: hardware is not mirrored — insert the mirrored version from the library	«{}»: фурнитуру не отражают — поставьте зеркальное исполнение из библиотеки
+“{}”: hole ⌀{}×{} in “{}” goes outside the part (entry {}, end {})	«{}»: отверстие ⌀{}×{} в «{}» выходит за деталь (вход {}, конец {})
+“{}”: {} holes hit no panel	«{}»: {} отверстий не попали ни в одну панель
+Top panel	Крыша
+Oversize	Размер
+dowel-craft — cabinet furniture design and sheet cutting; reads Bazis-Mebelshchik models	dowel-craft — проектирование мебели и раскрой; читает модели Базис-Мебельщика
+  dowel-craft [file]                                  the window (with a file — open it)	  dowel-craft [файл]                                  окно (с файлом — открыть его)
+  dowel-craft mcp                                     MCP server for AI (stdio)	  dowel-craft mcp                                     MCP-сервер для ИИ (stdio)
+  dowel-craft --version                               version	  dowel-craft --version                               версия
+  --lang ru (or DOWEL_LANG=ru)                        Russian messages and documents	  --lang ru (или DOWEL_LANG=ru)                       сообщения и документы на русском
+A model is a Bazis .b3d file or your own .dcraft project:	Модель — файл Базиса .b3d или свой проект .dcraft:
+  dowel-craft spec    <model> [-o out.csv]            parts list	  dowel-craft spec    <модель> [-o out.csv]           спецификация деталей
+  dowel-craft cut     <model> [-o maps.html] [--sheet 2800x2070] [--kerf 4] [--trim 10]	  dowel-craft cut     <модель> [-o карты.html] [--sheet 2800x2070] [--kerf 4] [--trim 10]
+                                                     sheet cutting: maps and “Panels for production” (HTML to print)	                                                     раскрой: карты и «Панели в производство» (HTML для печати)
+  dowel-craft smeta   <model> [-o smeta.csv] [--coef 1.2]	  dowel-craft smeta   <модель> [-o smeta.csv] [--coef 1.2]
+                                                     board (m²) and edge banding (m) usage, like the Bazis estimate	                                                     расход плит (м²) и кромки (м), как смета Базиса
+  dowel-craft raskroy <model> [-o project.xml] [--sheet 2800x2070]	  dowel-craft raskroy <модель> [-o проект.xml] [--sheet 2800x2070]
+                                                     a BAZIS-Raskroy project (XML)	                                                     проект для БАЗИС-Раскроя (XML)
+  dowel-craft dump    <file.b3d> [depth]              the Bazis model tree	  dowel-craft dump    <файл.b3d> [глубина]            дерево модели Базиса
+Your own project:	Свой проект:
+  dowel-craft import <file.b3d> [-o project.dcraft]  Bazis model → your project (parts become editable)	  dowel-craft import <файл.b3d> [-o проект.dcraft]   модель Базиса → свой проект (детали можно править)
+  dowel-craft b3d <project.dcraft> [-o model.b3d]     your project → a Bazis-Mebelshchik model	  dowel-craft b3d <проект.dcraft> [-o модель.b3d]     свой проект → модель Базис-Мебельщика
+  dowel-craft script <project.dcraft> <script.js>     run a Bazis script on the project and save it	  dowel-craft script <проект.dcraft> <скрипт.js>      выполнить скрипт Базиса над проектом и сохранить
+  dowel-craft check <model>                           model check: overlaps, fasteners, sizes	  dowel-craft check <модель>                          анализ модели: пересечения, крепёж, размеры
+  dowel-craft drawings <model> [-o drawings.html|.pdf] assembly and part drawings (A4; .pdf without a browser)	  dowel-craft drawings <модель> [-o чертежи.html|.pdf] сборочный и рабочие чертежи деталей (A4; .pdf — без браузера)
+  dowel-craft design <project.dcraft> <command> ['{json parameters}']	  dowel-craft design <проект.dcraft> <команда> ['{json-параметры}']
+                                                     run a command; the file is created if missing	                                                     выполнить команду; файл создаётся, если его нет
+  dowel-craft design --help                          the list of commands	  dowel-craft design --help                          список команд
+Sheet size and factor come from a .dcraft project unless --sheet and --coef are given.	Формат листа и коэффициент из проекта .dcraft используются, если не заданы --sheet и --coef.
+error: {}	ошибка: {}
+{}: not a number “{}”	{}: не число «{}»
+--sheet: LENGTHxWIDTH is required	--sheet: нужно ДЛИНАxШИРИНА
+--sheet: length	--sheet: длина
+--sheet: width	--sheet: ширина
+parts {}, materials {} → {}	деталей {}, материалов {} → {}
+parts {} → {}	деталей {} → {}
+a script file is required	нужен файл скрипта
+script: {} (the project is unchanged)	скрипт: {} (проект не изменён)
+changes: {}, dialogs: {}	изменений: {}, окон: {}
+{} — drawings	{} — чертежи
+sheets {} → {}	листов {} → {}
+problems: {}	проблем: {}
+boards skipped, contour not understood: {} ({})	пропущено плит с неразобранным контуром: {} ({})
+parts {}, drilling holes {} → {}	деталей {}, отверстий присадки {} → {}
+fastener holes without a board (not exported): {}	отверстий крепежа без плиты (не попали в выгрузку): {}
+{}: parts {}, sheets {}	{}: деталей {}, листов {}
+map {}: {}%	карта {}: {}%
+does not fit a sheet: No. {} “{}” {}x{}	не помещается на лист: № {} «{}» {}x{}
+Project commands:	Команды проекта:
+a command is required, see dowel-craft design --help	нужна команда, см. dowel-craft design --help
+connected to the window: window_disconnect first (or open the file in the window)	подключено к окну: сначала window_disconnect (или откройте файл в окне)
+the “command” parameter is required	нужен параметр «command»
+Saved: {}	Сохранено: {}
+Disconnected from the window, working on our own copy of the project from now on.	Отключено от окна, дальше — своя копия проекта.
+the “{}” parameter is required	нужен параметр «{}»
+Disconnected from the window.	Отключено от окна.
+An empty project is created. Add a material, an edge banding and a cabinet with commands.	Создан пустой проект. Добавьте материал, кромку и корпус командами.
+Imported parts: {}, materials: {}. Save it with project_save and a .dcraft path.	Импортировано деталей: {}, материалов: {}. Сохраните project_save с путём .dcraft.
+a Bazis model is open — nothing to save	открыта модель Базиса — сохранять нечего
+give a path	укажите path
+a Bazis model is open — it is read-only; create a project with project_new	открыта модель Базиса — она только для чтения; создайте проект project_new
+b3d is written from your own project: open or import one	b3d пишется из своего проекта: откройте или импортируйте его
+unknown document kind “{}”	неизвестный вид документа «{}»
+a Bazis model is open — project_import first	открыта модель Базиса — сначала project_import
+source or path is required	нужен source или path
+Error: {} (the model is unchanged)	Ошибка: {} (модель не изменена)
+unknown tool “{}”	неизвестный инструмент «{}»
+the project has no parts	в проекте нет деталей
+cannot create the picture	нельзя создать картинку
+no parts	нет деталей
+path “{}” leaves the script folder	путь «{}» выходит из папки скрипта
+the part no longer exists	деталь больше не существует
