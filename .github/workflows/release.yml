@@ -43,6 +43,9 @@ jobs:
           dir=dowel-craft-${{ matrix.name }}
           mkdir "$dir"
           cp target/${{ matrix.target }}/release/{dowel-craft-gui,dowel-craft,dowel-craft-mcp} README.md NOTICE.md LICENSE "$dir"/
+          if [ "$RUNNER_OS" = macOS ]; then
+            scripts/macos-app.sh target/${{ matrix.target }}/release/dowel-craft-gui "$(cargo pkgid -p dowel-craft-gui | sed 's/.*[#@]//')" "$dir"
+          fi
           tar czf "$dir.tar.gz" "$dir"
           echo "ASSET=$dir.tar.gz" >> "$GITHUB_ENV"
       - name: Archive (Windows)
@@ -78,13 +81,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "${{ github.ref_name }}" --repo "${{ github.repository }}" --title "${{ github.ref_name }}" --generate-notes dist/dowel-craft-*
-      - name: Homebrew formula
+      - name: Homebrew formula and cask
         if: env.TAP_TOKEN != ''
         env:
           GH_TOKEN: ${{ env.TAP_TOKEN }}
         run: |
-          scripts/homebrew-formula.sh "$GITHUB_REF_NAME" dist > dowel-craft.rb
-          path=repos/shoman4eg/homebrew-tap/contents/Formula/dowel-craft.rb
-          sha=$(gh api "$path" --jq .sha 2>/dev/null || true)
           # Committed through the API, so GitHub signs it.
-          gh api -X PUT "$path" -f message="dowel-craft ${GITHUB_REF_NAME#v}" -f content="$(base64 -w0 dowel-craft.rb)" ${sha:+-f sha="$sha"}
+          put() {
+            path=repos/shoman4eg/homebrew-tap/contents/$1
+            sha=$(gh api "$path" --jq .sha 2>/dev/null || true)
+            gh api -X PUT "$path" -f message="$2 ${GITHUB_REF_NAME#v}" -f content="$(base64 -w0 "$3")" ${sha:+-f sha="$sha"}
+          }
+          scripts/homebrew-formula.sh "$GITHUB_REF_NAME" dist > dowel-craft.rb
+          scripts/homebrew-cask.sh "$GITHUB_REF_NAME" dist > dowel-craft-app.rb
+          put Formula/dowel-craft.rb dowel-craft dowel-craft.rb
+          put Casks/dowel-craft-app.rb dowel-craft-app dowel-craft-app.rb

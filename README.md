@@ -46,6 +46,8 @@ brew install dowel-craft
 
 This installs `dowel-craft-gui`, `dowel-craft` and `dowel-craft-mcp`; macOS does not block Homebrew installs, so no quarantine step is needed.
 
+On macOS, `brew install --cask dowel-craft-app` also puts **Dowel Craft** with its icon into Applications and Launchpad. The app is not notarized yet; if macOS refuses to open it, run `xattr -dr com.apple.quarantine "/Applications/Dowel Craft.app"`.
+
 **Or** download a build from [Releases](https://github.com/shoman4eg/dowelcraft/releases):
 
 | System | File |
@@ -59,6 +61,8 @@ The archive contains three programs:
 - `dowel-craft-gui` — the window;
 - `dowel-craft` — the command line;
 - `dowel-craft-mcp` — the MCP server for AI.
+
+The macOS archive also has `Dowel Craft.app`: drag it to Applications.
 
 Nothing to install: unpack and run `dowel-craft-gui`.
 
@@ -273,7 +277,7 @@ Most of the code comments and internal docs are in Russian.
 
 GitHub Actions does the builds:
 - **CI** (`.github/workflows/ci.yml`) — on every push to `main` and every PR: clippy and tests on Linux, builds on macOS and Windows.
-- **Release** (`.github/workflows/release.yml`) — on a `v*` tag: builds for Linux, macOS (Apple Silicon and Intel), Windows, archives in a GitHub Release, and the Homebrew formula in [shoman4eg/homebrew-tap](https://github.com/shoman4eg/homebrew-tap) (needs the `HOMEBREW_TAP_TOKEN` secret).
+- **Release** (`.github/workflows/release.yml`) — on a `v*` tag: builds for Linux, macOS (Apple Silicon and Intel), Windows, archives in a GitHub Release, and the Homebrew formula and cask in [shoman4eg/homebrew-tap](https://github.com/shoman4eg/homebrew-tap) (needs the `HOMEBREW_TAP_TOKEN` secret).
 
 ```sh
 git tag v0.2.0

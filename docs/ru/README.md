@@ -46,6 +46,8 @@ brew install dowel-craft
 
 Поставятся `dowel-craft-gui`, `dowel-craft` и `dowel-craft-mcp`. Программы из Homebrew macOS не блокирует, снимать карантин не нужно.
 
+На macOS команда `brew install --cask dowel-craft-app` ещё и кладёт **Dowel Craft** с иконкой в «Программы» и Launchpad. Приложение пока не заверено Apple; если macOS не даёт его открыть, выполните `xattr -dr com.apple.quarantine "/Applications/Dowel Craft.app"`.
+
 **Или** готовые сборки — на странице [Releases](https://github.com/shoman4eg/dowelcraft/releases):
 
 | Система | Файл |
@@ -59,6 +61,8 @@ brew install dowel-craft
 - `dowel-craft-gui` — окно;
 - `dowel-craft` — командная строка;
 - `dowel-craft-mcp` — MCP-сервер для ИИ.
+
+В архиве для macOS есть ещё `Dowel Craft.app` — перетащите его в «Программы».
 
 Ставить ничего не нужно: распакуйте и запустите `dowel-craft-gui`.
 
@@ -271,7 +275,7 @@ cargo test --workspace
 
 Сборки делает GitHub Actions:
 - **CI** (`.github/workflows/ci.yml`) — на каждый пуш в `main` и PR: clippy и тесты в Linux, сборка в macOS и Windows.
-- **Release** (`.github/workflows/release.yml`) — по тегу `v*`: сборка под Linux, macOS (Apple Silicon и Intel), Windows, архивы в GitHub Release и рецепт Homebrew в [shoman4eg/homebrew-tap](https://github.com/shoman4eg/homebrew-tap) (нужен секрет `HOMEBREW_TAP_TOKEN`).
+- **Release** (`.github/workflows/release.yml`) — по тегу `v*`: сборка под Linux, macOS (Apple Silicon и Intel), Windows, архивы в GitHub Release рецепт и cask Homebrew в [shoman4eg/homebrew-tap](https://github.com/shoman4eg/homebrew-tap) (нужен секрет `HOMEBREW_TAP_TOKEN`).
 
 ```sh
 git tag v0.2.0

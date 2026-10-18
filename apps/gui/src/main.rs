@@ -89,7 +89,8 @@ fn main() -> eframe::Result {
         app.select(Some(i));
     }
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1400.0, 900.0]).with_title("dowel-craft"),
+        viewport: egui::ViewportBuilder::default().with_inner_size([1400.0, 900.0]).with_title("dowel-craft")
+            .with_icon(eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png")).expect("bundled icon is a valid PNG")),
         ..Default::default()
     };
     eframe::run_native(
