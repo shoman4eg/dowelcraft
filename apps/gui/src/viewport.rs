@@ -979,7 +979,9 @@ impl Viewport {
                         let k = axes[n];
                         p[k] = match h { -1 => lo[k], 1 => hi[k], _ => (lo[k] + hi[k]) / 2.0 };
                     }
-                    markers.push(([hx, hy], rect.center() + self.to_screen(p)));
+                    // Деталь тащат — маркеры едут вместе с ней.
+                    let mv = self.drag_offset();
+                    markers.push(([hx, hy], rect.center() + self.to_screen(std::array::from_fn(|k| p[k] + mv[k]))));
                 }
             }
             if resp.drag_started_by(egui::PointerButton::Primary)

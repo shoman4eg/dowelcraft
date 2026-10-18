@@ -1890,7 +1890,9 @@ impl App {
                 }
                 (a, b)
             };
-            let (pa, pb) = match self.handle { Some((h, d)) => moved(h, d), None => (lo, hi) };
+            // Деталь тащат — маркеры едут вместе с ней.
+            let mv = moving.unwrap_or([0.0; 2]);
+            let (pa, pb) = match self.handle { Some((h, d)) => moved(h, d), None => ([lo[0] + mv[0], lo[1] + mv[1]], [hi[0] + mv[0], hi[1] + mv[1]]) };
             let r = Rect::from_two_pos(to(pa[0], pa[1]), to(pb[0], pb[1]));
             if self.handle.is_some() {
                 painter.rect(r, 0.0, Color32::from_rgba_unmultiplied(255, 170, 70, 60), Stroke::new(1.5, Color32::from_rgb(220, 110, 0)), StrokeKind::Inside);
