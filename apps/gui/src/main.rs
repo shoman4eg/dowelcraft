@@ -14,7 +14,6 @@ mod i18n;
 mod icons;
 mod keys;
 mod library;
-#[cfg(unix)]
 mod live;
 mod settings;
 mod structure;
@@ -100,7 +99,6 @@ fn main() -> eframe::Result {
             // cadcraft theme; icon tooltips appear almost immediately.
             theme::apply(&cc.egui_ctx);
             // MCP commands go to the open tab (not for screenshots).
-            #[cfg(unix)]
             if app.screenshot.is_none() {
                 app.live = live::listen(&dowel::live::socket_path(), cc.egui_ctx.clone());
             }
@@ -520,7 +518,6 @@ struct App {
     /// Frame on which to capture the window (`--frames`).
     shot_frames: u32,
     /// MCP requests to the open tab (`live`).
-    #[cfg(unix)]
     live: Option<std::sync::mpsc::Receiver<live::Request>>,
     /// Product parts with positions (or a build error), rebuilt in `refresh`.
     parts: Result<Vec<Part>, String>,
@@ -588,7 +585,6 @@ impl Default for App {
             screenshot: None,
             frames: 0,
             shot_frames: 5,
-            #[cfg(unix)]
             live: None,
             parts: Ok(Vec::new()),
             revision: 0,
@@ -819,7 +815,6 @@ impl App {
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.ctx_ctrl = ui.input(|i| i.modifiers.command);
-        #[cfg(unix)]
         self.serve_live();
         let ctx = ui.ctx().clone();
         self.top_bar(ui);

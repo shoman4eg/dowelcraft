@@ -40,7 +40,6 @@ struct Server {
     job: Job,
     path: Option<PathBuf>,
     /// Connected to an open window: commands go to its tab, reads come from its copy.
-    #[cfg(unix)]
     live: Option<dowel::live::Client>,
 }
 
@@ -51,7 +50,6 @@ impl Default for Server {
             job: Job::from_project(p.clone()),
             session: Some(Session::new(p)),
             path: None,
-            #[cfg(unix)]
             live: None,
         }
     }
@@ -151,7 +149,6 @@ impl Server {
     }
 
     /// Working with a window: commands and saving go there, reads come from its copy of the project.
-    #[cfg(unix)]
     fn call_live(&mut self, name: &str, a: &Value) -> Option<ToolResult> {
         let live = self.live.as_mut()?;
         let r = match name {
@@ -190,7 +187,6 @@ impl Server {
     }
 
     fn call(&mut self, name: &str, a: &Value) -> ToolResult {
-        #[cfg(unix)]
         if let Some(r) = self.call_live(name, a) {
             return r;
         }
@@ -200,7 +196,6 @@ impl Server {
     fn call_local(&mut self, name: &str, a: &Value) -> ToolResult {
         let str_arg = |k: &str| a.get(k).and_then(Value::as_str).ok_or(format!("нужен параметр «{k}»"));
         match name {
-            #[cfg(unix)]
             "window_connect" => {
                 let mut c = dowel::live::Client::connect(&dowel::live::socket_path())?;
                 let info = c.call("window.info", &json!({}))?;
@@ -212,7 +207,6 @@ impl Server {
                     if info["editable"].as_bool() == Some(false) { " (модель Базиса только для просмотра — менять нельзя)" } else { "" }
                 )))
             }
-            #[cfg(unix)]
             "window_disconnect" => {
                 self.live = None;
                 Ok(text("Отключено от окна."))
@@ -440,26 +434,24 @@ fn base64(data: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    // Only needed by the window-connection test (Unix): on Windows the import is unused — a clippy error.
-    #[cfg(unix)]
     use super::*;
 
     /// Window connection: commands go to the window, reads come from its project, project_new is forbidden.
     /// The window is mimicked by a thread that responds like `apps/gui/src/live.rs`.
-    #[cfg(unix)]
     #[test]
     fn window_mode_forwards_commands() {
+        use interprocess::local_socket::{ListenerOptions, prelude::*};
         use std::io::{BufRead, BufReader};
         let dir = std::env::temp_dir().join(format!("dowel-craft-mcp-live-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let sock = dir.join("w.sock");
-        let listener = std::os::unix::net::UnixListener::bind(&sock).unwrap();
+        let sock = dir.join(format!("w-{}.sock", std::process::id()));
+        let listener = ListenerOptions::new().name(dowel::live::name(&sock).unwrap()).create_sync().unwrap();
         let window = std::thread::spawn(move || {
             let mut s = Session::new(Project::new("Окно"));
-            let (conn, _) = listener.accept().unwrap();
-            let mut out = conn.try_clone().unwrap();
+            let conn = listener.accept().unwrap();
+            let mut out = &conn;
             let mut seen = Vec::new();
-            for line in BufReader::new(conn).lines() {
+            for line in BufReader::new(&conn).lines() {
                 let v: Value = serde_json::from_str(&line.unwrap()).unwrap();
                 let cmd = v["command"].as_str().unwrap().to_string();
                 let r = match cmd.as_str() {

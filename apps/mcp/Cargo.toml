@@ -16,3 +16,6 @@ dowel = { workspace = true }
 script = { path = "../../crates/script" }
 serde_json = { workspace = true }
 tiny-skia = { version = "0.11", default-features = false, features = ["std", "png-format"] }
+
+[dev-dependencies]
+interprocess = "2"

@@ -14,3 +14,8 @@ encoding_rs = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 ab_glyph = "0.2"
+interprocess = "2"
+
+[target.'cfg(windows)'.dependencies]
+# Security descriptor (SDDL) for the window's named pipe.
+widestring = "1"

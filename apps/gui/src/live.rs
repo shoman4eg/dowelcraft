@@ -2,14 +2,13 @@
 //! with undo (Ctrl+Z), the "*" mark and redraw. A request waits for a reply from the window's frame.
 
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::fs::PermissionsExt;
-use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
 
 use dowel::design::Project;
 use eframe::egui;
+use interprocess::local_socket::{ListenerOptions, Stream, prelude::*};
 use serde_json::{Value, json};
 
 use crate::App;
@@ -21,7 +20,14 @@ const WAIT: Duration = Duration::from_secs(60);
 
 /// Listen on the socket; `None` — another window already listens on it or it couldn't be opened.
 pub fn listen(path: &Path, ctx: egui::Context) -> Option<Receiver<Request>> {
-    match UnixStream::connect(path) {
+    let name = match dowel::live::name(path) {
+        Ok(n) => n,
+        Err(e) => {
+            eprintln!("[связь] {}: {e}", path.display());
+            return None;
+        }
+    };
+    match Stream::connect(name.borrow()) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         // Socket left over from a closed window: the file exists, nobody is listening.
         Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => {
@@ -32,17 +38,21 @@ pub fn listen(path: &Path, ctx: egui::Context) -> Option<Receiver<Request>> {
             return None;
         }
     }
-    let listener = match UnixListener::bind(path) {
+    let listener = match owner_only(ListenerOptions::new().name(name)).and_then(|o| o.create_sync()) {
         Ok(l) => l,
         Err(e) => {
             eprintln!("[связь] {}: {e}", path.display());
             return None;
         }
     };
-    // Owner only: files are written through the socket on their behalf.
-    if let Err(e) = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)) {
-        eprintln!("[связь] {}: {e}", path.display());
-        return None;
+    // Owner only: files are written through the socket on their behalf. (Windows: set on the pipe above.)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Err(e) = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)) {
+            eprintln!("[связь] {}: {e}", path.display());
+            return None;
+        }
     }
     eprintln!("[связь] жду команды MCP: {}", path.display());
     let (tx, rx) = channel();
@@ -55,9 +65,21 @@ pub fn listen(path: &Path, ctx: egui::Context) -> Option<Receiver<Request>> {
     Some(rx)
 }
 
-fn serve(conn: UnixStream, tx: &Sender<Request>, ctx: &egui::Context) {
-    let Ok(mut out) = conn.try_clone() else { return };
-    for line in BufReader::new(conn).lines() {
+/// Windows: only the pipe's owner (the user who started the window) may connect; others get "access denied".
+#[cfg(windows)]
+fn owner_only(o: ListenerOptions<'_>) -> std::io::Result<ListenerOptions<'_>> {
+    use interprocess::os::windows::{local_socket::ListenerOptionsExt, security_descriptor::SecurityDescriptor};
+    Ok(o.security_descriptor(SecurityDescriptor::deserialize(widestring::u16cstr!("D:P(A;;GA;;;OW)"))?))
+}
+
+#[cfg(not(windows))]
+fn owner_only(o: ListenerOptions<'_>) -> std::io::Result<ListenerOptions<'_>> {
+    Ok(o)
+}
+
+fn serve(conn: Stream, tx: &Sender<Request>, ctx: &egui::Context) {
+    let mut out = &conn;
+    for line in BufReader::new(&conn).lines() {
         let Ok(line) = line else { return };
         let reply = match serde_json::from_str::<Value>(&line) {
             Ok(v) => {
@@ -142,7 +164,7 @@ mod tests {
     fn commands_reach_the_open_window() {
         let dir = std::env::temp_dir().join(format!("dowel-craft-live-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("test.sock");
+        let path = dir.join(format!("test-{}.sock", std::process::id()));
         let mut app = App { live: listen(&path, egui::Context::default()), ..Default::default() };
         assert!(app.live.is_some());
         // A second window doesn't bind the same socket.
