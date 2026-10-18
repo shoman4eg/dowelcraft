@@ -1,6 +1,7 @@
 //! Гильотинный раскрой листа: каждая деталь отрезается сквозным резом,
-//! остаток делится на два прямоугольника. Эвристика — лучшая короткая сторона
-//! (BSSF), детали по убыванию площади.
+//! остаток делится на два прямоугольника. Жадная укладка пробуется с разным порядком деталей,
+//! выбором остатка и направлением реза; берётся раскрой с наименьшим числом листов, а при равенстве —
+//! с самым большим цельным обрезком (меньше мелких обрезков).
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Params {
@@ -64,6 +65,31 @@ pub struct Layout {
 }
 
 pub fn nest(items: &[Item], p: &Params) -> Layout {
+    let area = |it: &Item| it.length * it.width;
+    let orders: [fn(&Item) -> f64; 4] = [|it| it.length * it.width, |it| it.length, |it| it.width, |it| it.length.max(it.width)];
+    let mut best: Option<(Layout, (usize, f64, usize))> = None;
+    for key in orders {
+        let mut order: Vec<&Item> = items.iter().collect();
+        order.sort_by(|a, b| key(b).total_cmp(&key(a)).then(area(b).total_cmp(&area(a))).then(a.id.cmp(&b.id)));
+        for fit in 0..3 {
+            for split in [false, true] {
+                let lay = greedy(&order, p, fit, split);
+                // Меньше листов, затем самый большой обрезок, затем меньше обрезков.
+                let biggest = lay.sheets.iter().flat_map(|s| &s.free).map(|r| r.w * r.h).fold(0.0, f64::max);
+                let pieces = lay.sheets.iter().map(|s| s.free.len()).sum();
+                let score = (lay.sheets.len(), -biggest, pieces);
+                if best.as_ref().is_none_or(|(_, b)| score.0 < b.0 || (score.0 == b.0 && (score.1 < b.1 || (score.1 == b.1 && score.2 < b.2)))) {
+                    best = Some((lay, score));
+                }
+            }
+        }
+    }
+    best.map(|b| b.0).unwrap_or_default()
+}
+
+/// Одна жадная укладка: `fit` — выбор остатка (0 — лучшая короткая сторона, 1 — наименьший лишний
+/// кусок по площади, 2 — лучшая длинная сторона); `split` — резать по длинному остатку, а не по короткому.
+fn greedy(order: &[&Item], p: &Params, fit: u8, split: bool) -> Layout {
     let usable = Rect { x: p.trim, y: p.trim, w: p.sheet.0 - 2.0 * p.trim, h: p.sheet.1 - 2.0 * p.trim };
     let fits = |f: &Rect, w: f64, h: f64| w <= f.w + 1e-9 && h <= f.h + 1e-9;
     let orients = |it: &Item| {
@@ -74,12 +100,9 @@ pub fn nest(items: &[Item], p: &Params) -> Layout {
         o
     };
 
-    let mut order: Vec<&Item> = items.iter().collect();
-    order.sort_by(|a, b| (b.length * b.width).total_cmp(&(a.length * a.width)).then(a.id.cmp(&b.id)));
-
     let mut out = Layout::default();
     let mut free: Vec<Vec<Rect>> = Vec::new();
-    for it in order {
+    for &it in order {
         if !orients(it).iter().any(|&(w, h, _)| fits(&usable, w, h)) {
             out.too_big.push(it.id);
             continue;
@@ -92,7 +115,11 @@ pub fn nest(items: &[Item], p: &Params) -> Layout {
             for (r, f) in rects.iter().enumerate() {
                 for o in orients(it) {
                     if fits(f, o.0, o.1) {
-                        let score = (f.w - o.0).min(f.h - o.1);
+                        let score = match fit {
+                            0 => (f.w - o.0).min(f.h - o.1),
+                            1 => f.w * f.h - o.0 * o.1,
+                            _ => (f.w - o.0).max(f.h - o.1),
+                        };
                         if best.is_none_or(|b| score < b.0) {
                             best = Some((score, s, r, o));
                         }
@@ -113,7 +140,7 @@ pub fn nest(items: &[Item], p: &Params) -> Layout {
         out.sheets[s].parts.push(Placed { id: it.id, x: f.x, y: f.y, w, h, rotated });
         // Рез по короткому остатку: больший кусок остаётся цельным.
         let (rw, rh) = (f.w - w - p.kerf, f.h - h - p.kerf);
-        let (right, top) = if f.w - w < f.h - h {
+        let (right, top) = if (f.w - w < f.h - h) != split {
             (Rect { x: f.x + w + p.kerf, y: f.y, w: rw, h }, Rect { x: f.x, y: f.y + h + p.kerf, w: f.w, h: rh })
         } else {
             (Rect { x: f.x + w + p.kerf, y: f.y, w: rw, h: f.h }, Rect { x: f.x, y: f.y + h + p.kerf, w, h: rh })
@@ -212,6 +239,24 @@ mod tests {
         assert!(lay.too_big.is_empty());
         // 4 × 513 + пропилы = 2064 > 2050 полезной ширины: на один лист не войдёт.
         assert_eq!(lay.sheets.len(), 2);
+    }
+
+    /// Шкаф и тумба для ванной на одном листе 2750×1830: детали собраны плотно, остаётся большой
+    /// цельный обрезок, а не россыпь мелких (раньше самый большой был 1058×948).
+    #[test]
+    fn leftover_stays_in_one_piece() {
+        let p = Params { sheet: (2750.0, 1830.0), kerf: 4.0, trim: 10.0 };
+        let sizes = [
+            (1100.0, 298.0), (1100.0, 298.0), (564.0, 298.0), (564.0, 298.0), (564.0, 278.0), (564.0, 278.0), (564.0, 278.0),
+            (808.0, 277.0), (808.0, 277.0), (798.0, 348.0), (798.0, 348.0), (564.0, 100.0), (564.0, 100.0), (564.0, 100.0),
+            (716.0, 295.0), (716.0, 295.0),
+        ];
+        let items: Vec<_> = sizes.iter().enumerate().map(|(i, &(l, w))| item(i, l, w, true)).collect();
+        let lay = nest(&items, &p);
+        assert_eq!(lay.sheets.len(), 1);
+        let biggest = lay.sheets[0].free.iter().map(|r| r.w * r.h).fold(0.0, f64::max);
+        eprintln!("самый большой обрезок {biggest}, обрезков {}: {:?}", lay.sheets[0].free.len(), lay.sheets[0].free);
+        assert!(biggest > 1058.0 * 948.0 * 1.2, "{biggest}");
     }
 
     #[test]
