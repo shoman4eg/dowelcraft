@@ -120,7 +120,7 @@ impl App {
                     }
                 });
                 ui.separator();
-                if ui.add_enabled(editable, egui::Button::new(crate::i18n::t("Сохранить")).shortcut_text("Ctrl+S")).clicked() {
+                if ui.add_enabled(editable, egui::Button::new(crate::i18n::t("Сохранить")).shortcut_text(self.settings.key_label("save"))).clicked() {
                     self.save(false);
                 }
                 if ui.add_enabled(editable, egui::Button::new(crate::i18n::t("Сохранить как…"))).clicked() {
@@ -143,14 +143,14 @@ impl App {
             });
             ui.menu_button(crate::i18n::t("Правка"), |ui| {
                 let (undo, redo) = self.session.as_ref().map_or((false, false), |s| (s.can_undo(), s.can_redo()));
-                if ui.add_enabled(undo, egui::Button::new(crate::i18n::t("Отменить")).shortcut_text("Ctrl+Z")).clicked() {
+                if ui.add_enabled(undo, egui::Button::new(crate::i18n::t("Отменить")).shortcut_text(self.settings.key_label("undo"))).clicked() {
                     self.exec("undo", json!({}));
                 }
-                if ui.add_enabled(redo, egui::Button::new(crate::i18n::t("Вернуть")).shortcut_text("Ctrl+Y")).clicked() {
+                if ui.add_enabled(redo, egui::Button::new(crate::i18n::t("Вернуть")).shortcut_text(self.settings.key_label("redo"))).clicked() {
                     self.exec("redo", json!({}));
                 }
                 ui.separator();
-                if ui.add_enabled(editable && !self.delete_targets().is_empty(), egui::Button::new(crate::i18n::t("Удалить")).shortcut_text("Del")).clicked() {
+                if ui.add_enabled(editable && !self.delete_targets().is_empty(), egui::Button::new(crate::i18n::t("Удалить")).shortcut_text(self.settings.key_label("delete"))).clicked() {
                     self.menu_apply(MenuAct::Delete);
                 }
                 if ui.add(egui::Button::new(crate::i18n::t("Снять выделение")).shortcut_text("Esc")).clicked() {
@@ -407,7 +407,7 @@ impl App {
             ui.separator();
             let g = &mut self.settings.grid;
             ui.heading(crate::i18n::t("Сетка"));
-            ui.checkbox(&mut g.on, crate::i18n::t("Сетка включена (F7)"));
+            ui.checkbox(&mut g.on, crate::i18n::t("Сетка включена"));
             ui.horizontal(|ui| {
                 ui.label(crate::i18n::t("Шаг сетки"));
                 ui.add(egui::DragValue::new(&mut g.step).speed(1.0).range(1.0..=1000.0).suffix(crate::i18n::t(" мм")));
@@ -415,7 +415,63 @@ impl App {
                 ui.add(egui::DragValue::new(&mut g.major).range(1..=100));
             });
             ui.weak(crate::i18n::t("При отдалении шаг сам укрупняется в 5 раз, чтобы линии не сливались."));
+            ui.separator();
+            ui.heading(crate::i18n::t("Горячие клавиши"));
+            // Ждём новое сочетание: Esc — отмена, Backspace — снять клавишу.
+            if let Some(id) = self.key_capture {
+                let hit = ui.input_mut(|i| {
+                    let found = i.events.iter().find_map(|e| match e {
+                        egui::Event::Key { key, pressed: true, modifiers, .. } => Some((*key, *modifiers)),
+                        _ => None,
+                    });
+                    i.events.retain(|e| !matches!(e, egui::Event::Key { .. }));
+                    found
+                });
+                match hit {
+                    Some((egui::Key::Escape, _)) => self.key_capture = None,
+                    Some((egui::Key::Backspace, _)) => {
+                        self.settings.keys.insert(id.into(), String::new());
+                        self.key_capture = None;
+                        self.settings.save();
+                    }
+                    Some((key, mods)) => {
+                        self.settings.keys.insert(id.into(), crate::keys::format(mods, key));
+                        self.key_capture = None;
+                        self.settings.save();
+                    }
+                    None => {}
+                }
+            }
+            egui::Grid::new("hotkeys").num_columns(3).striped(true).show(ui, |ui| {
+                for (id, title, _) in crate::keys::ACTIONS {
+                    ui.label(crate::i18n::t(title));
+                    let label = self.settings.key_label(id);
+                    let text = if self.key_capture == Some(id) {
+                        crate::i18n::t("нажмите сочетание…")
+                    } else if label.is_empty() {
+                        crate::i18n::t("не назначено")
+                    } else {
+                        label.clone()
+                    };
+                    if ui.selectable_label(self.key_capture == Some(id), text).on_hover_text(crate::i18n::t("Щёлкните и нажмите новое сочетание. Esc — отмена, Backspace — снять клавишу")).clicked() {
+                        self.key_capture = Some(id);
+                    }
+                    let twin = crate::keys::ACTIONS.iter().find(|(o, ..)| o != id && !label.is_empty() && self.settings.key_label(o) == label);
+                    match twin {
+                        Some((_, other, _)) => ui.colored_label(egui::Color32::from_rgb(230, 90, 80), crate::i18n::t(format!("то же у «{other}»"))),
+                        None => ui.label(""),
+                    };
+                    ui.end_row();
+                }
+            });
+            if ui.button(crate::i18n::t("Все клавиши по умолчанию")).clicked() {
+                self.settings.keys.clear();
+                self.settings.save();
+            }
         });
+        if !open {
+            self.key_capture = None;
+        }
         self.drafting = open;
         if let Some(code) = language {
             self.settings.language = code.into();

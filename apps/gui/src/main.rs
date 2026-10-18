@@ -9,6 +9,7 @@ mod editors;
 mod expr;
 mod i18n;
 mod icons;
+mod keys;
 mod library;
 #[cfg(unix)]
 mod live;
@@ -524,6 +525,8 @@ struct App {
     quad: bool,
     /// В «4 видах» одно окно развёрнуто на всю область: 0 спереди, 1 слева, 2 сверху, 3 — 3D.
     quad_max: Option<usize>,
+    /// В настройках ждут нажатия: новое сочетание для этого действия.
+    key_capture: Option<&'static str>,
     views: [viewport::Viewport; 3],
 }
 
@@ -585,6 +588,7 @@ impl Default for App {
             viewport: viewport::Viewport::default(),
             quad: false,
             quad_max: None,
+            key_capture: None,
             views: [viewport::Viewport::with_view(0.0, 0.0, "Спереди"), viewport::Viewport::with_view(90.0, 0.0, "Слева"), viewport::Viewport::with_view(0.0, 89.9, "Сверху")],
         };
         app.refresh();
@@ -821,6 +825,17 @@ impl eframe::App for App {
                 self.menu_apply(MenuAct::Deselect);
             }
         }
+        // Горячие клавиши (настраиваются в «Правка → Настройки»). Пока назначают новую — не срабатывают.
+        // Без Ctrl/Alt — только не в поле ввода; длинные сочетания первыми: «1» не съест Alt+1.
+        if self.key_capture.is_none() {
+            let editing = ctx.text_edit_focused();
+            let mut list: Vec<(&str, egui::KeyboardShortcut)> = keys::ACTIONS.iter().filter_map(|(id, ..)| Some((*id, self.settings.shortcut(id)?))).collect();
+            list.sort_by_key(|(_, sc)| std::cmp::Reverse(keys::weight(sc)));
+            let fired: Vec<&str> = list.into_iter().filter(|(_, sc)| (!editing || sc.modifiers.command || sc.modifiers.alt) && ui.input_mut(|i| i.consume_shortcut(sc))).map(|(id, _)| id).collect();
+            for id in fired {
+                self.hotkey(id);
+            }
+        }
         let hover = icons::take_hover(&ctx);
         egui::Panel::bottom("status").show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -886,18 +901,10 @@ impl eframe::App for App {
             }
         });
         }
-        if ui.input(|i| i.key_pressed(egui::Key::F7)) {
-            self.settings.grid.on = !self.settings.grid.on;
-            self.settings.save();
-        }
         // Настройки сетки — во все окна модели.
         let g = self.settings.grid;
         for v in std::iter::once(&mut self.viewport).chain(self.views.iter_mut()) {
             v.grid = viewport::Grid { on: g.on, step: g.step, major: g.major };
-        }
-        // Delete — удалить выделенное, если курсор не в поле ввода.
-        if !ctx.text_edit_focused() && ui.input(|i| i.key_pressed(egui::Key::Delete)) {
-            self.menu_apply(MenuAct::Delete);
         }
         self.help_windows(&ctx);
         self.close_window(&ctx);
@@ -953,10 +960,10 @@ impl App {
                 ui.separator();
                 // Вид на холсте — как вкладки, но в строке иконок.
                 for (pane, icon, text, tip) in [
-                    (Pane::Model, Icon::ViewIso, "3D", "Модель в 3D; на панели вида — «4 окна»: спереди, слева, сверху и 3D"),
-                    (Pane::Front, Icon::ViewFront, "Спереди", "Вид спереди: ставить полки, двери и ящики в проём, двигать мышью"),
-                    (Pane::Parts, Icon::Table, "Детали", "Таблица деталей: размеры, материал, кромка"),
-                    (Pane::Cut, Icon::CutSheet, "Раскрой", "Карты раскроя листов"),
+                    (Pane::Model, Icon::ViewIso, "3D", "Модель в 3D (1); на панели вида — «4 окна»: спереди, слева, сверху и 3D"),
+                    (Pane::Front, Icon::ViewFront, "Спереди", "Вид спереди (2): ставить полки, двери и ящики в проём, двигать мышью"),
+                    (Pane::Parts, Icon::Table, "Детали", "Таблица деталей (3): размеры, материал, кромка"),
+                    (Pane::Cut, Icon::CutSheet, "Раскрой", "Карты раскроя листов (4)"),
                 ] {
                     if icons::labeled(ui, icon, text, tip, !self.start && self.view == pane).clicked() {
                         self.start = false;
@@ -976,22 +983,35 @@ impl App {
         });
         egui::Panel::top("menu").frame(egui::Frame::NONE.fill(theme::T.chrome).inner_margin(egui::Margin::symmetric(6, 2))).show(ui, |ui| self.menu_bar(ui));
         egui::Panel::top("doc_tabs").exact_size(26.0).frame(egui::Frame::NONE.fill(theme::T.chrome_dark)).show(ui, |ui| self.doc_tabs(ui));
-        // Сочетания клавиш, как в cadcraft и Базисе.
-        let (save, undo, redo) = ui.input_mut(|i| {
-            (
-                i.consume_key(egui::Modifiers::COMMAND, egui::Key::S),
-                i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z),
-                i.consume_key(egui::Modifiers::COMMAND, egui::Key::Y) || i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::Z),
-            )
-        });
-        if save {
-            self.save(false);
-        }
-        if undo && self.session.as_ref().is_some_and(|s| s.can_undo()) {
-            self.exec("undo", json!({}));
-        }
-        if redo && self.session.as_ref().is_some_and(|s| s.can_redo()) {
-            self.exec("redo", json!({}));
+    }
+
+    /// Действие горячей клавиши (`keys::ACTIONS`).
+    fn hotkey(&mut self, id: &str) {
+        let (undo, redo) = self.session.as_ref().map_or((false, false), |s| (s.can_undo(), s.can_redo()));
+        match id {
+            "save" => self.save(false),
+            "undo" if undo => self.exec("undo", json!({})),
+            "redo" if redo => self.exec("redo", json!({})),
+            "delete" => self.menu_apply(MenuAct::Delete),
+            "grid" => {
+                self.settings.grid.on = !self.settings.grid.on;
+                self.settings.save();
+            }
+            "view.3d" | "view.front" | "view.parts" | "view.cut" => {
+                self.start = false;
+                self.view = match id {
+                    "view.3d" => Pane::Model,
+                    "view.front" => Pane::Front,
+                    "view.parts" => Pane::Parts,
+                    _ => Pane::Cut,
+                };
+            }
+            _ => {
+                let modes = ["mode.solid", "mode.hidden", "mode.wire", "mode.xray", "mode.textured"];
+                if let Some(n) = modes.iter().position(|m| *m == id) {
+                    self.viewport.mode = viewport::Mode::ALL[n].0;
+                }
+            }
         }
     }
 

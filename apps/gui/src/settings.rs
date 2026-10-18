@@ -1,6 +1,7 @@
 //! Настройки окна между запусками: папки библиотеки фурнитуры, язык.
 //! Файл — `~/.config/basis-craft/settings.json` (или `$XDG_CONFIG_HOME/basis-craft`).
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,8 @@ pub struct Settings {
     pub texture_dirs: Vec<String>,
     /// Сетка (как «Настройки черчения» cadcraft): показывать, шаг в мм, основная линия — каждая N-я.
     pub grid: GridSettings,
+    /// Свои горячие клавиши: действие → сочетание («» — снята); остальные — по умолчанию (`keys::ACTIONS`).
+    pub keys: BTreeMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
@@ -56,6 +59,17 @@ impl Settings {
             s.language = "ru".into();
         }
         s
+    }
+
+    /// Сочетание для действия: своё или по умолчанию; `None` — не назначено.
+    pub fn shortcut(&self, action: &str) -> Option<eframe::egui::KeyboardShortcut> {
+        let default = crate::keys::ACTIONS.iter().find(|(id, ..)| *id == action).map(|(.., k)| *k);
+        crate::keys::parse(self.keys.get(action).map(String::as_str).or(default)?)
+    }
+
+    /// Сочетание текстом для меню и подсказок («» — не назначено).
+    pub fn key_label(&self, action: &str) -> String {
+        self.shortcut(action).map(|sc| crate::keys::format(sc.modifiers, sc.logical_key)).unwrap_or_default()
     }
 
     /// Записать на диск; ошибка — в терминал (окну она не мешает).

@@ -426,3 +426,30 @@
 Вернуть четыре окна	Back to four windows
 Развернуть это окно на всю область	Maximize this window
 Модель в 3D; на панели вида — «4 окна»: спереди, слева, сверху и 3D	Model in 3D; the view bar has “4 windows”: front, left, top and 3D
+Модель в 3D (1); на панели вида — «4 окна»: спереди, слева, сверху и 3D	Model in 3D (1); the view bar has “4 windows”: front, left, top and 3D
+Вид спереди (2): ставить полки, двери и ящики в проём, двигать мышью	Front view (2): put shelves, doors and drawers into an opening, drag with the mouse
+Таблица деталей (3): размеры, материал, кромка	Parts table (3): sizes, material, edge banding
+Карты раскроя листов (4)	Sheet cutting maps (4)
+Без невидимых (Alt+1): детали сплошные, видны только ближние рёбра	Hidden lines removed (Alt+1): solid parts, only near edges visible
+Невидимые тонкие (Alt+2): как сплошной, плюс скрытые рёбра светлыми линиями	Hidden thin (Alt+2): like solid plus hidden edges as light lines
+Каркас (Alt+3): только рёбра деталей, насквозь	Wireframe (Alt+3): only part edges, see-through
+Прозрачность, рентген (Alt+4): детали полупрозрачные, видны оси каждой детали	Transparent, X-ray (Alt+4): parts semi-transparent, each part axes shown
+В текстурах (Alt+5): материалы картинками (Балтламинат по артикулу)	Textured (Alt+5): materials as images (Baltlaminat by article)
+Удалить выделенное	Delete selection
+Сетка: показать или скрыть	Grid: show or hide
+Вид: 3D	View: 3D
+Вид: спереди	View: front
+Вид: детали	View: parts
+Вид: раскрой	View: cutting
+Показ: без невидимых	Display: hidden lines removed
+Показ: невидимые тонкие	Display: hidden thin
+Показ: каркас	Display: wireframe
+Показ: прозрачность	Display: transparent
+Показ: в текстурах	Display: textured
+Горячие клавиши	Hotkeys
+нажмите сочетание…	press a combination…
+не назначено	not set
+Щёлкните и нажмите новое сочетание. Esc — отмена, Backspace — снять клавишу	Click and press a new combination. Esc cancels, Backspace clears
+то же у «{}»	same as “{}”
+Все клавиши по умолчанию	Reset all keys
+Сетка включена	Grid on
