@@ -437,6 +437,22 @@ fn fasteners_between_panels() {
     assert_eq!(added, 1);
 }
 
+/// У каждого крепежа свой номер: иначе `fastener.remove` снимает сразу все с тем же номером.
+#[test]
+fn fasteners_get_distinct_ids() {
+    let mut s = Session::new(Project::new("Тумба"));
+    s.execute("material.add", &json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
+    let id = |v: Value| v["id"].as_u64().unwrap();
+    let side = id(s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "vertical", "size": [500, 700], "position": [0, 0, 0]})).unwrap());
+    let top = id(s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "horizontal", "size": [600, 500], "position": [16, 684, 0]})).unwrap());
+    let bottom = id(s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "horizontal", "size": [600, 500], "position": [16, 0, 0]})).unwrap());
+    let a = id(s.execute("fastener.add", &json!({"kind": "Шкант 8х30", "a": side, "b": top})).unwrap());
+    let b = id(s.execute("fastener.add", &json!({"kind": "Шкант 8х30", "a": side, "b": bottom})).unwrap());
+    assert_ne!(a, b);
+    s.execute("fastener.remove", &json!({"id": a})).unwrap();
+    assert_eq!(s.project.fasteners.len(), 1);
+}
+
 /// Составной крепёж «Minifix + шкант»: шкант в 32 мм от эксцентрика к середине стыка; в смете — оба по отдельности.
 #[test]
 fn minifix_with_dowel() {

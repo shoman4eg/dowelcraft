@@ -418,7 +418,8 @@ impl Project {
         let c = self.cabinets.iter().map(|c| c.id);
         let k = self.corners.iter().map(|c| c.id);
         let t = self.countertops.iter().map(|c| c.id);
-        c.chain(k).chain(t).chain([max_id(&self.objects)]).max().unwrap_or(0) + 1
+        let f = self.fasteners.iter().map(|f| f.id);
+        c.chain(k).chain(t).chain(f).chain([max_id(&self.objects)]).max().unwrap_or(0) + 1
     }
 
     pub fn save(&self) -> String {
