@@ -43,6 +43,9 @@ pub struct Def {
     /// Наименьшее и наибольшее число точек на стык.
     pub min: usize,
     pub max: usize,
+    /// Что покупается на одну точку, если крепёж составной (эксцентрик + шкант); пусто — сам крепёж, 1 шт.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub items: Vec<(String, usize)>,
 }
 
 fn h(panel: char, at: [f64; 3], dir: [f64; 3], diameter: f64, depth: f64) -> HoleDef {
@@ -64,6 +67,7 @@ pub fn library() -> Vec<Def> {
             step: 500.0,
             min: 2,
             max: 20,
+            items: Vec::new(),
         },
         Def {
             name: "Эксцентрик Minifix 15".into(),
@@ -77,6 +81,7 @@ pub fn library() -> Vec<Def> {
             step: 500.0,
             min: 2,
             max: 20,
+            items: Vec::new(),
         },
         Def {
             name: "Шкант 8х30".into(),
@@ -85,6 +90,7 @@ pub fn library() -> Vec<Def> {
             step: 300.0,
             min: 2,
             max: 30,
+            items: Vec::new(),
         },
         Def {
             name: "Полкодержатель 5".into(),
@@ -94,6 +100,23 @@ pub fn library() -> Vec<Def> {
             step: 10_000.0,
             min: 2,
             max: 2,
+            items: Vec::new(),
+        },
+        Def {
+            name: "Minifix 15 + шкант 8х30".into(),
+            // В каждой точке — эксцентрик, рядом в 32 мм ближе к середине стыка — шкант.
+            holes: vec![
+                h('b', [0.0; 3], x, 8.0, 34.0),
+                HoleDef { at_tb: [0.0, 0.5, 0.0], ..h('b', [34.0, 0.0, 0.0], ny, 15.0, 13.0) },
+                h('a', [0.0; 3], nx, 5.0, 13.0),
+                h('b', [0.0, 0.0, 32.0], x, 8.0, 20.0),
+                h('a', [0.0, 0.0, 32.0], nx, 8.0, 13.0),
+            ],
+            offset: 50.0,
+            step: 500.0,
+            min: 2,
+            max: 20,
+            items: vec![("Эксцентрик Minifix 15".into(), 1), ("Шкант 8х30".into(), 1)],
         },
     ]
 }
@@ -169,12 +192,15 @@ pub fn holes(def: &Def, parts: &[Part], jt: &Joint, s: f64) -> Result<Vec<(usize
     let [x, y, z] = jt.axes;
     let world = |l: [f64; 3]| -> [f64; 3] { std::array::from_fn(|k| jt.origin[k] + x[k] * l[0] + y[k] * l[1] + z[k] * (l[2] + s)) };
     let wdir = |d: [f64; 3]| -> [f64; 3] { std::array::from_fn(|k| x[k] * d[0] + y[k] * d[1] + z[k] * d[2]) };
+    // Смещение вдоль стыка — к его середине: у точек второй половины зеркально.
+    let toward = if s > jt.length / 2.0 { -1.0 } else { 1.0 };
     let mut out = Vec::new();
     for hd in &def.holes {
         let idx = if hd.panel == 'a' { jt.a } else { jt.b };
         let p = &parts[idx];
         let f = p.panel.frame.ok_or("деталь без положения")?;
-        let at: [f64; 3] = std::array::from_fn(|k| hd.at[k] + hd.at_t[k] * t + hd.at_tb[k] * tb);
+        let mut at: [f64; 3] = std::array::from_fn(|k| hd.at[k] + hd.at_t[k] * t + hd.at_tb[k] * tb);
+        at[2] *= toward;
         let w = world(at);
         let d = wdir(hd.dir);
         let local = f.local(w).map(clean);

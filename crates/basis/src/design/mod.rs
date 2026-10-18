@@ -781,7 +781,11 @@ pub fn furniture_lost_holes(p: &Project) -> Vec<(String, usize)> {
 pub fn hardware(p: &Project) -> Result<Vec<(String, usize)>, String> {
     let parts = build(p)?;
     let mut out: Vec<(String, usize)> = Vec::new();
-    let items = fastener_joints(p, &parts)?.into_iter().map(|(def, _, at)| (def.name, at.len())).chain(furniture(p).into_iter().map(|(f, _)| (f.name, 1)));
+    let fasteners = fastener_joints(p, &parts)?.into_iter().flat_map(|(def, _, at)| {
+        let per: Vec<(String, usize)> = if def.items.is_empty() { vec![(def.name, 1)] } else { def.items };
+        per.into_iter().map(move |(name, k)| (name, k * at.len()))
+    });
+    let items = fasteners.chain(furniture(p).into_iter().map(|(f, _)| (f.name, 1)));
     for (name, n) in items {
         match out.iter_mut().find(|(k, _)| *k == name) {
             Some(r) => r.1 += n,

@@ -437,6 +437,33 @@ fn fasteners_between_panels() {
     assert_eq!(added, 1);
 }
 
+/// Составной крепёж «Minifix + шкант»: шкант в 32 мм от эксцентрика к середине стыка; в смете — оба по отдельности.
+#[test]
+fn minifix_with_dowel() {
+    let mut s = Session::new(Project::new("Тумба"));
+    s.execute("material.add", &json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
+    let id = |v: Value| v["id"].as_u64().unwrap() as u32;
+    let side = id(s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "vertical", "size": [500, 700], "position": [0, 0, 0]})).unwrap());
+    let top = id(s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "horizontal", "size": [600, 500], "position": [16, 684, 0]})).unwrap());
+    s.execute("fastener.add", &json!({"kind": "Minifix 15 + шкант 8х30", "a": side, "b": top})).unwrap();
+    let parts = build(&s.project).unwrap();
+    let get = |i: u32| parts.iter().find(|p| p.id == i).unwrap();
+    assert_eq!(get(top).panel.holes.len(), 6);
+    assert_eq!(get(side).panel.holes.len(), 4);
+    let pos = |d: f64, depth: f64| -> Vec<[f64; 3]> { get(top).panel.holes.iter().filter(|h| h.diameter == d && h.depth == depth).map(|h| h.pos).collect() };
+    let (m, w) = (pos(8.0, 34.0), pos(8.0, 20.0));
+    // Ось вдоль стыка — та, по которой точки эксцентрика расходятся.
+    let k = (0..3).find(|&k| (m[0][k] - m[1][k]).abs() > 1.0).unwrap();
+    let sorted = |v: &[[f64; 3]]| { let mut a: Vec<f64> = v.iter().map(|p| p[k]).collect(); a.sort_by(f64::total_cmp); a };
+    let (minifix, dowel) = (sorted(&m), sorted(&w));
+    assert_eq!(minifix.len(), 2);
+    assert_eq!(dowel.len(), 2);
+    // Точки эксцентрика 50 и 450 по стыку, шканты — 82 и 418 (внутрь).
+    let gaps: Vec<f64> = minifix.iter().zip(&dowel).map(|(m, d)| d - m).collect();
+    assert_eq!(gaps, vec![32.0, -32.0], "эксцентрики {minifix:?}, шканты {dowel:?}");
+    assert_eq!(hardware(&s.project).unwrap(), vec![("Шкант 8х30".to_string(), 2), ("Эксцентрик Minifix 15".to_string(), 2)]);
+}
+
 /// Фурнитура из библиотеки: отверстия садятся в прижатую панель; в смете — по названию; оторвали — анализ видит.
 #[test]
 fn furniture_drills_panels() {

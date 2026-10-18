@@ -46,7 +46,7 @@ A free panel (the “Free panel” icon) can be placed in any of three planes, m
 
 ## Hardware and fasteners
 
-- **Fasteners** (confirmats, cam locks, dowels, shelf supports): the “Fasteners” icon → choose the type below the palette → select a cabinet (or several free panels with Ctrl) → “Apply to selection”. Holes with coordinates appear on both parts of every joint.
+- **Fasteners** (confirmats, cam locks, dowels, shelf supports, “Minifix + dowel” — a cam lock with a dowel next to it): the “Fasteners” icon → choose the type below the palette → select a cabinet (or several free panels with Ctrl) → “Apply to selection”. Holes with coordinates appear on both parts of every joint.
 - **Hardware models** (.fr3d — baskets, hinges, locks, sockets): the “Hardware” palette, folders as on disk. “Place” puts the model to the right of the modules; then move it in “Properties”. Its holes land in the panels it touches.
 - Baltlaminat libraries and your own models are just folders with .fr3d files. Add folders with “+ Add folder…” in the “Hardware” palette; they are remembered.
 
