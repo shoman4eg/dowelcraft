@@ -674,3 +674,70 @@ fn legacy_fastener_catalogue_opens() {
     assert_eq!(back.cabinets[0].fastener.as_deref(), Some("Confirmat 7x50"));
     assert!(back.def("Shelf support 5").is_ok() && back.def("Minifix 15 + dowel 8x30").is_ok());
 }
+
+/// A back panel in grooves: four grooves 4 mm wide (HDF 3 + 1), 16 mm from the back, 8 deep on the inner faces;
+/// the back panel goes 7 mm into each, shelves stop in front of it, and the model check finds no overlaps.
+#[test]
+fn back_panel_in_grooves() {
+    let mut s = Session::new(Project::new("Grooves"));
+    s.execute("material.add", &json!({"name": "Chipboard 16", "thickness": 16})).unwrap();
+    s.execute("material.add", &json!({"name": "HDF 3", "thickness": 3})).unwrap();
+    s.execute("cabinet.add", &json!({"width": 800, "height": 2000, "depth": 600, "material": "Chipboard 16", "plinth": 80,
+        "back": "HDF 3", "back_groove": {}, "doors": 2, "drawers": [200]})).unwrap();
+    s.execute("shelf.add", &json!({"cabinet": 1, "height": 900})).unwrap();
+    let parts = build(&s.project).unwrap();
+    let one = |name: &str| *by_name(&parts, name).first().unwrap_or_else(|| panic!("{name}"));
+    for name in ["Left side", "Right side", "Bottom", "Top panel"] {
+        let g = &one(name).panel.grooves;
+        assert_eq!(g.len(), 1, "{name}");
+        assert_eq!(g[0].across, [0.0, 4.0], "{name}");
+    }
+    assert_eq!(one("Left side").panel.grooves[0].z, [0.0, 8.0]);
+    assert_eq!(one("Right side").panel.grooves[0].z, [8.0, 16.0]);
+    let back = one("Back panel");
+    // Inner 768 × 1888 plus 7 mm into each groove; 16.5 mm from the back edge.
+    assert_eq!(back.size, [782.0, 1902.0, 3.0]);
+    assert_eq!(back.origin, [9.0, 89.0, 16.5]);
+    let shelf = one("Shelf");
+    assert_eq!((shelf.origin[2], shelf.size[2]), (20.0, 580.0));
+    let problems = analysis::analyze(&s.project).unwrap();
+    assert!(problems.is_empty(), "{problems:#?}");
+    // Without a back panel material there is nothing to put into grooves: no grooves.
+    s.execute("cabinet.set", &json!({"id": 1, "back": null})).unwrap();
+    assert!(build(&s.project).unwrap().iter().all(|p| p.panel.grooves.is_empty()));
+    // A wider groove (glass, a 4 mm cutter for HDF 3.2): the back panel stays in its middle.
+    s.execute("cabinet.set", &json!({"id": 1, "back": "HDF 3", "back_groove": {"width": 5}})).unwrap();
+    let parts = build(&s.project).unwrap();
+    assert_eq!(by_name(&parts, "Left side")[0].panel.grooves[0].across, [0.0, 5.0]);
+    assert_eq!(by_name(&parts, "Back panel")[0].origin[2], 17.0);
+    assert_eq!(by_name(&parts, "Shelf")[0].origin[2], 21.0);
+    assert!(s.execute("cabinet.set", &json!({"id": 1, "back_groove": {"width": 2}})).is_err(), "narrower than the back panel");
+    // A groove deeper than the board is refused.
+    assert!(s.execute("cabinet.set", &json!({"id": 1, "back": "HDF 3", "back_groove": {"depth": 20}})).is_err());
+}
+
+/// A groove along an edge of a free panel lies inside the panel, on the chosen face; it can be removed.
+#[test]
+fn groove_on_a_panel() {
+    let mut s = Session::new(Project::new("Panel groove"));
+    s.execute("material.add", &json!({"name": "Chipboard 16", "thickness": 16})).unwrap();
+    let id = s.execute("panel.add", &json!({"material": "Chipboard 16", "plane": "front", "size": [600, 400]})).unwrap()["id"].as_u64().unwrap();
+    // Edge 0 is the bottom one: the groove runs 10..14 mm above it, 8 mm into the front face.
+    let r = s.execute("panel.groove", &json!({"id": id, "segment": 0, "width": 4, "depth": 8, "offset": 10, "face": "front"})).unwrap();
+    assert_eq!(r["index"], 0);
+    let parts = build(&s.project).unwrap();
+    let g = &parts[0].panel.grooves[0];
+    assert_eq!(g.z, [8.0, 16.0]);
+    assert!(g.contains([300.0, 12.0, 12.0], 1e-9) && !g.contains([300.0, -12.0, 12.0], 1e-9), "{g:?}");
+    assert!(s.execute("panel.groove", &json!({"id": id, "segment": 0, "width": 4, "depth": 16})).is_err(), "as deep as the board");
+    assert!(s.execute("panel.groove", &json!({"id": id, "segment": 0, "width": 4, "depth": 8, "offset": 400})).is_err(), "beyond the panel");
+    // On the other edges the groove goes inside the panel too (the contour runs the other way round there).
+    for seg in 1..4 {
+        let i = s.execute("panel.groove", &json!({"id": id, "segment": seg, "width": 4, "depth": 8, "offset": 10})).unwrap()["index"].as_u64().unwrap() as usize;
+        let g = build(&s.project).unwrap()[0].panel.grooves[i].clone();
+        let probe = match seg { 1 => [12.0, 200.0, 4.0], 2 => [300.0, 388.0, 4.0], _ => [588.0, 200.0, 4.0] };
+        assert!(g.contains(probe, 1e-9), "edge {seg}: {g:?}");
+    }
+    s.execute("panel.groove_remove", &json!({"id": id, "index": 0})).unwrap();
+    assert_eq!(build(&s.project).unwrap()[0].panel.grooves.len(), 3);
+}

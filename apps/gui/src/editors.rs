@@ -397,6 +397,34 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
             }
             ui.end_row();
         }
+        if c.back.is_some() {
+            caption(ui, "Back panel in grooves").on_hover_text(crate::i18n::t("Grooves in the sides, bottom and top instead of nailing the back panel on; shelves and partitions stop in front of it"));
+            let mut on = c.back_groove.is_some();
+            if ui.checkbox(&mut on, "").changed() {
+                set("back_groove", if on { json!({}) } else { Value::Null });
+            }
+            ui.end_row();
+            if let Some(g) = c.back_groove {
+                for (key, label, value) in [("offset", "Groove from the back edge", g.offset), ("depth", "Groove depth", g.depth)] {
+                    caption(ui, label);
+                    let mut v = value;
+                    let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=100.0).suffix(crate::i18n::t(" mm")));
+                    if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != value {
+                        let mut g = serde_json::to_value(g).unwrap_or_default();
+                        g[key] = json!(v);
+                        set("back_groove", g);
+                    }
+                    ui.end_row();
+                }
+                caption(ui, "Groove width");
+                if let Some(v) = optional_mm(ui, g.width, "back panel + 1") {
+                    let mut g = serde_json::to_value(g).unwrap_or_default();
+                    g["width"] = json!(v);
+                    set("back_groove", g);
+                }
+                ui.end_row();
+            }
+        }
     });
 
     ui.label(crate::i18n::t("Partitions (left face from the left edge, mm):"));

@@ -110,6 +110,29 @@ fn panel_node(p: &Part, id: i32) -> Node {
         })
         .collect();
     c.push(obj("Butts", butts));
+    // Grooves as Bazis keeps them (`Cuts/Cut`): a straight trajectory and a rectangular profile, across × through the
+    // thickness from the back face — the way `panel::parse` reads them back.
+    if !pl.grooves.is_empty() {
+        let cuts = pl
+            .grooves
+            .iter()
+            .map(|g| {
+                let ([a0, a1], [z0, z1]) = (g.across, g.z);
+                let corners = [[a0, z0], [a1, z0], [a1, z1], [a0, z1]];
+                let profile: Vec<Seg> = (0..4).map(|i| Seg::Line { a: corners[i], b: corners[(i + 1) % 4] }).collect();
+                obj("Cut", vec![
+                    s("Name", &g.name),
+                    s("Sign", &format!("{}×{}", a1 - a0, z1 - z0)),
+                    leaf("Elem", Value::I32(-1)),
+                    f("Thickness", 0.0),
+                    leaf("Contour", Value::Blob(contour_blob(&profile))),
+                    leaf("Trajectory", Value::Blob(contour_blob(&[Seg::Line { a: g.path[0], b: g.path[1] }]))),
+                    leaf("Front", Value::False),
+                ])
+            })
+            .collect();
+        c.push(obj("Cuts", cuts));
+    }
     obj("Obj", c)
 }
 
@@ -269,7 +292,8 @@ mod tests {
         let mut s = Session::new(Project::new("Export"));
         s.execute("material.add", &json!({"name": "Chipboard 16", "article": "W980", "thickness": 16})).unwrap();
         s.execute("edge.add", &json!({"name": "PVC 2", "thickness": 2, "width": 19})).unwrap();
-        s.execute("cabinet.add", &json!({"width": 800, "height": 2000, "depth": 600, "material": "Chipboard 16", "edge": "PVC 2", "plinth": 80, "doors": 2, "shelves": [{"section": 0, "height": 700}]})).unwrap();
+        s.execute("material.add", &json!({"name": "HDF 3", "thickness": 3})).unwrap();
+        s.execute("cabinet.add", &json!({"width": 800, "height": 2000, "depth": 600, "material": "Chipboard 16", "edge": "PVC 2", "plinth": 80, "doors": 2, "shelves": [{"section": 0, "height": 700}], "back": "HDF 3", "back_groove": {}})).unwrap();
         s.execute("corner.add", &json!({"width_x": 1000, "width_z": 900, "height": 820, "depth": 560, "material": "Chipboard 16", "position": [2000, 0, 0]})).unwrap();
         let id = s.execute("panel.add", &json!({"material": "Chipboard 16", "plane": "vertical", "size": [500, 700], "position": [4000, 0, 0]})).unwrap()["id"].clone();
         s.execute("panel.corner", &json!({"id": id, "at": [500, 700], "radius": 100})).unwrap();
@@ -281,13 +305,14 @@ mod tests {
         assert!(ex.skipped.is_empty());
         assert_eq!(ex.panels.len(), parts.len());
         for (a, b) in parts.iter().zip(&ex.panels) {
-            assert_eq!((&a.panel.name, &a.panel.material, a.panel.thickness, &a.panel.edges), (&b.name, &b.material, b.thickness, &b.edges));
+            assert_eq!((&a.panel.name, &a.panel.material, a.panel.thickness, &a.panel.edges, &a.panel.grooves), (&b.name, &b.material, b.thickness, &b.edges, &b.grooves));
             let (ca, cb) = (a.panel.cut_size(), b.cut_size());
             assert!((ca.0 - cb.0).abs() < 1e-9 && (ca.1 - cb.1).abs() < 1e-9, "{}: {ca:?} ≠ {cb:?}", a.panel.name);
             let (fa, fb) = (a.panel.frame.unwrap(), b.frame.unwrap());
             let close = |x: [f64; 3], y: [f64; 3]| (0..3).all(|k| (x[k] - y[k]).abs() < 1e-9);
             assert!(close(fa.origin, fb.origin) && close(fa.x, fb.x) && close(fa.y, fb.y) && close(fa.z, fb.z), "{}: {fa:?} ≠ {fb:?}", a.panel.name);
         }
+        assert_eq!(ex.panels.iter().filter(|p| !p.grooves.is_empty()).count(), 4, "the back panel grooves survive");
         // Blocks: one per top-level object.
         assert_eq!(ex.blocks.len(), 3);
         assert_eq!(back.section("Header").and_then(|h| h.get("Article")).and_then(|a| a.str("Name")), Some("Export"));

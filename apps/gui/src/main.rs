@@ -374,6 +374,8 @@ enum ContourTool {
     Chamfer,
     /// Round cutout at a point.
     Hole,
+    /// Groove along a straight edge.
+    Groove,
 }
 
 /// Mode for placing a panel into an opening (like "~" in Bazis).
@@ -537,6 +539,8 @@ struct App {
     fastener_outside: bool,
     /// Contour diagram click action and its size (radius, chamfer leg, cutout radius), mm.
     contour_tool: (ContourTool, f64),
+    /// New groove: width, depth, offset from the edge (mm), on the front face.
+    groove: (f64, f64, f64, bool),
     screenshot: Option<PathBuf>,
     frames: u32,
     /// Frame on which to capture the window (`--frames`).
@@ -597,6 +601,7 @@ impl Default for App {
             about: false,
             edging: (None, true, 0.0),
             contour_tool: (ContourTool::Edge, 50.0),
+            groove: (4.0, 8.0, 16.0, false),
             fastener_kind: dowel::fasteners::library().first().map(|d| d.name.clone()).unwrap_or_default(),
             fastener_outside: false,
             library: Library::new(settings.library_dirs.clone()),
@@ -1768,19 +1773,29 @@ impl App {
             ui.heading(crate::i18n::t("Contour"));
             let (tool, size) = &mut self.contour_tool;
             ui.horizontal(|ui| {
-                for (t, label) in [(ContourTool::Edge, "Edge banding"), (ContourTool::Round, "Fillet"), (ContourTool::Chamfer, "Chamfer"), (ContourTool::Hole, "Cut-out")] {
+                for (t, label) in [(ContourTool::Edge, "Edge banding"), (ContourTool::Round, "Fillet"), (ContourTool::Chamfer, "Chamfer"), (ContourTool::Hole, "Cut-out"), (ContourTool::Groove, "Groove")] {
                     ui.selectable_value(tool, t, crate::i18n::t(label));
                 }
-                if *tool != ContourTool::Edge {
+                if !matches!(*tool, ContourTool::Edge | ContourTool::Groove) {
                     let label = match tool { ContourTool::Round => "R ", ContourTool::Chamfer => "leg", _ => "radius" };
                     crate::expr::add(ui, size, |d| d.range(1.0..=2000.0).prefix(label).suffix(crate::i18n::t(" mm")));
                 }
             });
-            ui.weak(match tool {
+            if *tool == ContourTool::Groove {
+                let (width, depth, offset, front) = &mut self.groove;
+                ui.horizontal(|ui| {
+                    crate::expr::add(ui, width, |d| d.range(1.0..=50.0).prefix(crate::i18n::t("width ")).suffix(crate::i18n::t(" mm")));
+                    crate::expr::add(ui, depth, |d| d.range(1.0..=50.0).prefix(crate::i18n::t("depth ")).suffix(crate::i18n::t(" mm")));
+                    crate::expr::add(ui, offset, |d| d.range(0.0..=2000.0).prefix(crate::i18n::t("from the edge ")).suffix(crate::i18n::t(" mm")));
+                    ui.checkbox(front, crate::i18n::t("front face"));
+                });
+            }
+            ui.weak(crate::i18n::t(match tool {
+                ContourTool::Groove => "Click a straight edge: the groove runs along it, the whole length.",
                 ContourTool::Edge => "Click an edge to apply or remove the chosen banding.",
                 ContourTool::Round | ContourTool::Chamfer => "Click a vertex to fillet or chamfer the corner.",
                 ContourTool::Hole => "Click inside the panel for a round cut-out centred there.",
-            });
+            }));
             if fp.segs.len() == 4 {
                 ui.horizontal(|ui| {
                     ui.label(crate::i18n::t("Size:"));
@@ -1814,8 +1829,20 @@ impl App {
                     (ContourTool::Round, _, Some(v)) => cmds.push(("panel.corner", json!({ "id": fp.id, "at": v, "radius": size }))),
                     (ContourTool::Chamfer, _, Some(v)) => cmds.push(("panel.corner", json!({ "id": fp.id, "at": v, "chamfer": size }))),
                     (ContourTool::Hole, _, _) => cmds.push(("panel.cutout", json!({ "id": fp.id, "center": c.point, "radius": size }))),
+                    (ContourTool::Groove, Some(i), _) => {
+                        let (width, depth, offset, front) = self.groove;
+                        cmds.push(("panel.groove", json!({ "id": fp.id, "segment": i, "width": width, "depth": depth, "offset": offset, "face": if front { "front" } else { "back" } })));
+                    }
                     _ => {}
                 }
+            }
+            for (i, g) in fp.grooves.iter().enumerate() {
+                ui.horizontal(|ui| {
+                    ui.label(format!("{} {}×{}", g.name, num(g.across[1] - g.across[0]), num(g.z[1] - g.z[0])));
+                    if ui.small_button(crate::i18n::t("delete")).clicked() {
+                        cmds.push(("panel.groove_remove", json!({ "id": fp.id, "index": i })));
+                    }
+                });
             }
         }
         for (cmd, v) in cmds {

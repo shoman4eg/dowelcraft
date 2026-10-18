@@ -765,3 +765,27 @@ cannot create the picture	нельзя создать картинку
 no parts	нет деталей
 path “{}” leaves the script folder	путь «{}» выходит из папки скрипта
 the part no longer exists	деталь больше не существует
+Back panel groove	Паз под заднюю стенку
+back panel groove: offset {} mm and depth {} mm do not fit {} mm boards {} mm deep	паз под заднюю стенку: отступ {} мм и глубина {} мм не помещаются в плиту {} мм глубиной {} мм
+Groove	Паз
+the panel has {} grooves, there is no groove {}	у панели {} пазов, паза {} нет
+face: “back” or “front”, not “{}”	face: «back» или «front», а не «{}»
+no panel {}: cabinet parts get grooves from the cabinet's “back_groove” or after “Explode”	нет панели {}: детали корпуса получают пазы параметром «back_groove» корпуса или после «Разрушить»
+groove: width > 0, offset ≥ 0 and 0 < depth < {} mm are required	паз: нужны ширина > 0, отступ ≥ 0 и 0 < глубина < {} мм
+edge {}: a groove runs along a straight edge of the panel	торец {}: паз идёт вдоль прямого торца панели
+{id, segment: edge number, width, depth, offset?: from the edge, mm (0), face?: back|front} → {index}. A groove along a straight panel edge, the whole edge long	{id, segment: номер торца, width, depth, offset?: от края, мм (0), face?: back|front} → {index}. Паз вдоль прямого торца панели на всю длину
+{id, index} — remove a panel groove	{id, index} — удалить паз панели
+groove {}×{}	паз {}×{}
+Back panel in grooves	Задняя стенка в паз
+Grooves in the sides, bottom and top instead of nailing the back panel on; shelves and partitions stop in front of it	Пазы в боковинах, дне и крыше вместо накладной стенки; полки и перегородки заканчиваются перед ней
+Groove from the back edge	Паз от заднего края
+Groove depth	Глубина паза
+width 	ширина 
+depth 	глубина 
+from the edge 	от края 
+front face	лицевая пласть
+Click a straight edge: the groove runs along it, the whole length.	Щёлкните прямой торец: паз пройдёт вдоль него на всю длину.
+back panel groove: {} mm is narrower than the {} mm back panel	паз под заднюю стенку: {} мм уже стенки {} мм
+Groove width	Ширина паза
+back panel + 1	стенка + 1
+groove: {} mm from edge {} goes outside the panel	паз: {} мм от торца {} выходит за панель

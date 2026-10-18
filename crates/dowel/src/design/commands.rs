@@ -18,7 +18,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("material.remove", "{name} — delete a material; refused while it is in use"),
     ("edge.add", "{name, thickness, article?, width?}"),
     ("edge.remove", "{name} — delete an edge banding; refused while parts use it"),
-    ("cabinet.add", "{width, height, depth, material, name?, edge?, plinth?, back?, doors?, door_material?, door_gap?, drawers?: [front heights, bottom up], drawer_depth?, drawer_section?, position?: [x,y,z]} → {id}. A wall unit: plinth 0 and a position with height, e.g. [0, 1400, 250]"),
+    ("cabinet.add", "{width, height, depth, material, name?, edge?, plinth?, back?, back_groove?: {offset?: 16, depth?: 8} — the back panel in grooves, doors?, door_material?, door_gap?, drawers?: [front heights, bottom up], drawer_depth?, drawer_section?, position?: [x,y,z]} → {id}. A wall unit: plinth 0 and a position with height, e.g. [0, 1400, 250]"),
     ("cabinet.set", "{id, ...cabinet fields} — change the parameters"),
     ("cabinet.remove", "{id}"),
     ("shelf.add", "{cabinet, height, section?}"),
@@ -34,6 +34,8 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("panel.add", "{material, plane: front|horizontal|vertical, size: [a, b], position?: [x,y,z] min corner of the box, name?, texture?: Horizontal|Vertical|Default, kind?: body|back|door|drawer, block?} → {id}. Contour size: front — width×height, horizontal — width×depth, vertical — depth×height; thickness comes from the material"),
     ("panel.fill", "{material, plane, at: [x, y] a point in the opening in the front view, gaps?: [4 offsets], name?, kind?} → {id}. A panel filling the opening between the nearest parts (doors don't count), like “~” in Bazis. horizontal — bottom face at height y, gaps [left, right, back, front]; vertical — left face at x, gaps [back, front, bottom, top]; front — flush with the front of the opening, gaps [left, right, bottom, top]"),
     ("panel.edge", "{id, segments: [edge numbers], edge: edge banding name | null, clip?: true — trim the blank by the banding thickness, allowance?: jointing allowance, mm} — edge banding on panel edges; null removes it"),
+    ("panel.groove", "{id, segment: edge number, width, depth, offset?: from the edge, mm (0), face?: back|front} → {index}. A groove along a straight panel edge, the whole edge long"),
+    ("panel.groove_remove", "{id, index} — remove a panel groove"),
     ("panel.box", "{id, lo: [x,y,z], hi: [x,y,z]} — an axis-aligned rectangular panel fills the box (size handles); across the thickness the box equals the thickness"),
     ("panel.resize", "{id, size: [a, b]} — new size of a rectangular panel (edge banding is kept)"),
     ("panel.corner", "{id, at: [x, y] a contour vertex, radius? | chamfer?} — a fillet or chamfer of a corner between two lines"),
@@ -303,6 +305,16 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
         "panel.add" => return panel_add(pr, p),
         "panel.fill" => return panel_fill(pr, p),
         "panel.edge" => return panel_edge(pr, p),
+        "panel.groove" => return panel_groove(pr, p),
+        "panel.groove_remove" => {
+            let (id, index) = (idx(p, "id")? as u32, idx(p, "index")?);
+            let Some(Object::Panel(fp)) = find_mut(&mut pr.objects, id) else { return Err(format!("no panel {id}")) };
+            if index >= fp.grooves.len() {
+                return Err(format!("the panel has {} grooves, there is no groove {index}", fp.grooves.len()));
+            }
+            fp.grooves.remove(index);
+            return Ok(Value::Null);
+        }
         "door.add" => return fronts::door(pr, p),
         "drawers.add" => return fronts::drawers(pr, p),
         "furniture.add" => {
@@ -462,6 +474,71 @@ fn fastener_cmd(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String>
 }
 
 /// `panel.edge`: edge banding on the edges (contour segments) of a tree panel; `edge: null` removes it.
+/// A groove along a straight edge of a tree panel, the whole edge long: `offset` from the edge into the panel,
+/// `width` across, `depth` into the board from the back face (or the front one).
+fn panel_groove(pr: &mut Project, p: &Value) -> Result<Value, String> {
+    let id = idx(p, "id")? as u32;
+    let segment = idx(p, "segment")?;
+    let width = f(p, "width")?;
+    let depth = f(p, "depth")?;
+    let offset = p.get("offset").and_then(Value::as_f64).unwrap_or(0.0);
+    let front = match p.get("face").and_then(Value::as_str) {
+        None | Some("back") => false,
+        Some("front") => true,
+        Some(f) => return Err(format!("face: “back” or “front”, not “{f}”")),
+    };
+    let material = match find_mut(&mut pr.objects, id) {
+        Some(Object::Panel(fp)) => fp.material.clone(),
+        _ => return Err(format!("no panel {id}: cabinet parts get grooves from the cabinet's “back_groove” or after “Explode”")),
+    };
+    let thickness = pr.material(&material)?.thickness;
+    if !(width > 0.0 && offset >= 0.0 && depth > 0.0 && depth < thickness) {
+        return Err(format!("groove: width > 0, offset ≥ 0 and 0 < depth < {thickness} mm are required"));
+    }
+    let Some(Object::Panel(fp)) = find_mut(&mut pr.objects, id) else { return Err(format!("no panel {id}")) };
+    let Some(&Seg::Line { a, b }) = fp.segs.get(segment) else {
+        return Err(format!("edge {segment}: a groove runs along a straight edge of the panel"));
+    };
+    // Into the panel: to the left of the edge or to the right, depending on which way the contour goes round.
+    let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+    let len = dx.hypot(dy);
+    if len < 1e-6 {
+        return Err(format!("edge {segment}: a groove runs along a straight edge of the panel"));
+    }
+    let (nx, ny) = (-dy / len, dx / len);
+    let at = |off: f64| [(a[0] + b[0]) / 2.0 + nx * off, (a[1] + b[1]) / 2.0 + ny * off];
+    let side = if inside(&fp.segs, at(0.5)) { 1.0 } else { -1.0 };
+    // The far side of the groove must still be inside the panel (checked at the middle of the edge).
+    if !inside(&fp.segs, at(side * (offset + width - 0.01))) {
+        return Err(format!("groove: {} mm from edge {segment} goes outside the panel", offset + width));
+    }
+    let across = if side > 0.0 { [offset, offset + width] } else { [-(offset + width), -offset] };
+    let z = if front { [thickness - depth, thickness] } else { [0.0, depth] };
+    fp.grooves.push(crate::panel::Groove { name: crate::i18n::t("Groove"), path: [a, b], across, z });
+    Ok(json!({ "index": fp.grooves.len() - 1 }))
+}
+
+/// Point inside a closed contour (even-odd over its tessellation).
+fn inside(segs: &[Seg], pt: [f64; 2]) -> bool {
+    let mut odd = false;
+    for s in segs {
+        // `tessellate` leaves out the segment's end point; a circle ends where it starts.
+        let mut pts = crate::contour::tessellate(s, 0.1);
+        let end = match s {
+            Seg::Circle { .. } => pts[0],
+            _ => crate::contour::ends(s).1,
+        };
+        pts.push(end);
+        for w in pts.windows(2) {
+            let (p, q) = (w[0], w[1]);
+            if (p[1] > pt[1]) != (q[1] > pt[1]) && pt[0] < p[0] + (pt[1] - p[1]) / (q[1] - p[1]) * (q[0] - p[0]) {
+                odd = !odd;
+            }
+        }
+    }
+    odd
+}
+
 fn panel_edge(pr: &mut Project, p: &Value) -> Result<Value, String> {
     let id = idx(p, "id")? as u32;
     let segments: Vec<usize> = serde_json::from_value(field(p, "segments")?.clone()).map_err(|e| format!("segments: {e}"))?;

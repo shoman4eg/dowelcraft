@@ -118,6 +118,9 @@ pub struct Cabinet {
     /// Back panel material; none — no back panel.
     #[serde(default)]
     pub back: Option<String>,
+    /// The back panel sits in grooves of the side panels, bottom and top instead of being nailed on the back.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub back_groove: Option<BackGroove>,
     /// Left faces of partitions from the cabinet's left edge, mm.
     #[serde(default)]
     pub partitions: Vec<f64>,
@@ -141,6 +144,33 @@ pub struct Cabinet {
     /// Section with drawers (left to right from 0), if there are partitions.
     #[serde(default)]
     pub drawer_section: usize,
+}
+
+/// Groove for a back panel.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct BackGroove {
+    /// From the back edge of the carcass to the groove, mm.
+    #[serde(default = "default_groove_offset")]
+    pub offset: f64,
+    /// Into the board, mm; the back panel goes 1 mm less deep.
+    #[serde(default = "default_groove_depth")]
+    pub depth: f64,
+    /// Across, mm; none — the back panel thickness plus 1 mm. The back panel sits in the middle of it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<f64>,
+}
+
+fn default_groove_offset() -> f64 {
+    16.0
+}
+
+fn default_groove_depth() -> f64 {
+    8.0
+}
+
+impl BackGroove {
+    /// Play between the back panel and the groove: across (width) and at the groove bottom, mm.
+    const PLAY: f64 = 1.0;
 }
 
 /// Countertop: lies on top of cabinets, positioned by its bottom-left-back corner.
@@ -909,10 +939,44 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
     // Horizontal: X — length, Y — depth (front edge is the contour top), grain along the length.
     let horizontal = |name: &str, length: f64| rect(name, m, length, d, Texture::Horizontal, &[TOP], edge);
 
-    add(Kind::Body, vertical("Left side", h), [0.0, 0.0, 0.0], [t, h, d])?;
-    add(Kind::Body, vertical("Right side", h), [w - t, 0.0, 0.0], [t, h, d])?;
-    add(Kind::Body, horizontal("Bottom", inner_w), [t, c.plinth, 0.0], [inner_w, t, d])?;
-    add(Kind::Body, horizontal("Top panel", inner_w), [t, h - t, 0.0], [inner_w, t, d])?;
+    // A back panel in grooves: where the grooves are and where the inner space (shelves, partitions, drawers) begins.
+    let back_material = c.back.as_ref().map(|n| p.material(n)).transpose()?;
+    let groove = match (c.back_groove, back_material) {
+        (Some(g), Some(bm)) => {
+            let width = g.width.unwrap_or(bm.thickness + BackGroove::PLAY);
+            if width < bm.thickness {
+                return Err(format!("back panel groove: {width} mm is narrower than the {} mm back panel", bm.thickness));
+            }
+            if !(g.offset >= 0.0 && g.depth > BackGroove::PLAY && g.depth < t && g.offset + width < d) {
+                return Err(format!("back panel groove: offset {} mm and depth {} mm do not fit {t} mm boards {d} mm deep", g.offset, g.depth));
+            }
+            Some((g, width))
+        }
+        _ => None,
+    };
+    let back_z = groove.map_or(0.0, |(g, width)| g.offset + width);
+    // Groove along a part: `along_y` — up a vertical part's contour, otherwise along a horizontal one; `inner_back`
+    // — the inner face is the part's back face (Z from 0), otherwise the front one.
+    let grooved = |mut panel: Panel, along_y: bool, inner_back: bool| {
+        if let Some((g, width)) = groove {
+            let (sx, sy) = panel.size;
+            let path = if along_y { [[g.offset + width, 0.0], [g.offset + width, sy]] } else { [[0.0, g.offset], [sx, g.offset]] };
+            let z = if inner_back { [0.0, g.depth] } else { [t - g.depth, t] };
+            panel.grooves.push(crate::panel::Groove { name: crate::i18n::t("Back panel groove"), path, across: [0.0, width], z });
+        }
+        panel
+    };
+
+    // Sides: the frame puts a vertical part's back face (Z = 0) towards +X — inside for the left one.
+    add(Kind::Body, grooved(vertical("Left side", h), true, true), [0.0, 0.0, 0.0], [t, h, d])?;
+    add(Kind::Body, grooved(vertical("Right side", h), true, false), [w - t, 0.0, 0.0], [t, h, d])?;
+    // Horizontal parts have their back face up — inside for the bottom.
+    add(Kind::Body, grooved(horizontal("Bottom", inner_w), false, true), [t, c.plinth, 0.0], [inner_w, t, d])?;
+    add(Kind::Body, grooved(horizontal("Top panel", inner_w), false, false), [t, h - t, 0.0], [inner_w, t, d])?;
+    // Partitions and shelves stop at a grooved back panel.
+    let inner_d = d - back_z;
+    let vertical = |name: &str, height: f64| rect(name, m, inner_d, height, Texture::Vertical, &[RIGHT], edge);
+    let horizontal = |name: &str, length: f64| rect(name, m, length, inner_d, Texture::Horizontal, &[TOP], edge);
     if c.plinth > 0.0 {
         add(Kind::Body, rect("Plinth", m, inner_w, c.plinth, Texture::Horizontal, &[], None), [t, 0.0, d - t], [inner_w, c.plinth, t])?;
     }
@@ -927,7 +991,7 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
             return Err(format!("a partition at {x} mm does not fit (free from {left} to {} mm)", w - 2.0 * t));
         }
         sections.push((left, x - left));
-        add(Kind::Body, vertical("Partition", inner_h), [x, c.plinth + t, 0.0], [t, inner_h, d])?;
+        add(Kind::Body, vertical("Partition", inner_h), [x, c.plinth + t, back_z], [t, inner_h, inner_d])?;
         left = x + t;
     }
     sections.push((left, w - t - left));
@@ -939,7 +1003,7 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         .get(c.drawer_section)
         .ok_or_else(|| format!("drawers: no section {} (there are {})", c.drawer_section, sections.len()))?;
     // Drawer runner length is a multiple of 50 mm; the drawer zone top is above the top front, measured from the top of the bottom.
-    let drawer_depth = c.drawer_depth.unwrap_or(((d - 10.0) / 50.0).floor() * 50.0);
+    let drawer_depth = c.drawer_depth.unwrap_or(((inner_d - 10.0) / 50.0).floor() * 50.0);
     let drawer_zone = if c.drawers.is_empty() {
         0.0
     } else {
@@ -955,13 +1019,22 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         if s.section == c.drawer_section && s.height < drawer_zone {
             return Err(format!("a shelf at {} mm falls into the drawer zone (up to {drawer_zone} mm)", s.height));
         }
-        add(Kind::Body, horizontal("Shelf", sw), [sx, c.plinth + t + s.height, 0.0], [sw, t, d])?;
+        add(Kind::Body, horizontal("Shelf", sw), [sx, c.plinth + t + s.height, back_z], [sw, t, inner_d])?;
     }
 
-    if let Some(name) = &c.back {
-        let bm = p.material(name)?;
-        let bh = h - c.plinth;
-        add(Kind::Back, rect("Back panel", bm, w, bh, Texture::Default, &[], None), [0.0, c.plinth, -bm.thickness], [w, bh, bm.thickness])?;
+    match (back_material, groove) {
+        // In the grooves: between the sides and between the bottom and the top, going into each groove 1 mm less than its depth.
+        (Some(bm), Some((g, width))) => {
+            let into = g.depth - BackGroove::PLAY;
+            let (bw, bh) = (inner_w + 2.0 * into, inner_h + 2.0 * into);
+            let at = [t - into, c.plinth + t - into, g.offset + (width - bm.thickness) / 2.0];
+            add(Kind::Back, rect("Back panel", bm, bw, bh, Texture::Default, &[], None), at, [bw, bh, bm.thickness])?;
+        }
+        (Some(bm), None) => {
+            let bh = h - c.plinth;
+            add(Kind::Back, rect("Back panel", bm, w, bh, Texture::Default, &[], None), [0.0, c.plinth, -bm.thickness], [w, bh, bm.thickness])?;
+        }
+        (None, _) => {}
     }
 
     let dm = match &c.door_material {
@@ -979,7 +1052,7 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         let bw = dsw - 2.0 * RAIL_GAP;
         let bh = hf - 40.0;
         let bd = drawer_depth;
-        if !(hf > 0.0 && fw > 0.0 && bw > 2.0 * t && bh >= 60.0 && bd >= 250.0 && bd <= d) {
+        if !(hf > 0.0 && fw > 0.0 && bw > 2.0 * t && bh >= 60.0 && bd >= 250.0 && bd <= inner_d) {
             return Err(format!("drawer {} (front {hf} mm, box {bw:.0}×{bh:.0}×{bd:.0}) cannot be built: a front ≥ 100 mm and depth ≥ 250 mm are required", i + 1));
         }
         let facade = rect("Drawer front", dm, fw, hf, Texture::Horizontal, &[BOTTOM, LEFT, TOP, RIGHT], edge);

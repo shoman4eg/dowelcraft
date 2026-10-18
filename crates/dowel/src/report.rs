@@ -256,21 +256,23 @@ pub fn production_html(order: &str, rows: &[SpecRow], number: impl Fn(&SpecRow) 
             t("Grooves")
         );
         // Merge rows identical in the visible columns (edge banding isn't shown here).
-        let mut lines: Vec<([String; 5], usize)> = Vec::new();
+        let mut lines: Vec<([String; 6], usize)> = Vec::new();
         while i < rows.len() && &rows[i].panel.material == mat {
             let r = &rows[i];
             let (l, w) = r.panel.cut_size();
-            let cells = [number(r), r.panel.name.clone(), num(l), num(w), num(r.panel.thickness)];
+            // Grooves: width × depth of each.
+            let grooves = r.panel.grooves.iter().map(|g| format!("{}×{}", num(g.across[1] - g.across[0]), num(g.z[1] - g.z[0]))).collect::<Vec<_>>().join(", ");
+            let cells = [number(r), r.panel.name.clone(), num(l), num(w), num(r.panel.thickness), grooves];
             match lines.iter_mut().find(|(c, _)| *c == cells) {
                 Some((_, n)) => *n += r.count,
                 None => lines.push((cells, r.count)),
             }
             i += 1;
         }
-        for ([no, name, l, w, t], n) in &lines {
+        for ([no, name, l, w, t, grooves], n) in &lines {
             let _ = write!(
                 s,
-                "<tr><td>{}</td><td>{}</td><td>{l}</td><td>{w}</td><td>{n}</td><td>{t}</td><td></td></tr>",
+                "<tr><td>{}</td><td>{}</td><td>{l}</td><td>{w}</td><td>{n}</td><td>{t}</td><td>{grooves}</td></tr>",
                 xml(no),
                 xml(name)
             );

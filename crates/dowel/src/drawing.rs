@@ -92,6 +92,11 @@ pub fn part_svg(p: &Panel, qty: usize, number: &str, order: &str, sheet: (usize,
             let (x2, y2) = to([b[0] + nx * off, b[1] + ny * off]);
             s += &format!(r##"<line x1="{x1:.2}" y1="{y1:.2}" x2="{x2:.2}" y2="{y2:.2}" stroke="#000" stroke-width="0.3" stroke-dasharray="4 1.5"/>"##);
         }
+        // Width × depth next to the groove, a third of the way along it.
+        let mid = (g.across[0] + g.across[1]) / 2.0;
+        let (lx, ly) = to([a[0] + (b[0] - a[0]) / 3.0 + nx * mid, a[1] + (b[1] - a[1]) / 3.0 + ny * mid]);
+        let label = tr(format!("groove {}×{}", n(g.across[1] - g.across[0]), n(g.z[1] - g.z[0])));
+        s += &format!(r##"<text x="{:.2}" y="{:.2}" font-size="2.4" font-family="Arial">{}</text>"##, lx + 1.5, ly - 1.0, crate::report::xml(&label));
     }
     // Overall dimensions: width below, height on the left.
     let (x0, y0) = to([0.0, 0.0]);

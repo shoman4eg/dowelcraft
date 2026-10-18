@@ -26,6 +26,12 @@ dowel-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 - **1, 2, 3, 4** set the 3D camera: front, left, top, axonometric; **5** zooms to fit. **Ctrl+1…4** switch the tab: 3D, front, parts, cutting. **Alt+1…5** switch the 3D display: solid, hidden thin, wireframe, transparent, textured. All hotkeys are changed in “Edit → Settings…”: click a combination and press a new one. **Del** deletes the selection. **Esc** exits a tool or clears the selection. **Ctrl+Z / Ctrl+Y** undo / redo. **Ctrl+S** saves. **Enter** applies move, rotate, etc.
 - Number fields accept expressions: `600-4`, `(800-36)/2`. Cabinet fields also accept its sizes by letter: **W** width, **H** height, **D** depth, **P** plinth, **T** material thickness; e.g. a middle partition is `(W-T)/2` (Russian letters Ш, В, Г, Ц, Т are aliases). A free panel has **L** (length), **W**, **T**. The formula becomes a number at once. Drag a field left or right to change it.
 
+## Grooves
+
+- **Back panel in grooves.** Cabinet properties → “Back panel in grooves” (shown when the cabinet has a back panel). The sides, bottom and top get a groove 1 mm wider than the back panel, 8 mm deep, 16 mm from the back edge; the back panel goes 7 mm into each. Shelves and partitions stop in front of it. The offset, depth and groove width are adjustable (an empty width means “back panel + 1 mm”; in a wider groove the back panel sits in the middle).
+- **A groove on a free panel.** Panel properties → “Contour” → “Groove”: set the width, depth, offset from the edge and the face, then click a straight edge — the groove runs along it, the whole length. Below is the list of grooves with a “delete” button.
+- Grooves show on drawings and in “Panels for production” and are kept in `.b3d`. BAZIS-Raskroy XML does not get them yet.
+
 ## Projects, textures, grid
 
 - **Several projects.** Each project is a tab under the menu. “+” or “New” opens a new tab, so does opening a file. “*” after the name means unsaved changes; closing asks whether to save.
