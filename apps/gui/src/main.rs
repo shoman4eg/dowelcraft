@@ -1906,7 +1906,8 @@ impl App {
                     let y = match hy { -1 => r.bottom(), 1 => r.top(), _ => r.center().y };
                     let hr = Rect::from_center_size(Pos2::new(x, y), Vec2::splat(9.0));
                     painter.rect(hr, 1.0, Color32::WHITE, Stroke::new(1.2, Color32::from_rgb(220, 110, 0)), StrokeKind::Inside);
-                    if resp.drag_started() && ui.ctx().pointer_interact_pos().is_some_and(|m| hr.expand(3.0).contains(m)) {
+                    // Где нажали, а не где мышь сейчас: перетаскивание начинается, когда она уже сдвинулась на несколько точек.
+                    if resp.drag_started() && ui.input(|i| i.pointer.press_origin()).is_some_and(|m| hr.expand(4.0).contains(m)) {
                         grabbed = Some([hx, hy]);
                     }
                 }
