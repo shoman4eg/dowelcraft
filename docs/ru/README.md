@@ -4,6 +4,12 @@
 
 <p align="center"><a href="../../README.md">English</a> · Русский</p>
 
+<p align="center">
+  <a href="https://github.com/shoman4eg/dowelcraft/actions/workflows/ci.yml"><img src="https://github.com/shoman4eg/dowelcraft/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/shoman4eg/dowelcraft/releases"><img src="https://img.shields.io/github/v/release/shoman4eg/dowelcraft?include_prereleases" alt="Release"></a>
+  <a href="../../LICENSE"><img src="https://img.shields.io/github/license/shoman4eg/dowelcraft" alt="License"></a>
+</p>
+
 > ⚠️ **Ранняя альфа.** Программа в активной разработке: возможны ошибки, формат проекта `.dcraft` может меняться. Перед отправкой в производство проверяйте размеры и присадку.
 
 Программа для проектирования корпусной мебели: шкафов, кухонь, комодов, тумб, стеллажей. По модели она сама считает детали, раскрой листов, смету и чертежи. Модели Базис-Мебельщика (`.b3d`, `.fr3d`) открываются и выгружаются, проект для БАЗИС-Раскроя пишется в его формате.
@@ -182,15 +188,25 @@ dowel-craft cut шкаф.dcraft
 
 ## MCP — проектирование через ИИ
 
-`dowel-craft-mcp` — MCP-сервер (JSON-RPC через stdio). В Claude Code в папке этого репозитория он подключается сам файлом `.mcp.json`. В другом месте добавьте в настройки MCP клиента:
+`dowel-craft-mcp` — MCP-сервер (JSON-RPC через stdio). В Claude Code в папке этого репозитория он подключается сам файлом `.mcp.json`.
+
+В другом месте, в Claude Code:
+
+```sh
+claude mcp add dowel-craft -- dowel-craft-mcp
+```
+
+Другие MCP-клиенты — то же в настройках:
 
 ```json
 {
   "mcpServers": {
-    "dowel-craft": { "type": "stdio", "command": "/путь/к/dowel-craft-mcp", "args": [] }
+    "dowel-craft": { "type": "stdio", "command": "dowel-craft-mcp", "args": [] }
   }
 }
 ```
+
+После установки через Homebrew `dowel-craft-mcp` уже в `PATH`; если программа скачана архивом — укажите полный путь к файлу.
 
 Инструменты:
 - `project_new`, `project_open`, `project_import`, `project_save`;
@@ -258,8 +274,8 @@ cargo test --workspace
 - **Release** (`.github/workflows/release.yml`) — по тегу `v*`: сборка под Linux, macOS (Apple Silicon и Intel), Windows, архивы в GitHub Release и рецепт Homebrew в [shoman4eg/homebrew-tap](https://github.com/shoman4eg/homebrew-tap) (нужен секрет `HOMEBREW_TAP_TOKEN`).
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 ## Лицензия

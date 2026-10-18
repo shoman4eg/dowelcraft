@@ -4,6 +4,12 @@
 
 <p align="center">English · <a href="docs/ru/README.md">Русский</a></p>
 
+<p align="center">
+  <a href="https://github.com/shoman4eg/dowelcraft/actions/workflows/ci.yml"><img src="https://github.com/shoman4eg/dowelcraft/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/shoman4eg/dowelcraft/releases"><img src="https://img.shields.io/github/v/release/shoman4eg/dowelcraft?include_prereleases" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/shoman4eg/dowelcraft" alt="License"></a>
+</p>
+
 > ⚠️ **Early alpha.** The program is under active development: expect bugs, and the `.dcraft` project format may still change. Double-check sizes and drilling before sending anything to production.
 
 dowel-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, vanities, shelving. From the model it computes the parts, sheet cutting, the bill of materials and the drawings. Bazis-Mebelshchik models (`.b3d`, `.fr3d`) can be opened and exported, and cutting projects are written in the BAZIS-Raskroy format.
@@ -182,15 +188,25 @@ dowel-craft cut wardrobe.dcraft
 
 ## MCP: design with AI
 
-`dowel-craft-mcp` is an MCP server (JSON-RPC over stdio). Claude Code picks it up automatically in this repository through `.mcp.json`. Elsewhere, add it to your MCP client settings:
+`dowel-craft-mcp` is an MCP server (JSON-RPC over stdio). Claude Code picks it up automatically in this repository through `.mcp.json`.
+
+Elsewhere, with Claude Code:
+
+```sh
+claude mcp add dowel-craft -- dowel-craft-mcp
+```
+
+Other MCP clients take the same in their settings:
 
 ```json
 {
   "mcpServers": {
-    "dowel-craft": { "type": "stdio", "command": "/path/to/dowel-craft-mcp", "args": [] }
+    "dowel-craft": { "type": "stdio", "command": "dowel-craft-mcp", "args": [] }
   }
 }
 ```
+
+After a Homebrew install `dowel-craft-mcp` is on `PATH`; with a downloaded archive, use the full path to the file.
 
 Tools:
 - `project_new`, `project_open`, `project_import`, `project_save`;
@@ -260,8 +276,8 @@ GitHub Actions does the builds:
 - **Release** (`.github/workflows/release.yml`) — on a `v*` tag: builds for Linux, macOS (Apple Silicon and Intel), Windows, archives in a GitHub Release, and the Homebrew formula in [shoman4eg/homebrew-tap](https://github.com/shoman4eg/homebrew-tap) (needs the `HOMEBREW_TAP_TOKEN` secret).
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 ## License
