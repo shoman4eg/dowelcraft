@@ -12,7 +12,7 @@ basis-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 
 ## Your first furniture in 5 steps
 
-1. **Material.** “Project” → “New material”: name (for example “Chipboard 16”), thickness, sheet size → “Add material”. Modules cannot be created without a material. Add edge banding there too.
+1. **Material.** “Project” → the “➕ New material” button: name (for example “Chipboard 16”), thickness, sheet size → “Add material”. Modules cannot be created without a material. Add edge banding there too.
 2. **Cabinet.** “Tools” → “Modules” → the floor cabinet icon. The cabinet appears already selected; its width, height, depth, plinth and doors are on the right in “Properties”.
 3. **Shelves and partitions.** The shelf (or partition) icon in “Panels and fronts into an opening” → the “Front view” opens → click inside an opening. The shelf goes between the nearest parts. Gaps are set below the palette. Esc exits the tool.
 4. **Doors and drawers** — the same: the door or drawers icon → click into an opening. Hinges, runners and their drilling are added automatically.

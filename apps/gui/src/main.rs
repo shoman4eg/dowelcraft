@@ -461,6 +461,8 @@ struct App {
     status: String,
     new_material: NewMaterial,
     new_edge: (String, f64, f64),
+    /// Открыты формы «Новый материал», «Новая кромка» (по кнопке).
+    adding: (bool, bool),
     /// Новая панель: плоскость и размеры контура.
     new_panel: (&'static str, f64, f64),
     /// Режим «Панель в проём» на виде спереди: плоскость, материал, отступы.
@@ -553,6 +555,7 @@ impl Default for App {
             status: String::new(),
             new_material: NewMaterial { name: "ЛДСП 16".into(), thickness: 16.0, sheet: (2800.0, 2070.0), coef: 1.2, texture: None },
             new_edge: ("ПВХ 0,4".into(), 0.4, 19.0),
+            adding: (false, false),
             new_panel: ("vertical", 560.0, 720.0),
             fill: None,
             modify: None,
@@ -1029,7 +1032,12 @@ impl App {
                 // Каждый материал — в своей рамке, чтобы не сливался с формой нового.
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     ui.set_width(ui.available_width());
-                    ui.strong(&m.name);
+                    ui.horizontal(|ui| {
+                        ui.strong(&m.name);
+                        if ui.small_button(crate::i18n::t("Удалить")).on_hover_text(crate::i18n::t("Удалить материал из проекта (если он нигде не используется)")).clicked() {
+                            cmds.push(("material.remove", json!({ "name": m.name })));
+                        }
+                    });
                     ui.label(crate::i18n::t(format!("{} мм, лист {}×{}, коэф. {}", m.thickness, m.sheet.0, m.sheet.1, m.coef)));
                     ui.horizontal_wrapped(|ui| {
                         let shown = m.texture.as_deref().map_or_else(|| crate::i18n::t("нет"), |t| textures::label(std::path::Path::new(t)));
@@ -1074,6 +1082,12 @@ impl App {
             }
             let taken = names.contains(&nm.name.trim());
             ui.add_space(6.0);
+            if !self.adding.0 {
+                if ui.button(crate::i18n::t("➕ Новый материал")).clicked() {
+                    self.adding.0 = true;
+                }
+                return;
+            }
             egui::Frame::group(ui.style()).fill(Color32::from_rgb(0x1f, 0x2d, 0x40)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.strong(crate::i18n::t("➕ Новый материал"));
@@ -1110,9 +1124,14 @@ impl App {
                     ui.end_row();
                 });
                 let ok = !taken && !nm.name.trim().is_empty();
-                if ui.add_enabled(ok, egui::Button::new(crate::i18n::t("Добавить материал"))).clicked() {
-                    cmds.push(("material.add", json!({ "name": nm.name.trim(), "thickness": nm.thickness, "sheet": [nm.sheet.0, nm.sheet.1], "coef": nm.coef, "texture": nm.texture })));
-                }
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(ok, egui::Button::new(crate::i18n::t("Добавить материал"))).clicked() {
+                        cmds.push(("material.add", json!({ "name": nm.name.trim(), "thickness": nm.thickness, "sheet": [nm.sheet.0, nm.sheet.1], "coef": nm.coef, "texture": nm.texture })));
+                    }
+                    if ui.button(crate::i18n::t("Отмена")).clicked() {
+                        self.adding.0 = false;
+                    }
+                });
             });
         });
 
@@ -1120,7 +1139,12 @@ impl App {
             for e in &project.edges {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     ui.set_width(ui.available_width());
-                    ui.strong(&e.name);
+                    ui.horizontal(|ui| {
+                        ui.strong(&e.name);
+                        if ui.small_button(crate::i18n::t("Удалить")).on_hover_text(crate::i18n::t("Удалить кромку из проекта (если она не стоит на деталях)")).clicked() {
+                            cmds.push(("edge.remove", json!({ "name": e.name })));
+                        }
+                    });
                     ui.label(crate::i18n::t(format!("{} мм × {} мм", e.thickness, e.width)));
                 });
             }
@@ -1132,6 +1156,12 @@ impl App {
             }
             let taken = names.contains(&n.trim());
             ui.add_space(6.0);
+            if !self.adding.1 {
+                if ui.button(crate::i18n::t("➕ Новая кромка")).clicked() {
+                    self.adding.1 = true;
+                }
+                return;
+            }
             egui::Frame::group(ui.style()).fill(Color32::from_rgb(0x1f, 0x2d, 0x40)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.strong(crate::i18n::t("➕ Новая кромка"));
@@ -1151,9 +1181,14 @@ impl App {
                     crate::expr::add(ui, w, |d| d.range(1.0..=100.0).suffix(crate::i18n::t(" мм")));
                     ui.end_row();
                 });
-                if ui.add_enabled(!taken && !n.trim().is_empty(), egui::Button::new(crate::i18n::t("Добавить кромку"))).clicked() {
-                    cmds.push(("edge.add", json!({ "name": n.trim(), "thickness": t, "width": w })));
-                }
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(!taken && !n.trim().is_empty(), egui::Button::new(crate::i18n::t("Добавить кромку"))).clicked() {
+                        cmds.push(("edge.add", json!({ "name": n.trim(), "thickness": t, "width": w })));
+                    }
+                    if ui.button(crate::i18n::t("Отмена")).clicked() {
+                        self.adding.1 = false;
+                    }
+                });
             });
         });
 
@@ -1162,9 +1197,11 @@ impl App {
             // После добавления в форме — следующее свободное название, чтобы второй раз не упереться в «уже есть».
             let Some(s) = self.session.as_ref().filter(|_| added) else { continue };
             if cmd == "material.add" {
+                self.adding.0 = false;
                 let taken: Vec<&str> = s.project.materials.iter().map(|m| m.name.as_str()).collect();
                 self.new_material.name = free_name(&self.new_material.name, &taken);
             } else if cmd == "edge.add" {
+                self.adding.1 = false;
                 let taken: Vec<&str> = s.project.edges.iter().map(|e| e.name.as_str()).collect();
                 self.new_edge.0 = free_name(&self.new_edge.0, &taken);
             }

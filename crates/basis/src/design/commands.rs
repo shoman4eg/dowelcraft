@@ -15,7 +15,9 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("project.rename", "{name}"),
     ("material.add", "{name, thickness, article?, sheet?: [длина, ширина], coef?, trim?: обрезка края, kerf?: пропил}"),
     ("material.set", "{name, ...поля} — изменить материал"),
+    ("material.remove", "{name} — удалить материал; отказ, если он используется"),
     ("edge.add", "{name, thickness, article?, width?}"),
+    ("edge.remove", "{name} — удалить кромку; отказ, если она стоит на деталях"),
     ("cabinet.add", "{width, height, depth, material, name?, edge?, plinth?, back?, doors?, door_material?, door_gap?, drawers?: [высоты фасадов снизу вверх], drawer_depth?, drawer_section?, position?: [x,y,z]} → {id}. Навесной модуль — plinth 0 и position с высотой, например [0, 1400, 250]"),
     ("cabinet.set", "{id, ...поля корпуса} — изменить параметры"),
     ("cabinet.remove", "{id}"),
@@ -215,6 +217,26 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
             let name = s(p, "name")?;
             let i = pr.materials.iter().position(|m| m.name == name).ok_or_else(|| format!("нет материала «{name}»"))?;
             pr.materials[i] = patch(&pr.materials[i], p, "name")?;
+        }
+        "material.remove" => {
+            let name = s(p, "name")?;
+            let i = pr.materials.iter().position(|m| m.name == name).ok_or_else(|| format!("нет материала «{name}»"))?;
+            pr.materials.remove(i);
+            // Детали без своего материала не строятся — значит, он где-то используется.
+            if build(pr).is_err() {
+                return Err(format!("материал «{name}» используется в деталях — сначала замените его там"));
+            }
+        }
+        "edge.remove" => {
+            let name = s(p, "name")?;
+            let i = pr.edges.iter().position(|e| e.name == name).ok_or_else(|| format!("нет кромки «{name}»"))?;
+            let templates = pr.cabinets.iter().map(|c| &c.edge).chain(pr.corners.iter().map(|c| &c.edge)).chain(pr.countertops.iter().map(|c| &c.edge));
+            let mut used = templates.flatten().any(|e| e == name);
+            used |= pr.panels().iter().flat_map(|p| &p.edges).any(|e| e.material.split('\r').next() == Some(name));
+            if used {
+                return Err(format!("кромка «{name}» стоит на деталях — сначала снимите или замените её там"));
+            }
+            pr.edges.remove(i);
         }
         "edge.add" => {
             let e: EdgeMaterial = serde_json::from_value(p.clone()).map_err(|e| format!("кромка: {e}"))?;

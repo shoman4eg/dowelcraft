@@ -513,6 +513,24 @@ fn minifix_cups_face_inside() {
     assert_eq!(up, vec![700.0, 700.0], "чашка на верхней пласти крыши");
 }
 
+/// Материал и кромку можно удалить, только если они нигде не используются.
+#[test]
+fn unused_materials_and_edges_are_removed() {
+    let mut s = Session::new(Project::new("Тумба"));
+    for m in ["ЛДСП 16", "ЛДСП 18"] {
+        s.execute("material.add", &json!({"name": m, "thickness": 16})).unwrap();
+    }
+    s.execute("edge.add", &json!({"name": "ПВХ 2", "thickness": 2})).unwrap();
+    s.execute("edge.add", &json!({"name": "ПВХ 1", "thickness": 1})).unwrap();
+    let p = s.execute("panel.add", &json!({"material": "ЛДСП 16", "plane": "front", "size": [400, 600]})).unwrap()["id"].clone();
+    s.execute("panel.edge", &json!({"id": p, "segments": [0], "edge": "ПВХ 2"})).unwrap();
+    assert!(s.execute("material.remove", &json!({"name": "ЛДСП 16"})).unwrap_err().contains("используется"));
+    assert!(s.execute("edge.remove", &json!({"name": "ПВХ 2"})).unwrap_err().contains("стоит на деталях"));
+    s.execute("material.remove", &json!({"name": "ЛДСП 18"})).unwrap();
+    s.execute("edge.remove", &json!({"name": "ПВХ 1"})).unwrap();
+    assert_eq!((s.project.materials.len(), s.project.edges.len()), (1, 1));
+}
+
 /// Фурнитура из библиотеки: отверстия садятся в прижатую панель; в смете — по названию; оторвали — анализ видит.
 #[test]
 fn furniture_drills_panels() {

@@ -453,3 +453,5 @@
 то же у «{}»	same as “{}”
 Все клавиши по умолчанию	Reset all keys
 Сетка включена	Grid on
+Удалить материал из проекта (если он нигде не используется)	Remove the material from the project (if it is not used anywhere)
+Удалить кромку из проекта (если она не стоит на деталях)	Remove the edge banding from the project (if no part uses it)
