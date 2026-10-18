@@ -148,7 +148,7 @@ pub fn cut(job: &Job, params: impl Fn(&str) -> Params) -> Vec<MaterialCut> {
 pub fn label(job: &Job, id: usize) -> Label {
     let p = &job.panels[id];
     let has = |sd| p.edges.iter().any(|e| p.side(e) == sd && e.thickness > 0.0);
-    Label { num: job.number(id), size: p.cut_size(), edges: [has(Side::L1), has(Side::L2), has(Side::W1), has(Side::W2)] }
+    Label { num: job.number(id), name: p.name.clone(), size: p.cut_size(), edges: [has(Side::L1), has(Side::L2), has(Side::W1), has(Side::W2)] }
 }
 
 /// Cutting maps for all materials (SVG pages).

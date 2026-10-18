@@ -72,6 +72,8 @@ pub(crate) fn xml(s: &str) -> String {
 pub struct Label {
     /// Part number.
     pub num: String,
+    /// Part name ("Side", "Shelf"), printed under the number.
+    pub name: String,
     /// Part cut size (length × width).
     pub size: (f64, f64),
     /// Edge banding present on sides L1, L2, W1, W2.
@@ -100,6 +102,19 @@ fn text(s: &mut String, x: f64, y: f64, size: f64, rotate: bool, body: &str) {
         r#"<text x="{x:.2}" y="{y:.2}" font-size="{size:.2}" text-anchor="middle" dominant-baseline="middle"{rot}>{}</text>"#,
         xml(body)
     );
+}
+
+/// `name` shortened with "…" to fit `len` mm of text at font size `fs` (average glyph ≈ 0.55 em).
+fn fit(name: &str, len: f64, fs: f64) -> String {
+    let max = (len / (0.55 * fs)) as usize;
+    if name.chars().count() <= max {
+        return name.to_string();
+    }
+    let mut s: String = name.chars().take(max.saturating_sub(1)).collect();
+    if !s.is_empty() {
+        s.push('…');
+    }
+    s
 }
 
 /// Cutting map of one sheet in BAZIS-Raskroy style: A4 landscape page, units — mm.
@@ -187,10 +202,29 @@ pub fn card_svg(c: &Card, sheet: &Sheet, p: &Params, label: impl Fn(usize) -> La
         if w.min(h) < 9.0 {
             // Narrow part: a single "number size" line along the long side.
             let fs = (w.min(h) * 0.6).clamp(0.8, 3.0);
-            let body = format!("{}  {}x{}", l.num, num(lw), num(lh));
+            let size = format!("{}x{}", num(lw), num(lh));
+            let room = w.max(h) * 0.9 - 0.55 * fs * (l.num.chars().count() + size.chars().count() + 4) as f64;
+            let name = fit(&l.name, room, fs);
+            let body = [l.num.as_str(), &name, &size].iter().filter(|t| !t.is_empty()).copied().collect::<Vec<_>>().join("  ");
             text(&mut s, x + w / 2.0, y + h / 2.0, fs, h > w, &body);
         } else {
-            text(&mut s, x + w / 2.0, y + h / 2.0, fs, h > w * 1.5, &l.num);
+            let along = h > w * 1.5;
+            let (len, across) = if along { (h, w) } else { (w, h) };
+            if across >= 5.0 * fs {
+                // Number above the middle, name below; "below" is +x for text rotated along a tall part.
+                // Centred text keeps clear of the size label at the edge (≈1.5 fs) on both sides.
+                let name = fit(&l.name, len - 4.0 * fs, fs * 0.8);
+                let (dx, dy) = if name.is_empty() { (0.0, 0.0) } else if along { (fs * 0.6, 0.0) } else { (0.0, fs * 0.6) };
+                text(&mut s, x + w / 2.0 - dx, y + h / 2.0 - dy, fs, along, &l.num);
+                if !name.is_empty() {
+                    text(&mut s, x + w / 2.0 + dx, y + h / 2.0 + dy, fs * 0.8, along, &name);
+                }
+            } else {
+                // Low part: no room for two lines above the size, so "number name" on one line.
+                let name = fit(&l.name, len - 4.0 * fs - 0.55 * fs * (l.num.chars().count() + 1) as f64, fs);
+                let body = if name.is_empty() { l.num.clone() } else { format!("{} {}", l.num, name) };
+                text(&mut s, x + w / 2.0, y + h / 2.0, fs, along, &body);
+            }
             text(&mut s, x + w / 2.0, y + h - fs, fs, false, &num(lw));
             text(&mut s, x + w - fs, y + h / 2.0, fs, true, &num(lh));
         }
@@ -274,11 +308,19 @@ mod tests {
         let p = Params { sheet: (2800.0, 2070.0), kerf: 4.0, trim: 10.0 };
         let lay = nest(&[Item { id: 0, length: 1000.0, width: 500.0, grain: true }], &p);
         let card = Card { order: "Заказ <1>", material: "ЛДСП", index: 1, total: 1 };
-        let svg = card_svg(&card, &lay.sheets[0], &p, |_| Label { num: "7".into(), size: (1000.0, 500.0), edges: [true, false, false, false] });
+        let svg = card_svg(&card, &lay.sheets[0], &p, |_| Label { num: "7".into(), name: "Боковина".into(), size: (1000.0, 500.0), edges: [true, false, false, false] });
         assert!(svg.contains("Заказ №: Заказ &lt;1&gt;"));
         assert!(svg.contains("Карта 1 / 1") && svg.contains("Кол-во панелей : 1"));
         assert!(svg.contains("Обрезок"), "большой остаток листа — деловой обрезок");
         assert_eq!(svg.matches(r##"stroke-width="0.5""##).count(), 1, "одна сторона с кромкой");
+        assert!(svg.contains(">Боковина</text>"), "part name under the number");
+    }
+
+    #[test]
+    fn long_name_is_shortened() {
+        assert_eq!(fit("Полка", 100.0, 3.0), "Полка");
+        assert_eq!(fit("Перегородка вертикальная", 11.5, 2.0), "Перегород…");
+        assert_eq!(fit("Полка", 0.5, 3.0), "");
     }
 
     #[test]

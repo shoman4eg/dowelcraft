@@ -2254,9 +2254,10 @@ impl App {
             let r = Rect::from_min_size(to(d.x, d.y), Vec2::new(d.w as f32 * kx, d.h as f32 * kx));
             painter.rect(r, 0.0, Color32::WHITE, Stroke::new(1.0, Color32::from_rgb(220, 0, 0)), StrokeKind::Inside);
             let l = job::label(&self.job, d.id);
-            let text = format!("{}\n{:.0}×{:.0}", l.num, l.size.0, l.size.1);
+            let text = format!("{} {}\n{:.0}×{:.0}", l.num, l.name, l.size.0, l.size.1);
             let size = (r.height().min(r.width()) / 4.0).clamp(8.0, 14.0);
-            painter.text(r.center(), egui::Align2::CENTER_CENTER, text, egui::FontId::proportional(size), Color32::BLACK);
+            // A long name must not spill onto neighbouring parts.
+            painter.with_clip_rect(r).text(r.center(), egui::Align2::CENTER_CENTER, text, egui::FontId::proportional(size), Color32::BLACK);
         }
     }
 
