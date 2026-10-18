@@ -49,6 +49,17 @@ fn span(lo: &Part, hi: &Part, axis: usize, mount: Mount, gap: f64) -> (f64, f64)
     (a + gap, b - gap)
 }
 
+/// Проём уже закрыт: двери или ящики, чей фасад на виде спереди перекрывает новый `[x0, x1] × [y0, y1]`.
+fn occupied(parts: &[Part], x: (f64, f64), y: (f64, f64)) -> Result<(), String> {
+    let hit = parts.iter().filter(|p| matches!(p.kind, Kind::Door | Kind::Drawer)).find(|p| {
+        p.origin[0] < x.1 - 1.0 && x.0 + 1.0 < p.origin[0] + p.size[0] && p.origin[1] < y.1 - 1.0 && y.0 + 1.0 < p.origin[1] + p.size[1]
+    });
+    match hit {
+        Some(p) => Err(format!("в проёме уже стоит «{}» — удалите её или выберите другой проём", p.panel.name)),
+        None => Ok(()),
+    }
+}
+
 /// Петля: чашка ⌀35×11,5 в тыльной пласти двери, центр в 22 мм от края; планка — 2 отверстия ⌀2×12 в стойке
 /// в 37 мм от её переднего края, через 32 мм. Положение — на кромке двери (`edge_x`), на высоте петли,
 /// на тыльной пласти (`door_back`); `inward` — +1, если дверь от кромки идёт вправо (петли слева).
@@ -104,6 +115,7 @@ pub fn door(pr: &mut Project, p: &Value) -> Result<Value, String> {
     let edge = pr.edge(&a.edge)?.cloned();
     let (x0, x1) = span(l, r, 0, a.mount, a.gap);
     let (y0, y1) = span(b, t, 1, a.mount, a.gap);
+    occupied(&parts, (x0, x1), (y0, y1))?;
     let front = (l.origin[2] + l.size[2]).min(r.origin[2] + r.size[2]);
     let z = if a.mount == Mount::Inset { front - m.thickness } else { front };
     let leaves = if a.double { 2 } else { 1 };
@@ -192,6 +204,7 @@ pub fn drawers(pr: &mut Project, p: &Value) -> Result<Value, String> {
     if total > fy1 - fy0 + 1e-6 {
         return Err(format!("фасады {total} мм не помещаются в проём {:.1} мм", fy1 - fy0));
     }
+    occupied(&parts, (fx0, fx1), (fy0, fy0 + total))?;
     let bw = inner1 - inner0 - 2.0 * super::RAIL_GAP;
     if !(depth >= 250.0 && depth <= z1 - z0 && bw > 2.0 * tt) {
         return Err(format!("короб {bw:.0}×{depth:.0} не строится: нужна глубина ≥ 250 мм"));

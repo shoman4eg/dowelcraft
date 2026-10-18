@@ -519,6 +519,10 @@ fn doors_and_drawers_in_opening() {
     assert!(plate.iter().all(|h| (h.pos[0] - 463.0).abs() < 1e-9), "{plate:?}");
     assert!(hardware(&s.project).unwrap().contains(&("Петля накладная с доводчиком".to_string(), 2)));
     assert!(furniture_lost_holes(&s.project).is_empty());
+    // Проём закрыт: вторая дверь и ящики в него не встают.
+    let again = s.execute("door.add", &json!({"at": [300, 360], "material": "ЛДСП 16"})).unwrap_err();
+    assert!(again.contains("уже стоит"), "{again}");
+    assert!(s.execute("drawers.add", &json!({"at": [300, 360], "material": "ЛДСП 16", "heights": [300]})).unwrap_err().contains("уже стоит"));
     s.execute("block.remove", &json!({"id": block})).unwrap();
     // Вкладная двойная.
     let block = s.execute("door.add", &json!({"at": [300, 360], "material": "ЛДСП 16", "mount": "inset", "double": true})).unwrap()["id"].as_u64().unwrap() as u32;
