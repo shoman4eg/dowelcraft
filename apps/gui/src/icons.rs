@@ -495,11 +495,18 @@ pub fn tool(ui: &mut egui::Ui, enabled: bool, icon: Icon, tooltip: &str, selecte
     resp.on_hover_text(tooltip)
 }
 
-/// Кнопка «иконка + текст» для переключателя видов в верхней строке; `selected` — выбранный вид.
+/// Кнопка «иконка + текст» верхней строки; `selected` — выбранный вид.
 pub fn labeled(ui: &mut egui::Ui, icon: Icon, text: &str, tooltip: &str, selected: bool) -> egui::Response {
+    labeled_if(ui, true, icon, text, tooltip, selected)
+}
+
+/// То же, может быть неактивной (бледная, не нажимается).
+pub fn labeled_if(ui: &mut egui::Ui, enabled: bool, icon: Icon, text: &str, tooltip: &str, selected: bool) -> egui::Response {
     let text = crate::i18n::t(text);
-    let galley = ui.painter().layout_no_wrap(text, egui::FontId::proportional(13.0), Color32::from_rgb(0xd7, 0xdb, 0xe0));
-    let (rect, resp) = ui.allocate_exact_size(egui::vec2(28.0 + galley.size().x + 10.0, 26.0), egui::Sense::click());
+    let color = if enabled { Color32::from_rgb(0xd7, 0xdb, 0xe0) } else { Color32::from_rgb(0x80, 0x86, 0x90) };
+    let galley = ui.painter().layout_no_wrap(text, egui::FontId::proportional(13.0), color);
+    let sense = if enabled { egui::Sense::click() } else { egui::Sense::hover() };
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(28.0 + galley.size().x + 10.0, 26.0), sense);
     let fill = if selected {
         Color32::from_rgb(0x2f, 0x5f, 0x99)
     } else if resp.hovered() {
@@ -508,23 +515,10 @@ pub fn labeled(ui: &mut egui::Ui, icon: Icon, text: &str, tooltip: &str, selecte
         Color32::TRANSPARENT
     };
     ui.painter().rect_filled(rect, 3.0, fill);
-    paint(ui.painter(), egui::Rect::from_min_size(rect.min + egui::vec2(4.0, 3.0), egui::vec2(20.0, 20.0)), icon, false);
-    ui.painter().galley(egui::pos2(rect.left() + 28.0, rect.center().y - galley.size().y / 2.0), galley, Color32::from_rgb(0xd7, 0xdb, 0xe0));
-    let tooltip = crate::i18n::t(tooltip);
+    paint(ui.painter(), egui::Rect::from_min_size(rect.min + egui::vec2(4.0, 3.0), egui::vec2(20.0, 20.0)), icon, !enabled);
+    ui.painter().galley(egui::pos2(rect.left() + 28.0, rect.center().y - galley.size().y / 2.0), galley, color);
+    let tooltip = if enabled { crate::i18n::t(tooltip) } else { crate::i18n::t(format!("{tooltip} (сейчас недоступно)")) };
     remember_hover(&resp, &tooltip);
-    resp.on_hover_text(tooltip)
-}
-
-/// Кнопка-иконка, которая может быть неактивной (бледная, не нажимается). Без обёртки `add_enabled_ui`:
-/// та не переносится в `horizontal_wrapped`, и иконки уезжают за край панели.
-pub fn button_if(ui: &mut egui::Ui, enabled: bool, icon: Icon, size: f32, tooltip: &str, selected: bool) -> egui::Response {
-    let tooltip = &crate::i18n::t(tooltip);
-    if enabled && ui.is_enabled() {
-        return button(ui, icon, size, tooltip, selected);
-    }
-    let (rect, resp) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
-    paint(ui.painter(), rect.shrink(size * 0.1), icon, true);
-    remember_hover(&resp, &crate::i18n::t(format!("{tooltip} (сейчас недоступно)")));
     resp.on_hover_text(tooltip)
 }
 

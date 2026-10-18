@@ -397,6 +397,9 @@ fn cabinet_fasteners_drill_exactly() {
     // Полки — на полкодержатели, по 2 с каждой стороны.
     let shelf = by_name(&parts, "Полка")[0];
     assert!(shelf.panel.holes.is_empty(), "полкодержатель сверлится только в стойке");
+    // И под полкой, а не над ней: верх отверстия ⌀5 ниже нижней пласти полки.
+    let supports: Vec<f64> = side.panel.holes.iter().filter(|h| h.diameter == 5.0 && h.depth == 9.0).map(|h| side.origin[1] + h.pos[1]).collect();
+    assert!(!supports.is_empty() && supports.iter().all(|&y| y + 2.5 <= shelf.origin[1] + 1e-9), "полкодержатели {supports:?}, низ полки {}", shelf.origin[1]);
     let hw = hardware(&s.project).unwrap();
     let count = |n: &str| hw.iter().find(|(k, _)| k.starts_with(n)).map_or(0, |r| r.1);
     assert_eq!(count("Полкодержатель"), 2 * 2 * 2);

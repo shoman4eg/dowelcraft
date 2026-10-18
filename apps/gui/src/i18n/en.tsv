@@ -345,9 +345,7 @@
 Лист, пропил и обрезка задаются у каждого материала: панель «Проект» → «Материалы».	Sheet, kerf and trim are set per material: “Project” panel → “Materials”.
 Лист для материалов модели Базиса	Sheet for the Bazis model materials
 Читаю папки фурнитуры…	Reading hardware folders…
-Настройки черчения: сетка	Drafting settings: grid
 Сетка (F7)	Grid (F7)
-Настройки черчения	Drafting settings
 Сетка	Grid
 Сетка включена (F7)	Grid on (F7)
 Шаг сетки	Grid spacing
@@ -414,3 +412,12 @@
 Собрать выделенное в группу (блок): двигается и копируется вместе	Group the selection into a block: it moves and copies together
 Выделите группу (щелчок по её названию) — её содержимое выйдет на уровень выше	Select a group (click its name) — its contents move one level up
 Показать скрытые	Show hidden
+4 вида	4 views
+Четыре окна: спереди, слева, сверху и 3D; в каждом — режим показа (прозрачность, каркас) и приближение	Four windows: front, left, top and 3D; each has its display mode (transparent, wireframe) and zoom
+Новый	New
+Открыть	Open
+Сохранить как	Save as
+Редактировать	Edit
+Настройки…	Settings…
+Настройки	Settings
+Настройки: язык, сетка	Settings: language, grid

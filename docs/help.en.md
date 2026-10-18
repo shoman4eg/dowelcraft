@@ -6,7 +6,7 @@ basis-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 
 - **Top** — the icon bar (new, open, save, undo, export, analysis) and the menus “File”, “Edit”, “View”, “Insert”, “Modify”, “Tools”, “Help”.
 - **Left** — the “Tools” palette (what you can create and how to change it), “Project” (materials and edge banding), “Hardware” (model library by folders).
-- **Centre** — “3D”, “Front view”, “Parts” (table), “Cutting” (sheet maps).
+- **Centre** — “3D”, “4 views” (front, left, top and 3D at once, each can be transparent), “Front view”, “Parts” (table), “Cutting” (sheet maps).
 - **Right** — “Model structure” (what the item consists of) and “Properties” of the selection.
 - **Bottom** — a hint about what to do next. Hover an icon and the same line tells what it does.
 
@@ -30,7 +30,7 @@ basis-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 
 - **Several projects.** Each project is a tab under the menu. “+” or “New” opens a new tab, so does opening a file. “*” after the name means unsaved changes; closing asks whether to save.
 - **Material texture.** “Project” → “Choose…” at a material (or in the new material form): an image library by folders with previews and search. Add your folders with “+ Add folder…”. “by article” finds the Baltlaminat image by the material article. See it in the 3D “Textured” mode.
-- **The grid** in the front view and in 3D is infinite and its spacing grows when you zoom out. Toggle it with F7 or the grid icon at the bottom right; spacing and major lines — the gear “Drafting settings”.
+- **The grid** in the front view and in 3D is infinite and its spacing grows when you zoom out. Toggle it with F7 or the grid icon at the bottom right; spacing and major lines — the gear or “Edit → Settings…”, which also has the program language.
 
 ## Model structure
 

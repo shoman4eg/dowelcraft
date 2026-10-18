@@ -168,7 +168,9 @@ pub fn joint(parts: &[Part], a: usize, b: usize) -> Option<Joint> {
     origin[m] = (blo[m] + bhi[m]) / 2.0;
     origin[j] = j0;
     let unit = |i: usize, s: f64| { let mut v = [0.0; 3]; v[i] = s; v };
-    let ny = pb.panel.frame.map_or(1.0, |f| f.z[m].signum());
+    // У горизонтальной B ось Y — всегда вверх: полкодержатель под полкой, чашка эксцентрика сверху,
+    // как бы ни была повёрнута её лицевая пласть.
+    let ny = if m == 1 { 1.0 } else { pb.panel.frame.map_or(1.0, |f| f.z[m].signum()) };
     // Z — вдоль стыка в сторону роста координаты (точки отсчитываются от его начала); тройка может
     // быть и левой — для перевода координат это не важно.
     let (xa, ya, za) = (unit(k, sign), unit(m, ny), unit(j, 1.0));

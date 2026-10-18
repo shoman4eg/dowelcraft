@@ -471,7 +471,7 @@ struct App {
     dirty: bool,
     /// Спросить «Сохранить изменения?» перед закрытием вкладки.
     close_ask: Option<docs::CloseAsk>,
-    /// Открыто окно «Настройки черчения».
+    /// Открыто окно «Настройки» (язык, сетка).
     drafting: bool,
     /// Показана стартовая страница (вместо рабочих панелей), как вкладка «Start» в cadcraft.
     start: bool,
@@ -834,7 +834,7 @@ impl eframe::App for App {
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // Как переключатели строки состояния cadcraft: сетка (F7) и настройки черчения.
-                    if icons::button(ui, icons::Icon::Gear, 20.0, "Настройки черчения: сетка", self.drafting).clicked() {
+                    if icons::button(ui, icons::Icon::Gear, 20.0, "Настройки: язык, сетка", self.drafting).clicked() {
                         self.drafting = !self.drafting;
                     }
                     if icons::button(ui, icons::Icon::Grid, 20.0, "Сетка (F7)", self.settings.grid.on).clicked() {
@@ -905,33 +905,32 @@ impl eframe::App for App {
 impl App {
     /// Верхняя строка иконок (как в cadcraft): файл, отмена, экспорт, проверка; название проекта.
     fn top_bar(&mut self, ui: &mut egui::Ui) {
-        use icons::{Icon, button, button_if};
-        const S: f32 = 28.0;
+        use icons::{Icon, labeled, labeled_if};
         egui::Panel::top("toolbar").exact_size(34.0).frame(egui::Frame::NONE.fill(theme::T.chrome).inner_margin(egui::Margin::symmetric(10, 0))).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
-                if button(ui, Icon::New, S, "Новый проект", false).clicked() {
+                if labeled(ui, Icon::New, "Новый", "Новый проект", false).clicked() {
                     self.new_project();
                 }
-                if button(ui, Icon::Open, S, "Открыть… (.bcraft, .b3d, .fr3d)", false).clicked() {
+                if labeled(ui, Icon::Open, "Открыть", "Открыть… (.bcraft, .b3d, .fr3d)", false).clicked() {
                     self.open_dialog();
                 }
-                if button(ui, Icon::Save, S, "Сохранить (Ctrl+S)", false).clicked() {
+                if labeled(ui, Icon::Save, "Сохранить", "Сохранить (Ctrl+S)", false).clicked() {
                     self.save(false);
                 }
-                if button(ui, Icon::SaveAs, S, "Сохранить как…", false).clicked() {
+                if labeled(ui, Icon::SaveAs, "Сохранить как", "Сохранить как…", false).clicked() {
                     self.save(true);
                 }
                 ui.separator();
                 let (undo, redo) = self.session.as_ref().map_or((false, false), |s| (s.can_undo(), s.can_redo()));
-                if button_if(ui, undo, Icon::Undo, S, "Отменить (Ctrl+Z)", false).clicked() {
+                if labeled_if(ui, undo, Icon::Undo, "Отменить", "Отменить (Ctrl+Z)", false).clicked() {
                     self.exec("undo", json!({}));
                 }
-                if button_if(ui, redo, Icon::Redo, S, "Вернуть (Ctrl+Y)", false).clicked() {
+                if labeled_if(ui, redo, Icon::Redo, "Вернуть", "Вернуть (Ctrl+Y)", false).clicked() {
                     self.exec("redo", json!({}));
                 }
                 ui.separator();
-                let export = button(ui, Icon::Export, S, "Экспорт: раскрой, Базис-Раскрой, спецификация, смета, .b3d, чертежи", false);
+                let export = labeled(ui, Icon::Export, "Экспорт", "Экспорт: раскрой, Базис-Раскрой, спецификация, смета, .b3d, чертежи", false);
                 egui::Popup::menu(&export).show(|ui| {
                     for (what, label) in EXPORTS {
                         if ui.button(crate::i18n::t(label)).clicked() {
@@ -939,26 +938,31 @@ impl App {
                         }
                     }
                 });
-                if button(ui, Icon::Analyze, S, "Анализ модели", false).clicked() {
+                if labeled(ui, Icon::Analyze, "Анализ", "Анализ модели", false).clicked() {
                     self.analyze();
                 }
-                if button_if(ui, self.session.is_some(), Icon::Script, S, "Выполнить скрипт Базиса (.js)", false).clicked() {
+                if labeled_if(ui, self.session.is_some(), Icon::Script, "Скрипт", "Выполнить скрипт Базиса (.js)", false).clicked() {
                     self.pick_script();
                 }
                 ui.separator();
                 // Вид на холсте — как вкладки, но в строке иконок.
-                for (pane, icon, text, tip) in [
-                    (Pane::Model, Icon::ViewIso, "3D", "Модель в 3D"),
-                    (Pane::Front, Icon::ViewFront, "Спереди", "Вид спереди: ставить полки, двери и ящики в проём, двигать мышью"),
-                    (Pane::Parts, Icon::Table, "Детали", "Таблица деталей: размеры, материал, кромка"),
-                    (Pane::Cut, Icon::CutSheet, "Раскрой", "Карты раскроя листов"),
+                // `quad`: у 3D два вида — одно окно или четыре.
+                for (pane, quad, icon, text, tip) in [
+                    (Pane::Model, Some(false), Icon::ViewIso, "3D", "Модель в 3D"),
+                    (Pane::Model, Some(true), Icon::Quad, "4 вида", "Четыре окна: спереди, слева, сверху и 3D; в каждом — режим показа (прозрачность, каркас) и приближение"),
+                    (Pane::Front, None, Icon::ViewFront, "Спереди", "Вид спереди: ставить полки, двери и ящики в проём, двигать мышью"),
+                    (Pane::Parts, None, Icon::Table, "Детали", "Таблица деталей: размеры, материал, кромка"),
+                    (Pane::Cut, None, Icon::CutSheet, "Раскрой", "Карты раскроя листов"),
                 ] {
-                    if icons::labeled(ui, icon, text, tip, !self.start && self.view == pane).clicked() {
+                    if icons::labeled(ui, icon, text, tip, !self.start && self.view == pane && quad.is_none_or(|q| q == self.quad)).clicked() {
                         self.start = false;
                         self.view = pane;
+                        if let Some(q) = quad {
+                            self.quad = q;
+                        }
                     }
                 }
-                if self.session.is_none() && button(ui, Icon::Unlock, S, "Сделать редактируемой: импорт модели Базиса в свой проект", false).clicked() {
+                if self.session.is_none() && labeled(ui, Icon::Unlock, "Редактировать", "Сделать редактируемой: импорт модели Базиса в свой проект", false).clicked() {
                     self.make_editable();
                 }
                 ui.separator();

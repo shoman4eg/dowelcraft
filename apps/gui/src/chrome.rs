@@ -156,6 +156,10 @@ impl App {
                 if ui.add(egui::Button::new(crate::i18n::t("Снять выделение")).shortcut_text("Esc")).clicked() {
                     self.menu_apply(MenuAct::Deselect);
                 }
+                ui.separator();
+                if ui.button(crate::i18n::t("Настройки…")).clicked() {
+                    self.drafting = true;
+                }
             });
             ui.menu_button(crate::i18n::t("Вид"), |ui| {
                 for (label, pane) in [("3D", Pane::Model), ("Вид спереди", Pane::Front), ("Детали", Pane::Parts), ("Раскрой", Pane::Cut)] {
@@ -226,15 +230,6 @@ impl App {
                 }
                 if ui.add_enabled(editable, egui::Button::new(crate::i18n::t("Выполнить скрипт Базиса…"))).clicked() {
                     self.pick_script();
-                }
-            });
-            ui.menu_button(crate::i18n::t("Язык / Language"), |ui| {
-                for (code, label) in [("ru", "Русский"), ("en", "English")] {
-                    if ui.radio(self.settings.language == code, label).clicked() {
-                        self.settings.language = code.into();
-                        crate::i18n::set_language(code);
-                        self.settings.save();
-                    }
                 }
             });
             ui.menu_button(crate::i18n::t("Справка"), |ui| {
@@ -399,7 +394,17 @@ impl App {
     pub(crate) fn help_windows(&mut self, ctx: &egui::Context) {
         let before = self.settings.grid;
         let mut open = self.drafting;
-        egui::Window::new(crate::i18n::t("Настройки черчения")).open(&mut open).resizable(false).show(ctx, |ui| {
+        let mut language = None;
+        egui::Window::new(crate::i18n::t("Настройки")).id(egui::Id::new("settings_window")).open(&mut open).resizable(false).show(ctx, |ui| {
+            ui.heading("Язык / Language");
+            ui.horizontal(|ui| {
+                for (code, label) in [("ru", "Русский"), ("en", "English")] {
+                    if ui.radio(self.settings.language == code, label).clicked() {
+                        language = Some(code);
+                    }
+                }
+            });
+            ui.separator();
             let g = &mut self.settings.grid;
             ui.heading(crate::i18n::t("Сетка"));
             ui.checkbox(&mut g.on, crate::i18n::t("Сетка включена (F7)"));
@@ -412,6 +417,11 @@ impl App {
             ui.weak(crate::i18n::t("При отдалении шаг сам укрупняется в 5 раз, чтобы линии не сливались."));
         });
         self.drafting = open;
+        if let Some(code) = language {
+            self.settings.language = code.into();
+            crate::i18n::set_language(code);
+            self.settings.save();
+        }
         if self.settings.grid != before {
             self.settings.save();
         }
