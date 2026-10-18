@@ -77,10 +77,11 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      # --prerelease while the app is in early alpha.
       - name: GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" --repo "${{ github.repository }}" --title "${{ github.ref_name }}" --generate-notes dist/dowel-craft-*
+        run: gh release create "${{ github.ref_name }}" --repo "${{ github.repository }}" --title "${{ github.ref_name }}" --generate-notes --prerelease dist/dowel-craft-*
       - name: Homebrew formula and cask
         if: env.TAP_TOKEN != ''
         env:
