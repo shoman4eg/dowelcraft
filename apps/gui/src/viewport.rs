@@ -40,6 +40,27 @@ pub enum Click {
     Furniture(u32, bool),
     /// Выделенное перетащили мышью: сдвиг в мм (по одной оси, целые мм).
     Move([f64; 3]),
+    /// Маркером изменили габарит выделенной панели: новый `lo`, `hi` в мм.
+    Resize([f64; 3], [f64; 3]),
+}
+
+/// Новый габарит панели `i`, когда маркер `h` (−1 — край `lo`, 1 — `hi`, 0 — не трогать) по осям
+/// `axes` сдвинули на `d` мм: края прилипают к краям других деталей ближе `tol` мм, целые мм.
+fn resized(parts: &[Part], i: usize, axes: [usize; 2], h: [i8; 2], d: [f64; 2], tol: f64) -> ([f64; 3], [f64; 3]) {
+    let p = &parts[i];
+    let (mut lo, mut hi) = (p.origin, std::array::from_fn(|k| p.origin[k] + p.size[k]));
+    let snap = |k: usize, v: f64| -> f64 {
+        let best = parts.iter().enumerate().filter(|(j, _)| *j != i).flat_map(|(_, q)| [q.origin[k], q.origin[k] + q.size[k]]).map(|e| e - v).filter(|e| e.abs() < tol).min_by(|a, b| a.abs().total_cmp(&b.abs()));
+        (v + best.unwrap_or(0.0)).round()
+    };
+    for (n, &k) in axes.iter().enumerate() {
+        match h[n] {
+            -1 => lo[k] = snap(k, lo[k] + d[n]).min(hi[k] - 1.0),
+            1 => hi[k] = snap(k, hi[k] + d[n]).max(lo[k] + 1.0),
+            _ => {}
+        }
+    }
+    (lo, hi)
 }
 
 /// Фурнитура в окне: положение, габарит в своих осях, сетка модели (пустая — рисуется рамкой).
@@ -345,6 +366,8 @@ pub struct Viewport {
     /// Перетаскивание выделенного: накопленный сдвиг мыши (пиксели экрана) и сдвиг, с которым построена сцена.
     dragging: Option<Vec2>,
     offset_built: [f32; 3],
+    /// Тянут маркер размера: какой (по осям экрана) и накопленный сдвиг мыши (пиксели).
+    resize: Option<([i8; 2], Vec2)>,
 }
 
 impl Default for Viewport {
@@ -368,6 +391,7 @@ impl Default for Viewport {
             textures_built: Vec::new(),
             mode_built: None,
             dragging: None,
+            resize: None,
             offset_built: [0.0; 3],
         }
     }
@@ -825,6 +849,28 @@ impl Viewport {
     }
 
     /// Сдвиг выделенного при перетаскивании: по оси проекта, вдоль которой на экране идёт мышь, целые мм.
+    /// Мировые оси вправо и вверх по экрану у вида без поворота («Спереди», «Слева», «Сверху»).
+    fn screen_axes(&self) -> Option<[usize; 2]> {
+        let (_, r, u) = self.camera.basis();
+        let axis = |v: [f32; 3]| (0..3).find(|&k| v[k].abs() > 0.999);
+        Some([axis(r)?, axis(u)?])
+    }
+
+    /// Точка проекта на экране: смещение от центра окна, точки egui.
+    fn to_screen(&self, p: [f64; 3]) -> Vec2 {
+        let (_, r, u) = self.camera.basis();
+        let d: [f32; 3] = std::array::from_fn(|k| p[k] as f32 - self.camera.target[k]);
+        let dot = |v: [f32; 3]| (0..3).map(|k| d[k] * v[k]).sum::<f32>();
+        Vec2::new(dot(r), -dot(u)) / self.camera.mm_per_px
+    }
+
+    /// Сдвиг мыши `m` (пиксели) в мм вдоль осей экрана `axes`.
+    fn screen_mm(&self, axes: [usize; 2], m: Vec2) -> [f64; 2] {
+        let (_, r, u) = self.camera.basis();
+        let k = f64::from(self.camera.mm_per_px);
+        [f64::from(m.x * r[axes[0]].signum()) * k, -f64::from(m.y * u[axes[1]].signum()) * k]
+    }
+
     fn drag_offset(&self) -> [f64; 3] {
         let Some(d) = self.dragging else { return [0.0; 3] };
         let (_, r, u) = self.camera.basis();
@@ -912,8 +958,58 @@ impl Viewport {
                 hit => Click::Menu(hit.and_then(Result::ok)),
             };
         }
+        // Маркеры размера, как на виде спереди: в окнах без поворота у одной выделенной прямоугольной панели.
+        let sized = match (self.label, self.screen_axes(), selected) {
+            (Some(_), Some(axes), &[i]) if parts[i].id != 0 && parts[i].panel.is_rect() => Some((i, axes)),
+            _ => None,
+        };
+        let mut markers = Vec::new();
+        if let Some((i, axes)) = sized {
+            let f = parts[i].panel.frame.unwrap_or(basis::geom::Frame::IDENTITY);
+            let d = self.resize.map_or([0.0; 2], |(_, m)| self.screen_mm(axes, m));
+            let (lo, hi) = resized(parts, i, axes, self.resize.map_or([0; 2], |(h, _)| h), d, 10.0 * f64::from(self.camera.mm_per_px));
+            for hx in [-1i8, 0, 1] {
+                for hy in [-1i8, 0, 1] {
+                    // По толщине размер не тянется.
+                    if (hx, hy) == (0, 0) || (hx != 0 && f.z[axes[0]].abs() > 0.5) || (hy != 0 && f.z[axes[1]].abs() > 0.5) {
+                        continue;
+                    }
+                    let mut p = lo;
+                    for (n, h) in [hx, hy].into_iter().enumerate() {
+                        let k = axes[n];
+                        p[k] = match h { -1 => lo[k], 1 => hi[k], _ => (lo[k] + hi[k]) / 2.0 };
+                    }
+                    markers.push(([hx, hy], rect.center() + self.to_screen(p)));
+                }
+            }
+            if resp.drag_started_by(egui::PointerButton::Primary)
+                && let Some(o) = ui.input(|i| i.pointer.press_origin())
+                && let Some((h, _)) = markers.iter().find(|(_, m)| (o - *m).abs().max_elem() < 7.0)
+            {
+                self.resize = Some((*h, Vec2::ZERO));
+            }
+            if let Some((h, m)) = &mut self.resize {
+                *m += resp.drag_delta();
+                if !resp.dragged() {
+                    let (h, m) = (*h, *m);
+                    self.resize = None;
+                    let (a, b) = resized(parts, i, axes, h, self.screen_mm(axes, m), 10.0 * f64::from(self.camera.mm_per_px));
+                    if (a, b) != (parts[i].origin, std::array::from_fn(|k| parts[i].origin[k] + parts[i].size[k])) {
+                        click = Click::Resize(a, b);
+                    }
+                }
+            }
+            if self.resize.is_some() {
+                let (pa, pb) = (rect.center() + self.to_screen(lo), rect.center() + self.to_screen(hi));
+                ui.painter().rect_stroke(egui::Rect::from_two_pos(pa, pb), 0.0, egui::Stroke::new(1.5, Color32::from_rgb(220, 110, 0)), egui::StrokeKind::Middle);
+                ui.painter().text(egui::Rect::from_two_pos(pa, pb).center_top() - Vec2::new(0.0, 4.0), egui::Align2::CENTER_BOTTOM, format!("{} × {}", hi[axes[0]] - lo[axes[0]], hi[axes[1]] - lo[axes[1]]), egui::FontId::proportional(13.0), Color32::from_rgb(230, 140, 40));
+            }
+        } else {
+            self.resize = None;
+        }
         // Начали тянуть по выделенной детали — двигаем её, по пустому месту или другой детали — вращаем вид.
-        if resp.drag_started_by(egui::PointerButton::Primary)
+        if self.resize.is_none()
+            && resp.drag_started_by(egui::PointerButton::Primary)
             && let Some(o) = ui.input(|i| i.pointer.press_origin())
             && matches!(self.pick(o - rect.center()), Some(Ok(i)) if selected.contains(&i))
         {
@@ -930,6 +1026,7 @@ impl Viewport {
                     click = Click::Move(mv);
                 }
             }
+        } else if self.resize.is_some() {
         } else if resp.dragged_by(egui::PointerButton::Primary) && self.label.is_some() {
             // Окна «Спереди», «Слева», «Сверху» (4 вида) не поворачиваются: тянуть — двигать вид.
             self.camera.pan(resp.drag_delta());
@@ -1083,6 +1180,10 @@ impl Viewport {
             let text = ["X", "Y", "Z"].iter().zip(mv).find(|(_, v)| *v != 0.0).map_or_else(|| crate::i18n::t("сдвиг: 0"), |(a, v)| crate::i18n::t(format!("сдвиг по {a}: {v} мм")));
             ui.painter().text(rect.left_top() + Vec2::new(10.0, 28.0), egui::Align2::LEFT_TOP, text, egui::FontId::proportional(15.0), Color32::from_rgb(0xf5, 0x9e, 0x3b));
         }
+        for (_, m) in &markers {
+            let hr = egui::Rect::from_center_size(*m, Vec2::splat(9.0));
+            ui.painter().rect(hr, 1.0, Color32::WHITE, egui::Stroke::new(1.2, Color32::from_rgb(220, 110, 0)), egui::StrokeKind::Inside);
+        }
         if let Some(l) = self.label {
             ui.painter().text(rect.left_top() + Vec2::new(6.0, 4.0), egui::Align2::LEFT_TOP, l, egui::FontId::proportional(13.0), Color32::from_gray(90));
             ui.painter().rect_stroke(rect, 0.0, egui::Stroke::new(1.0, Color32::from_gray(150)), egui::StrokeKind::Inside);
@@ -1105,6 +1206,22 @@ mod tests {
         v.camera.mm_per_px = 2.0;
         v.dragging = Some(d);
         v.drag_offset()
+    }
+
+    /// Маркер размера: край тянется на сдвиг мыши и прилипает к краю соседней детали.
+    #[test]
+    fn marker_resizes_and_snaps() {
+        let mut s = basis::design::Session::new(basis::design::Project::new("т"));
+        s.execute("material.add", &serde_json::json!({"name": "ЛДСП 16", "thickness": 16})).unwrap();
+        s.execute("panel.add", &serde_json::json!({"material": "ЛДСП 16", "plane": "front", "size": [400, 600], "position": [0, 0, 0]})).unwrap();
+        s.execute("panel.add", &serde_json::json!({"material": "ЛДСП 16", "plane": "vertical", "size": [300, 700], "position": [500, 0, 0]})).unwrap();
+        let parts = basis::design::build(&s.project).unwrap();
+        // Правый край первой панели (X) на +93 мм: 493 прилипает к 500 (ближе 10 мм).
+        let (lo, hi) = resized(&parts, 0, [0, 1], [1, 0], [93.0, 0.0], 10.0);
+        assert_eq!((lo, hi), ([0.0, 0.0, 0.0], [500.0, 600.0, 16.0]));
+        // Верх на +50,4 мм: соседей рядом нет — целые мм.
+        let (_, hi) = resized(&parts, 0, [0, 1], [0, 1], [0.0, 50.4], 10.0);
+        assert_eq!(hi[1], 650.0);
     }
 
     /// Тянем выделенное: сдвиг идёт по одной оси проекта — той, вдоль которой на экране движется мышь.

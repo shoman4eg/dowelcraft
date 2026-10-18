@@ -2050,6 +2050,11 @@ impl App {
                 viewport::Click::Part(i) => self.select(Some(i)),
                 viewport::Click::Empty => self.select(None),
                 viewport::Click::Menu(hit) => self.menu_pick(hit),
+                viewport::Click::Resize(lo, hi) => {
+                    if let Some(id) = self.parts.as_ref().ok().and_then(|p| self.selected_all().first().map(|&i| p[i].id)) {
+                        self.exec("panel.box", json!({ "id": id, "lo": lo, "hi": hi }));
+                    }
+                }
                 viewport::Click::Move(d) => {
                     let ids = self.targets();
                     if !ids.is_empty() {
