@@ -160,6 +160,13 @@ fn hit(o: [f32; 3], d: [f32; 3], t: &[[f32; 3]; 3]) -> Option<f32> {
     ((0.0..=1.0).contains(&u) && v >= 0.0 && u + v <= 1.0 && dist > 0.0).then_some(dist)
 }
 
+/// Как красить сцену (см. `Scene::new`).
+enum Look<'a> {
+    Plain,
+    Wire,
+    Textured(&'a [(String, String, [f64; 2])]),
+}
+
 /// Цвет выделенной детали.
 const SELECTED: [f32; 3] = [1.0, 0.62, 0.2];
 
@@ -632,8 +639,13 @@ fn upload(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLa
 }
 
 impl Scene {
-    /// `textures` — для режима «В текстурах»: картинка материала детали (номер, плитка мм).
-    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: &[usize], furniture: &[FurnView], textures: Option<&[(String, String, [f64; 2])]>, offset: [f32; 3]) -> Scene {
+    /// `look` — как красить: «В текстурах» — картинка материала детали (номер, плитка мм), «Каркас» — рёбра цветом детали.
+    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: &[usize], furniture: &[FurnView], look: Look, offset: [f32; 3]) -> Scene {
+        let (textures, wire) = match look {
+            Look::Textured(t) => (Some(t), false),
+            Look::Wire => (None, true),
+            Look::Plain => (None, false),
+        };
         // Пока выделенное тащат мышью — оно рисуется со сдвигом `offset`.
         let moved = |part: usize, p: [f32; 3]| if selected.contains(&part) { std::array::from_fn(|k| p[k] + offset[k]) } else { p };
         let mut tris = Vec::with_capacity(m.vertices.len() * STRIDE as usize);
@@ -679,8 +691,17 @@ impl Scene {
             (lo, hi) = ([0.0; 3], [1000.0; 3]);
         }
         let mut lines = Vec::new();
-        let edge = [0.15, 0.15, 0.15, 1.0];
+        // Рёбра тёмные поверх граней; в «Каркасе» граней нет, фон тёмный — рёбра цвета детали.
+        let edge_of = |part: usize| match (wire, selected.contains(&part)) {
+            (false, _) => [0.15, 0.15, 0.15, 1.0],
+            (true, true) => [SELECTED[0], SELECTED[1], SELECTED[2], 1.0],
+            (true, false) => {
+                let c = color(m.kinds[part]);
+                [c[0], c[1], c[2], 1.0]
+            }
+        };
         for (a, b, part) in &m.lines {
+            let edge = edge_of(*part as usize);
             push_vertex(&mut lines, moved(*part as usize, *a), [0.0; 3], edge);
             push_vertex(&mut lines, moved(*part as usize, *b), [0.0; 3], edge);
         }
@@ -932,9 +953,13 @@ impl Viewport {
         }
         let textured = self.mode == Mode::Textured;
         let offset = self.drag_offset().map(|v| v as f32);
-        if self.offset_built != offset || self.selected.as_deref() != Some(selected) || self.furniture_built != self.furniture || self.textures_built != self.textures || self.mode_built.map(|m| m == Mode::Textured) != Some(textured) {
-            let tex = textured.then_some(&self.textures[..]);
-            self.scene = Some(Scene::new(&rs.device, parts, &self.mesh, selected, &self.furniture, tex, offset));
+        if self.offset_built != offset || self.selected.as_deref() != Some(selected) || self.furniture_built != self.furniture || self.textures_built != self.textures || self.mode_built != Some(self.mode) {
+            let look = match self.mode {
+                Mode::Textured => Look::Textured(&self.textures),
+                Mode::Wire => Look::Wire,
+                Mode::Solid | Mode::Hidden | Mode::XRay => Look::Plain,
+            };
+            self.scene = Some(Scene::new(&rs.device, parts, &self.mesh, selected, &self.furniture, look, offset));
             self.offset_built = offset;
             self.selected = Some(selected.to_vec());
             self.furniture_built = self.furniture.clone();
