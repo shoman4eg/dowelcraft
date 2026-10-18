@@ -1,6 +1,6 @@
 # Проект БАЗИС-Раскроя (XML)
 
-Эталоны: `reference/raskroy-project-*.xml`. Кодировка windows-1251, строки CRLF. Реализация: `crates/dowel/src/raskroy.rs`.
+Кодировка windows-1251, строки CRLF. Реализация: `crates/dowel/src/raskroy.rs`.
 
 ```
 PROJECT version=2 subver=7 name=… code=""
@@ -14,7 +14,7 @@ PROJECT version=2 subver=7 name=… code=""
   BINDINGROOTNODE                      — крепёж и фурнитура (не выгружаем)
 ```
 
-## Правила, установленные по эталонам
+## Правила
 
 - **Количество.** Каждая деталь выгружается отдельно, `QTY=1`.
 - **Размеры.**

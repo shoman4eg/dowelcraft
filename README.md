@@ -223,7 +223,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-Some tests compare results with Bazis reference files in `reference/` and `example/`.
+Some tests compare results with Bazis sample files kept in local `reference/` and `example/` folders. They are not in the repository; without them those tests are skipped.
 
 ## Code layout
 
@@ -240,8 +240,6 @@ Some tests compare results with Bazis reference files in `reference/` and `examp
 - `apps/cli` — the command line.
 - `apps/mcp` — the MCP server.
 - `docs/` — user guide, formats (`formats/b3d.md`, `formats/raskroy-xml.md`), scripts, plan.
-- `reference/` — Bazis reference files: Raskroy projects, model + document pairs, exports, scripts.
-- `example/` — sample models for reader tests.
 
 Most of the code comments and internal docs are in Russian.
 
