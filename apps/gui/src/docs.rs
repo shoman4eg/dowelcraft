@@ -248,13 +248,13 @@ mod window_tests {
 
     use crate::App;
 
-    /// Клавиши 1–4 переключают вид: 3D, спереди, детали, раскрой.
+    /// Ctrl+1–4 переключают вкладку: 3D, спереди, детали, раскрой; 1–4 без Ctrl — камеру 3D.
     #[test]
     fn number_keys_switch_the_view() {
         let ctx = egui::Context::default();
         let mut app = App::default();
         let mut frame = eframe::Frame::_new_kittest();
-        let key = |k| egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+        let key = |k| egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::COMMAND };
         for (k, pane) in [(egui::Key::Num3, crate::Pane::Parts), (egui::Key::Num4, crate::Pane::Cut), (egui::Key::Num2, crate::Pane::Front), (egui::Key::Num1, crate::Pane::Model)] {
             let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 900.0))), events: vec![key(k)], ..Default::default() };
             let mut out = ctx.run_ui(input, |ui| eframe::App::ui(&mut app, ui, &mut frame));
@@ -268,6 +268,16 @@ mod window_tests {
         out.textures_delta.clear();
         assert_eq!(app.viewport.mode, crate::viewport::Mode::XRay);
         assert_eq!(app.view, crate::Pane::Model);
+        // «3» без Ctrl — камера сверху, и из таблицы деталей сразу в 3D.
+        app.view = crate::Pane::Parts;
+        let three = egui::Event::Key { key: egui::Key::Num3, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 900.0))), events: vec![three], ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| eframe::App::ui(&mut app, ui, &mut frame));
+        out.textures_delta.clear();
+        assert_eq!(app.view, crate::Pane::Model);
+        let mut top = crate::viewport::Viewport::default();
+        top.set_view(0.0, 89.9);
+        assert_eq!((app.viewport.camera.yaw, app.viewport.camera.pitch), (top.camera.yaw, top.camera.pitch));
     }
 
     /// Всё окно программы: навести мышь на иконку палитры — должна открыться подсказка.

@@ -828,7 +828,7 @@ impl Viewport {
     pub fn toolbar(&mut self, ui: &mut egui::Ui) {
         use crate::icons::{Icon, button};
         const S: f32 = 26.0;
-        let views = [(Icon::ViewFront, "Вид спереди", 0.0, 0.0), (Icon::ViewLeft, "Вид слева", 90.0, 0.0), (Icon::ViewTop, "Вид сверху", 0.0, 89.9), (Icon::ViewIso, "Аксонометрия (объёмный вид)", Camera::AXON.0, Camera::AXON.1)];
+        let views = [(Icon::ViewFront, "Вид спереди (1)", 0.0, 0.0), (Icon::ViewLeft, "Вид слева (2)", 90.0, 0.0), (Icon::ViewTop, "Вид сверху (3)", 0.0, 89.9), (Icon::ViewIso, "Аксонометрия, объёмный вид (4)", Camera::AXON.0, Camera::AXON.1)];
         ui.weak(crate::i18n::t("Вид"));
         for (icon, tip, yaw, pitch) in views {
             let on = (self.camera.yaw - f32::to_radians(yaw)).abs() < 1e-3 && (self.camera.pitch - f32::to_radians(pitch)).abs() < 1e-3;
@@ -836,7 +836,7 @@ impl Viewport {
                 (self.camera.yaw, self.camera.pitch) = (f32::to_radians(yaw), f32::to_radians(pitch));
             }
         }
-        if button(ui, Icon::Fit, S, "Показать всё: вписать модель в окно", false).clicked() {
+        if button(ui, Icon::Fit, S, "Показать всё (5): вписать модель в окно", false).clicked() {
             self.fitted = false;
         }
         ui.separator();

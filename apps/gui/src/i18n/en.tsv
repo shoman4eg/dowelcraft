@@ -2,6 +2,7 @@
 Начало	Start
 Инструменты	Tools
 Вид спереди	Front view
+Вид спереди (1)	Front view (1)
 Детали	Parts
 Раскрой	Cutting
 Структура модели	Model structure
@@ -324,10 +325,10 @@
 Прозрачность	X-ray
 В текстурах	Textured
 добавлена выше	added above
-Вид слева	Left view
-Вид сверху	Top view
-Аксонометрия (объёмный вид)	Axonometric (3D view)
-Показать всё: вписать модель в окно	Zoom to fit: fit the model in the window
+Вид слева (2)	Left view (2)
+Вид сверху (3)	Top view (3)
+Аксонометрия, объёмный вид (4)	Axonometric, 3D view (4)
+Показать всё (5): вписать модель в окно	Zoom to fit (5): fit the model in the window
 Показ	Display
 Без невидимых: детали сплошные, видны только ближние рёбра	Hidden lines removed: solid parts, only near edges visible
 Невидимые тонкие: как сплошной, плюс скрытые рёбра светлыми линиями	Hidden lines thin: solid, plus hidden edges as light lines
@@ -426,10 +427,10 @@
 Вернуть четыре окна	Back to four windows
 Развернуть это окно на всю область	Maximize this window
 Модель в 3D; на панели вида — «4 окна»: спереди, слева, сверху и 3D	Model in 3D; the view bar has “4 windows”: front, left, top and 3D
-Модель в 3D (1); на панели вида — «4 окна»: спереди, слева, сверху и 3D	Model in 3D (1); the view bar has “4 windows”: front, left, top and 3D
-Вид спереди (2): ставить полки, двери и ящики в проём, двигать мышью	Front view (2): put shelves, doors and drawers into an opening, drag with the mouse
-Таблица деталей (3): размеры, материал, кромка	Parts table (3): sizes, material, edge banding
-Карты раскроя листов (4)	Sheet cutting maps (4)
+Модель в 3D (Ctrl+1); на панели вида — «4 окна»: спереди, слева, сверху и 3D	Model in 3D (Ctrl+1); the view bar has “4 windows”: front, left, top and 3D
+Вид спереди (Ctrl+2): ставить полки, двери и ящики в проём, двигать мышью	Front view (Ctrl+2): put shelves, doors and drawers into an opening, drag with the mouse
+Таблица деталей (Ctrl+3): размеры, материал, кромка	Parts table (Ctrl+3): sizes, material, edge banding
+Карты раскроя листов (Ctrl+4)	Sheet cutting maps (Ctrl+4)
 Без невидимых (Alt+1): детали сплошные, видны только ближние рёбра	Hidden lines removed (Alt+1): solid parts, only near edges visible
 Невидимые тонкие (Alt+2): как сплошной, плюс скрытые рёбра светлыми линиями	Hidden thin (Alt+2): like solid plus hidden edges as light lines
 Каркас (Alt+3): только рёбра деталей, насквозь	Wireframe (Alt+3): only part edges, see-through
@@ -437,10 +438,10 @@
 В текстурах (Alt+5): материалы картинками (Балтламинат по артикулу)	Textured (Alt+5): materials as images (Baltlaminat by article)
 Удалить выделенное	Delete selection
 Сетка: показать или скрыть	Grid: show or hide
-Вид: 3D	View: 3D
-Вид: спереди	View: front
-Вид: детали	View: parts
-Вид: раскрой	View: cutting
+Вкладка: 3D	Tab: 3D
+Вкладка: спереди	Tab: front
+Вкладка: детали	Tab: parts
+Вкладка: раскрой	Tab: cutting
 Показ: без невидимых	Display: hidden lines removed
 Показ: невидимые тонкие	Display: hidden thin
 Показ: каркас	Display: wireframe
@@ -455,3 +456,7 @@
 Сетка включена	Grid on
 Удалить материал из проекта (если он нигде не используется)	Remove the material from the project (if it is not used anywhere)
 Удалить кромку из проекта (если она не стоит на деталях)	Remove the edge banding from the project (if no part uses it)
+Камера: спереди	Camera: front
+Камера: слева	Camera: left
+Камера: сверху	Camera: top
+Камера: аксонометрия	Camera: axonometric

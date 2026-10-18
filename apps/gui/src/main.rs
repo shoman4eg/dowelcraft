@@ -963,10 +963,10 @@ impl App {
                 ui.separator();
                 // Вид на холсте — как вкладки, но в строке иконок.
                 for (pane, icon, text, tip) in [
-                    (Pane::Model, Icon::ViewIso, "3D", "Модель в 3D (1); на панели вида — «4 окна»: спереди, слева, сверху и 3D"),
-                    (Pane::Front, Icon::ViewFront, "Спереди", "Вид спереди (2): ставить полки, двери и ящики в проём, двигать мышью"),
-                    (Pane::Parts, Icon::Table, "Детали", "Таблица деталей (3): размеры, материал, кромка"),
-                    (Pane::Cut, Icon::CutSheet, "Раскрой", "Карты раскроя листов (4)"),
+                    (Pane::Model, Icon::ViewIso, "3D", "Модель в 3D (Ctrl+1); на панели вида — «4 окна»: спереди, слева, сверху и 3D"),
+                    (Pane::Front, Icon::ViewFront, "Спереди", "Вид спереди (Ctrl+2): ставить полки, двери и ящики в проём, двигать мышью"),
+                    (Pane::Parts, Icon::Table, "Детали", "Таблица деталей (Ctrl+3): размеры, материал, кромка"),
+                    (Pane::Cut, Icon::CutSheet, "Раскрой", "Карты раскроя листов (Ctrl+4)"),
                 ] {
                     if icons::labeled(ui, icon, text, tip, !self.start && self.view == pane).clicked() {
                         self.start = false;
@@ -1008,6 +1008,21 @@ impl App {
                     "view.parts" => Pane::Parts,
                     _ => Pane::Cut,
                 };
+            }
+            "cam.front" | "cam.left" | "cam.top" | "cam.iso" | "cam.fit" => {
+                self.start = false;
+                self.view = Pane::Model;
+                // В «4 окнах» три окна и так спереди, слева, сверху: камера — в одно большое окно.
+                if id != "cam.fit" {
+                    self.quad = false;
+                }
+                match id {
+                    "cam.front" => self.viewport.set_view(0.0, 0.0),
+                    "cam.left" => self.viewport.set_view(90.0, 0.0),
+                    "cam.top" => self.viewport.set_view(0.0, 89.9),
+                    "cam.iso" => self.viewport.set_view(viewport::Camera::AXON.0, viewport::Camera::AXON.1),
+                    _ => self.viewport.refit(),
+                }
             }
             _ => {
                 let modes = ["mode.solid", "mode.hidden", "mode.wire", "mode.xray", "mode.textured"];
