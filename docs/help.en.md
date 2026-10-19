@@ -34,6 +34,7 @@ dowel-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 ## Grooves
 
 - **Back panel in grooves.** Cabinet properties → “Back panel in grooves” (shown when the cabinet has a back panel). The sides, bottom and top get a groove 1 mm wider than the back panel, 8 mm deep, 16 mm from the back edge; the back panel goes 7 mm into each. Shelves and partitions stop in front of it. The offset, depth and groove width are adjustable (an empty width means “back panel + 1 mm”; in a wider groove the back panel sits in the middle).
+- **Plinth on legs.** Cabinet properties → “Plinth on legs” (shown when the plinth is above 0). Instead of the plinth board, adjustable legs as tall as the plinth stand under the bottom, 50 mm in from the edges: 4, or 6 on a cabinet wider than 1000 mm. The side panels stand on the legs. The legs show in 3D and go to the estimate; clicking a leg picks its cabinet. A clip-on plinth strip is not built yet; corner units have no legs.
 - **A groove on a free panel.** Panel properties → “Contour” → “Groove”: set the width, depth, offset from the edge and the face, then click a straight edge — the groove runs along it, the whole length. Below is the list of grooves with a “delete” button.
 - Grooves show on drawings and in “Panels for production” and are kept in `.b3d`. BAZIS-Raskroy XML does not get them yet.
 

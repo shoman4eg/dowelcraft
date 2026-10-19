@@ -21,7 +21,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("edge.add", "{name, thickness, article?, width?, price?: per metre}"),
     ("edge.set", "{name, ...fields} — change an edge banding (price per metre and so on)"),
     ("edge.remove", "{name} — delete an edge banding; refused while parts use it"),
-    ("cabinet.add", "{width, height, depth, material, name?, edge?, plinth?, back?, back_groove?: {offset?: 16, depth?: 8} — the back panel in grooves, doors?, door_material?, door_gap?, drawers?: [front heights, bottom up; 0 — auto], drawer_depth?, drawer_section?, position?: [x,y,z]} → {id}. A wall unit: plinth 0 and a position with height, e.g. [0, 1400, 250]"),
+    ("cabinet.add", "{width, height, depth, material, name?, edge?, plinth?, legs?: true — the plinth on adjustable legs instead of a board, back?, back_groove?: {offset?: 16, depth?: 8} — the back panel in grooves, doors?, door_material?, door_gap?, drawers?: [front heights, bottom up; 0 — auto], drawer_depth?, drawer_section?, position?: [x,y,z]} → {id}. A wall unit: plinth 0 and a position with height, e.g. [0, 1400, 250]"),
     ("cabinet.set", "{id, ...cabinet fields} — change the parameters"),
     ("cabinet.remove", "{id}"),
     ("shelf.add", "{cabinet, height, section?}"),
@@ -394,7 +394,8 @@ fn explode(pr: &mut Project, id: u32) -> Result<Value, String> {
         .ok_or_else(|| format!("no cabinet, corner unit or countertop {id}"))?;
     let parts: Vec<Part> = build(pr)?.into_iter().filter(|p| p.owner == id).collect();
     let mut children = Vec::new();
-    for (next, part) in (pr.next_id()..).zip(parts) {
+    let mut ids = pr.next_id()..;
+    for (next, part) in ids.by_ref().zip(parts) {
         let m = pr
             .materials
             .iter()
@@ -414,6 +415,11 @@ fn explode(pr: &mut Project, id: u32) -> Result<Value, String> {
             kind: part.kind,
             frame: part.panel.frame.ok_or("a part without a position")?,
         }));
+    }
+    // A cabinet's legs become hardware of the block, else the exploded unit would stand on nothing.
+    let legs = pr.cabinets.iter().find(|c| c.id == id && c.legs && c.plinth > 0.0).map(super::legs).unwrap_or_default();
+    for (next, (leg, frame)) in ids.zip(legs) {
+        children.push(Object::Furniture(Furniture { id: next, frame, ..leg }));
     }
     pr.cabinets.retain(|c| c.id != id);
     pr.corners.retain(|c| c.id != id);

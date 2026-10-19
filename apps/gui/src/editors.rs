@@ -353,6 +353,14 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
             }
             ui.end_row();
         }
+        if c.plinth > 0.0 {
+            caption(ui, "Plinth on legs").on_hover_text(crate::i18n::t("Adjustable legs instead of the plinth board: the side panels stand on them"));
+            let mut on = c.legs;
+            if ui.checkbox(&mut on, "").changed() {
+                set("legs", json!(on));
+            }
+            ui.end_row();
+        }
         caption(ui, "Position X, Y, Z");
         if let Some(pos) = position_editor(ui, c.position) {
             set("position", json!(pos));

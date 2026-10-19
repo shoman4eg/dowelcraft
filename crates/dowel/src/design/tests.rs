@@ -645,6 +645,53 @@ fn doors_and_drawers_in_opening() {
     assert!(s.execute("drawers.add", &json!({"at": [300, 360], "material": "Chipboard 16", "heights": [500, 500]})).is_err());
 }
 
+/// Drawers into an opening of a cabinet on a plinth with the back in grooves: the bottom box stays above the cabinet
+/// bottom (the overlay front reaches below it) and every box stops before the back panel.
+#[test]
+fn opening_drawers_clear_bottom_and_grooved_back() {
+    let mut s = wardrobe();
+    let id = s.execute("cabinet.add", &json!({"width": 600, "height": 820, "depth": 560, "material": "Chipboard White 16", "plinth": 100,
+        "back": "HDF 3", "back_groove": {}, "position": [1000, 0, 0]})).unwrap()["id"].as_u64().unwrap() as u32;
+    let block = s.execute("drawers.add", &json!({"at": [1300, 470], "material": "Chipboard White 16", "heights": [0, 0, 0]})).unwrap()["id"].as_u64().unwrap() as u32;
+    let parts = build(&s.project).unwrap();
+    let back = parts.iter().find(|p| p.owner == id && p.kind == Kind::Back).unwrap();
+    let floor = parts.iter().find(|p| p.owner == id && p.panel.name == "Bottom").map(|p| p.origin[1] + p.size[1]).unwrap();
+    for p in parts.iter().filter(|p| p.owner == block && p.kind == Kind::Body) {
+        assert!(p.origin[2] >= back.origin[2] + back.size[2], "{} at z {}", p.panel.name, p.origin[2]);
+        assert!(p.origin[1] >= floor, "{} at y {}", p.panel.name, p.origin[1]);
+    }
+    let problems = analysis::analyze(&s.project).unwrap();
+    assert!(problems.is_empty(), "{problems:#?}");
+}
+
+/// A plinth on legs: no plinth board, the side panels stand on the legs, 4 legs (6 on a wide cabinet) under the bottom.
+#[test]
+fn cabinet_on_legs() {
+    let mut s = wardrobe();
+    let narrow = s.execute("cabinet.add", &json!({"width": 600, "height": 820, "depth": 560, "material": "Chipboard White 16", "plinth": 100,
+        "legs": true, "position": [1000, 0, 0]})).unwrap()["id"].as_u64().unwrap() as u32;
+    s.execute("cabinet.add", &json!({"width": 1200, "height": 820, "depth": 560, "material": "Chipboard White 16", "plinth": 100,
+        "legs": true, "position": [1600, 0, 0]})).unwrap();
+    let parts = build(&s.project).unwrap();
+    let mine: Vec<_> = parts.iter().filter(|p| p.owner == narrow).collect();
+    assert!(mine.iter().all(|p| p.panel.name != "Plinth"));
+    let side = mine.iter().find(|p| p.panel.name == "Left side").unwrap();
+    assert_eq!((side.origin[1], side.size[1]), (100.0, 720.0));
+    let legs: Vec<_> = furniture(&s.project).into_iter().filter(|(f, _)| f.name == "Adjustable leg 100 mm").collect();
+    assert_eq!(legs.len(), 10);
+    assert_eq!(legs.iter().filter(|(f, _)| f.id == narrow).map(|(_, fr)| fr.origin).collect::<Vec<_>>(), [[1050.0, 0.0, 50.0], [1050.0, 0.0, 510.0], [1550.0, 0.0, 50.0], [1550.0, 0.0, 510.0]]);
+    assert!(hardware(&s.project).unwrap().contains(&("Adjustable leg 100 mm".to_string(), 10)));
+    let problems = analysis::analyze(&s.project).unwrap();
+    assert!(problems.is_empty(), "{problems:#?}");
+    // Exploded, the cabinet keeps its legs as hardware of the block, in the same places.
+    let before = furniture(&s.project);
+    s.execute("cabinet.explode", &json!({"id": narrow})).unwrap();
+    let after = furniture(&s.project);
+    assert_eq!(after.len(), 10);
+    let at = |l: &[(Furniture, Frame)]| { let mut v: Vec<[f64; 3]> = l.iter().map(|(_, fr)| fr.origin).collect(); v.sort_by(|a, b| a.partial_cmp(b).unwrap()); v };
+    assert_eq!(at(&before), at(&after));
+}
+
 /// Model analysis: own templates are clean; intersection, part larger than the sheet and dangling fastener are found.
 #[test]
 fn analysis_finds_real_problems_only() {

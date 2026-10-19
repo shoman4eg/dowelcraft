@@ -528,7 +528,7 @@ back	тыл
 below	снизу
 block	блока
 block {} “{}”: {}	блок {} «{}»: {}
-box {}×{} cannot be built: depth ≥ 250 mm is required	короб {}×{} не строится: нужна глубина ≥ 250 мм
+box {}×{} cannot be built: depth from 250 to {} mm is required	короб {}×{} не строится: нужна глубина от 250 до {} мм
 cabinet {} “{}”: {}	корпус {} «{}»: {}
 cabinet: {}	корпус: {}
 center: [x, y] is required	нужен center: [x, y]
@@ -844,3 +844,6 @@ Ruler (M): click two points for each measurement — part corners and contour po
 Open	Открыть
 Open doors and drawers (O): see that nothing hits — parts that do turn red	Открыть двери и ящики (O): проверить, что ничего не задевает, — задевающие детали станут красными
 Open doors and drawers	Открыть двери и ящики
+Adjustable leg {} mm	Опора регулируемая {} мм
+Plinth on legs	Цоколь на опорах
+Adjustable legs instead of the plinth board: the side panels stand on them	Регулируемые опоры вместо цокольной планки: боковины стоят на них

@@ -76,7 +76,7 @@ The macOS archive also has `Dowel Craft.app`.
 
 ### Design
 - **Cabinet templates:** floor cabinet, wall cabinet, L-shaped corner unit, countertop. Change the width and every part is recalculated.
-- **Cabinet options:** size, plinth, back panel (nailed on or in grooves: the sides, bottom and top get a groove 1 mm wider than the back panel, 8 mm deep, 16 mm from the back edge; width, depth and offset are adjustable), partitions, shelves per section, doors, drawers (front heights bottom to top, or “auto” — sharing the free height equally), carcass and front materials, edge banding.
+- **Cabinet options:** size, plinth (a board or adjustable legs), back panel (nailed on or in grooves: the sides, bottom and top get a groove 1 mm wider than the back panel, 8 mm deep, 16 mm from the back edge; width, depth and offset are adjustable), partitions, shelves per section, doors, drawers (front heights bottom to top, or “auto” — sharing the free height equally), carcass and front materials, edge banding.
 - **Fill an opening with the mouse:** shelf, partition, door, drawers — click inside an opening in the front view and the part fits between its neighbours. Offsets are adjustable. A second door cannot be placed into an occupied opening.
 - **Free panels** in three planes: move, rotate, array copy, mirror, resize with handles. Contour: fillets, chamfers, cut-outs, grooves along an edge.
 - **Grooves** show on part drawings (with width × depth), in “Panels for production” and are kept in `.b3d` export; BAZIS-Raskroy XML does not get them yet.

@@ -129,6 +129,9 @@ pub struct Cabinet {
     /// Plinth height, mm; 0 — no plinth.
     #[serde(default)]
     pub plinth: f64,
+    /// The plinth height is on adjustable legs: the side panels stand on them, no plinth board.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub legs: bool,
     /// Back panel material; none — no back panel.
     #[serde(default)]
     pub back: Option<String>,
@@ -853,7 +856,33 @@ pub fn furniture(p: &Project) -> Vec<(Furniture, Frame)> {
     }
     let mut out = Vec::new();
     walk(&p.objects, &Frame::IDENTITY, &mut out);
+    out.extend(p.cabinets.iter().filter(|c| c.legs && c.plinth > 0.0).flat_map(legs));
     out
+}
+
+/// Adjustable legs under a cabinet's bottom, 50 mm in from its edges (a quarter of a small cabinet): 4, or 6 on
+/// cabinets wider than 1000 mm. They carry the cabinet's id: picking one picks the cabinet, moving it moves the cabinet.
+fn legs(c: &Cabinet) -> Vec<(Furniture, Frame)> {
+    const R: f64 = 25.0;
+    let (ix, iz) = ((c.width / 4.0).min(50.0), (c.depth / 4.0).min(50.0));
+    let xs = if c.width > 1000.0 { vec![ix, c.width / 2.0, c.width - ix] } else { vec![ix, c.width - ix] };
+    let o = c.position;
+    xs.iter()
+        .flat_map(|&x| [iz, c.depth - iz].map(|z| (x, z)))
+        .map(|(x, z)| {
+            let leg = Furniture {
+                id: c.id,
+                name: crate::i18n::t(format!("Adjustable leg {:.0} mm", c.plinth)),
+                kind: String::new(),
+                source: String::new(),
+                frame: Frame::IDENTITY,
+                holes: Vec::new(),
+                lo: [-R, 0.0, -R],
+                hi: [R, c.plinth, R],
+            };
+            (leg, Frame { origin: [o[0] + x, o[1], o[2] + z], ..Frame::IDENTITY })
+        })
+        .collect()
 }
 
 /// Drills hardware holes into parts; returns the number of holes that found no panel (per hardware item).
@@ -1007,8 +1036,9 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
     };
 
     // Sides: the frame puts a vertical part's back face (Z = 0) towards +X — inside for the left one.
-    add(Kind::Body, grooved(vertical("Left side", h), true, true), [0.0, 0.0, 0.0], [t, h, d])?;
-    add(Kind::Body, grooved(vertical("Right side", h), true, false), [w - t, 0.0, 0.0], [t, h, d])?;
+    let (sy, sh) = if c.legs { (c.plinth, h - c.plinth) } else { (0.0, h) };
+    add(Kind::Body, grooved(vertical("Left side", sh), true, true), [0.0, sy, 0.0], [t, sh, d])?;
+    add(Kind::Body, grooved(vertical("Right side", sh), true, false), [w - t, sy, 0.0], [t, sh, d])?;
     // Horizontal parts have their back face up — inside for the bottom.
     add(Kind::Body, grooved(horizontal("Bottom", inner_w), false, true), [t, c.plinth, 0.0], [inner_w, t, d])?;
     add(Kind::Body, grooved(horizontal("Top panel", inner_w), false, false), [t, h - t, 0.0], [inner_w, t, d])?;
@@ -1016,7 +1046,7 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
     let inner_d = d - back_z;
     let vertical = |name: &str, height: f64| rect(name, m, inner_d, height, Texture::Vertical, &[RIGHT], edge);
     let horizontal = |name: &str, length: f64| rect(name, m, length, inner_d, Texture::Horizontal, &[TOP], edge);
-    if c.plinth > 0.0 {
+    if c.plinth > 0.0 && !c.legs {
         add(Kind::Body, rect("Plinth", m, inner_w, c.plinth, Texture::Horizontal, &[], None), [t, 0.0, d - t], [inner_w, c.plinth, t])?;
     }
 

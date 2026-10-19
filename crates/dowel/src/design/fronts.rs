@@ -197,6 +197,13 @@ pub fn drawers(pr: &mut Project, p: &Value) -> Result<Value, String> {
     let tt = m.thickness;
     let (inner0, inner1) = (l.origin[0] + l.size[0], r.origin[0]);
     let (z0, z1) = (l.origin[2].max(r.origin[2]), (l.origin[2] + l.size[2]).min(r.origin[2] + r.size[2]));
+    // A back panel in grooves stands in front of the side panels' back edges: the box stops at it.
+    let floor = b.origin[1] + b.size[1];
+    let z0 = parts
+        .iter()
+        .filter(|q| q.kind == Kind::Back && q.origin[0] < inner1 && q.origin[0] + q.size[0] > inner0 && q.origin[1] < t.origin[1] && q.origin[1] + q.size[1] > floor)
+        .map(|q| q.origin[2] + q.size[2])
+        .fold(z0, f64::max);
     let depth = a.depth.unwrap_or(((z1 - z0 - 10.0) / 50.0).floor() * 50.0);
     let (fx0, fx1) = span(l, r, 0, a.mount, a.gap);
     let (fy0, fy1) = span(b, t, 1, a.mount, a.gap);
@@ -209,7 +216,7 @@ pub fn drawers(pr: &mut Project, p: &Value) -> Result<Value, String> {
     occupied(&parts, (fx0, fx1), (fy0, fy0 + total))?;
     let bw = inner1 - inner0 - 2.0 * super::RAIL_GAP;
     if !(depth >= 250.0 && depth <= z1 - z0 && bw > 2.0 * tt) {
-        return Err(format!("box {bw:.0}×{depth:.0} cannot be built: depth ≥ 250 mm is required"));
+        return Err(format!("box {bw:.0}×{depth:.0} cannot be built: depth from 250 to {:.0} mm is required", z1 - z0));
     }
     let front_z = if a.mount == Mount::Inset { z1 - m.thickness } else { z1 };
     let mut next = pr.next_id();
@@ -229,11 +236,13 @@ pub fn drawers(pr: &mut Project, p: &Value) -> Result<Value, String> {
     for &hf in &heights {
         let fw = fx1 - fx0;
         add("Drawer front", Kind::Drawer, &m, fw, hf, Texture::Horizontal, &[0, 1, 2, 3], [fx0, y, front_z], [fw, hf, m.thickness])?;
-        let bh = hf - 40.0;
+        // An overlay front reaches below the opening's bottom: the box bottom is lifted 3 mm above it.
+        let lift = (floor + 3.0 + bm.thickness - (y + 20.0)).max(0.0);
+        let bh = hf - 40.0 - lift;
         if bh < 60.0 {
             return Err(format!("a {hf} mm front is too small for a box (≥ 100 mm is required)"));
         }
-        let (bx, by, bz) = (inner0 + super::RAIL_GAP, y + 20.0, front_z - depth);
+        let (bx, by, bz) = (inner0 + super::RAIL_GAP, y + 20.0 + lift, front_z - depth);
         add("Drawer side", Kind::Body, &m, depth, bh, Texture::Horizontal, &[2], [bx, by, bz], [tt, bh, depth])?;
         add("Drawer side", Kind::Body, &m, depth, bh, Texture::Horizontal, &[2], [bx + bw - tt, by, bz], [tt, bh, depth])?;
         add("Drawer front wall", Kind::Body, &m, bw - 2.0 * tt, bh, Texture::Horizontal, &[2], [bx + tt, by, front_z - tt], [bw - 2.0 * tt, bh, tt])?;

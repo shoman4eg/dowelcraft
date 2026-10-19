@@ -2428,8 +2428,15 @@ impl App {
                     }
                 }
                 viewport::Click::Furniture(id, right) => {
-                    // Right-click on an unselected one selects it; left-click selects (with Ctrl, also just one).
-                    if !right || self.furniture_sel != Some(id) {
+                    // A cabinet's leg carries the cabinet's id: the click selects the whole cabinet.
+                    // Never as hardware: Delete would then remove the whole cabinet.
+                    if self.session.as_ref().is_some_and(|s| s.project.cabinets.iter().any(|c| c.id == id)) {
+                        if let Ok(parts) = &self.parts {
+                            self.selection = (0..parts.len()).filter(|&i| parts[i].owner == id).map(|i| Sel::of(parts, i)).collect();
+                        }
+                        self.furniture_sel = None;
+                    } else if !right || self.furniture_sel != Some(id) {
+                        // Right-click on an unselected one selects it; left-click selects (with Ctrl, also just one).
                         self.selection.clear();
                         self.furniture_sel = Some(id);
                     }
