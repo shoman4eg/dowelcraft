@@ -277,7 +277,7 @@ impl App {
                     ui.checkbox(&mut t.double, crate::i18n::t("double"));
                 } else {
                     crate::editors::caption(ui, "Fronts, mm");
-                    ui.add(egui::TextEdit::singleline(&mut t.heights).desired_width(120.0)).on_hover_text(crate::i18n::t("Front heights from the bottom up, separated by spaces"));
+                    ui.add(egui::TextEdit::singleline(&mut t.heights).desired_width(120.0)).on_hover_text(crate::i18n::t("Front heights from the bottom up, separated by spaces; 0 or “auto” — the auto fronts share the rest of the opening"));
                 }
                 ui.end_row();
                 return;

@@ -210,7 +210,6 @@ inset	вкладная
 Leaves	Створки
 double	двойная
 Fronts, mm	Фасады, мм
-Front heights from the bottom up, separated by spaces	Высоты фасадов снизу вверх через пробел
 Gap left	Отступ слева
 Gap right	Отступ справа
 Gap back	Отступ сзади
@@ -819,3 +818,9 @@ In the whole project	Во всём проекте
 Only in the selected objects	Только в выделенных объектах
 {from, to, ids?} → {changed} — replace a material everywhere (carcass, doors, back panels, countertops, panels) or only in objects ids; changed counts template fields and panels	{from, to, ids?} → {changed} — заменить материал везде (корпус, двери, задние стенки, столешницы, панели) или только в объектах ids; changed — сколько полей шаблонов и панелей изменено
 {from, to, ids?} → {changed} — replace an edge banding everywhere or only in objects ids; changed counts template fields and panels	{from, to, ids?} → {changed} — заменить кромку везде или только в объектах ids; changed — сколько полей шаблонов и панелей изменено
+auto drawer fronts (height 0) fill a cabinet without doors; with doors give the heights	фасады ящиков «Авто» (высота 0) заполняют корпус без дверей; с дверями задайте высоты
+drawer front heights cannot be negative	высота фасада ящика не может быть отрицательной
+auto drawer fronts: {} mm left for {} of them, at least 100 mm each is needed	фасады «Авто»: осталось {} мм на {} шт., нужно не меньше 100 мм на каждый
+auto	авто
+Auto fronts share the free height of the cabinet front equally (a cabinet without doors)	Фасады «авто» поровну делят свободную высоту фасада корпуса (корпус без дверей)
+Front heights from the bottom up, separated by spaces; 0 or “auto” — the auto fronts share the rest of the opening	Высоты фасадов снизу вверх через пробел; 0 или «авто» — такие фасады поровну делят остаток проёма

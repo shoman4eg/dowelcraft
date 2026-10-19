@@ -482,12 +482,21 @@ pub fn cabinet_editor(ui: &mut egui::Ui, project: &Project, c: &design::Cabinet,
     }
     for (i, &hf) in c.drawers.iter().enumerate() {
         ui.horizontal(|ui| {
-            let mut v = hf;
-            let r = crate::expr::add(ui, &mut v, |d| d.range(100.0..=1000.0).suffix(crate::i18n::t(" mm")));
-            if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != hf {
+            // "Auto" (height 0): the auto fronts share the free height of a cabinet without doors.
+            let mut auto = hf == 0.0;
+            if ui.checkbox(&mut auto, crate::i18n::t("auto")).on_hover_text(crate::i18n::t("Auto fronts share the free height of the cabinet front equally (a cabinet without doors)")).changed() {
                 let mut ds = c.drawers.clone();
-                ds[i] = v;
+                ds[i] = if auto { 0.0 } else { 140.0 };
                 cmds.push(("cabinet.set", json!({ "id": id, "drawers": ds })));
+            }
+            let mut v = hf;
+            if !auto {
+                let r = crate::expr::add(ui, &mut v, |d| d.range(100.0..=1000.0).suffix(crate::i18n::t(" mm")));
+                if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != hf {
+                    let mut ds = c.drawers.clone();
+                    ds[i] = v;
+                    cmds.push(("cabinet.set", json!({ "id": id, "drawers": ds })));
+                }
             }
             if ui.small_button(crate::i18n::t("delete")).clicked() {
                 let mut ds = c.drawers.clone();

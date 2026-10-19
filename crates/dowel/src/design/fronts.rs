@@ -200,7 +200,9 @@ pub fn drawers(pr: &mut Project, p: &Value) -> Result<Value, String> {
     let depth = a.depth.unwrap_or(((z1 - z0 - 10.0) / 50.0).floor() * 50.0);
     let (fx0, fx1) = span(l, r, 0, a.mount, a.gap);
     let (fy0, fy1) = span(b, t, 1, a.mount, a.gap);
-    let total: f64 = a.heights.iter().sum::<f64>() + a.gap * (a.heights.len() - 1) as f64;
+    // Height 0 — "Auto": the auto fronts share what is left of the opening.
+    let heights = super::front_heights(&a.heights, fy1 - fy0, a.gap * (a.heights.len() - 1) as f64)?;
+    let total: f64 = heights.iter().sum::<f64>() + a.gap * (heights.len() - 1) as f64;
     if total > fy1 - fy0 + 1e-6 {
         return Err(format!("fronts of {total} mm do not fit the {:.1} mm opening", fy1 - fy0));
     }
@@ -224,7 +226,7 @@ pub fn drawers(pr: &mut Project, p: &Value) -> Result<Value, String> {
     };
     let mut y = fy0;
     let mut runners = Vec::new();
-    for &hf in &a.heights {
+    for &hf in &heights {
         let fw = fx1 - fx0;
         add("Drawer front", Kind::Drawer, &m, fw, hf, Texture::Horizontal, &[0, 1, 2, 3], [fx0, y, front_z], [fw, hf, m.thickness])?;
         let bh = hf - 40.0;

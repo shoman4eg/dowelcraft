@@ -841,3 +841,23 @@ fn materials_and_edges_are_replaced() {
     assert!(s.execute("material.replace", &json!({"from": "Oak 16", "to": "White 16", "ids": [999]})).is_err(), "unknown object");
     assert_eq!(s.execute("material.replace", &json!({"from": "Oak 16", "to": "Oak 16"})).unwrap()["changed"], 0);
 }
+
+/// Drawer fronts with height 0 ("Auto") share the free height in whole mm, the remainder going to the top one.
+#[test]
+fn auto_drawer_fronts() {
+    assert_eq!(front_heights(&[0.0, 0.0, 0.0], 700.0, 4.0), Ok(vec![232.0, 232.0, 232.0]));
+    assert_eq!(front_heights(&[140.0, 0.0, 0.0], 701.0, 4.0), Ok(vec![140.0, 278.0, 279.0]));
+    assert_eq!(front_heights(&[200.0, 300.0], 600.0, 2.0), Ok(vec![200.0, 300.0]), "no auto — as given");
+    assert!(front_heights(&[600.0, 0.0], 700.0, 2.0).is_err(), "too little left");
+    // A cabinet without doors: the fronts fill it from the plinth up, gap 2 at the bottom, top and between.
+    let mut s = Session::new(Project::new("Chest"));
+    s.execute("material.add", &json!({"name": "Chipboard 16", "thickness": 16})).unwrap();
+    s.execute("cabinet.add", &json!({"width": 600, "height": 820, "depth": 500, "material": "Chipboard 16", "plinth": 100, "drawers": [0, 0, 0]})).unwrap();
+    let parts = build(&s.project).unwrap();
+    let mut fronts: Vec<f64> = parts.iter().filter(|p| p.kind == Kind::Drawer).map(|p| p.size[1]).collect();
+    fronts.sort_by(f64::total_cmp);
+    // 820 − 100 plinth − 2 + 2 outer gaps − 2 + 2 between = 712 mm for three: 237, 237 and 238 on top.
+    assert_eq!(fronts, [237.0, 237.0, 238.0]);
+    // With doors there is no fixed space: refused.
+    assert!(s.execute("cabinet.set", &json!({"id": 1, "doors": 1})).is_err());
+}

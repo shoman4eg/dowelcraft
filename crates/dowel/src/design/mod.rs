@@ -159,6 +159,25 @@ pub struct Cabinet {
     pub drawer_section: usize,
 }
 
+/// Drawer front heights where 0 means "Auto": what is left of `space` after the given fronts and the `gaps` is shared
+/// equally in whole mm, the remainder going to the top auto front (as Bazis rounds them).
+pub(crate) fn front_heights(heights: &[f64], space: f64, gaps: f64) -> Result<Vec<f64>, String> {
+    if heights.iter().any(|&h| h < 0.0) {
+        return Err("drawer front heights cannot be negative".into());
+    }
+    let auto = heights.iter().filter(|&&h| h == 0.0).count();
+    if auto == 0 {
+        return Ok(heights.to_vec());
+    }
+    let left = space - gaps - heights.iter().sum::<f64>();
+    let each = (left / auto as f64).floor();
+    if each < 100.0 {
+        return Err(format!("auto drawer fronts: {left:.0} mm left for {auto} of them, at least 100 mm each is needed"));
+    }
+    let top = heights.iter().rposition(|&h| h == 0.0).unwrap_or(0);
+    Ok(heights.iter().enumerate().map(|(i, &h)| if h > 0.0 { h } else if i == top { left - each * (auto - 1) as f64 } else { each }).collect())
+}
+
 /// Groove for a back panel.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct BackGroove {
@@ -1023,10 +1042,19 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
         .ok_or_else(|| format!("drawers: no section {} (there are {})", c.drawer_section, sections.len()))?;
     // Drawer runner length is a multiple of 50 mm; the drawer zone top is above the top front, measured from the top of the bottom.
     let drawer_depth = c.drawer_depth.unwrap_or(((inner_d - 10.0) / 50.0).floor() * 50.0);
-    let drawer_zone = if c.drawers.is_empty() {
+    // Fronts with height 0 ("Auto") share what is left of the cabinet front; with doors there is no fixed space for them.
+    let drawers = if c.drawers.contains(&0.0) {
+        if c.doors > 0 {
+            return Err("auto drawer fronts (height 0) fill a cabinet without doors; with doors give the heights".into());
+        }
+        front_heights(&c.drawers, h - c.plinth - 2.0 * c.door_gap, c.door_gap * (c.drawers.len() - 1) as f64)?
+    } else {
+        c.drawers.clone()
+    };
+    let drawer_zone = if drawers.is_empty() {
         0.0
     } else {
-        c.door_gap + c.drawers.iter().map(|hf| hf + c.door_gap).sum::<f64>() - t
+        c.door_gap + drawers.iter().map(|hf| hf + c.door_gap).sum::<f64>() - t
     };
     for s in &c.shelves {
         let &(sx, sw) = sections
@@ -1066,7 +1094,7 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
     // A drawer front covers the section up to the middle of adjacent partitions (for end sections — to the cabinet edge).
     let fx0 = if c.drawer_section == 0 { 0.0 } else { dsx - t / 2.0 };
     let fx1 = if c.drawer_section + 1 == sections.len() { w } else { dsx + dsw + t / 2.0 };
-    for (i, &hf) in c.drawers.iter().enumerate() {
+    for (i, &hf) in drawers.iter().enumerate() {
         let fw = fx1 - fx0 - 2.0 * g;
         let bw = dsw - 2.0 * RAIL_GAP;
         let bh = hf - 40.0;
@@ -1103,7 +1131,7 @@ fn cabinet(p: &Project, c: &Cabinet, out: &mut Vec<Part>) -> Result<(), String> 
             let door = rect("Door", dm, dw, dh, Texture::Vertical, &[BOTTOM, LEFT, TOP, RIGHT], edge);
             add(Kind::Door, door, [x, front_y, d], [dw, dh, dm.thickness])?;
         }
-    } else if front_y > h {
+    } else if front_y > h + 1e-6 {
         return Err(format!("drawers are higher than the cabinet: fronts up to {front_y} mm with a height of {h} mm"));
     }
     Ok(())

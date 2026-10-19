@@ -2011,7 +2011,13 @@ impl App {
             if matches!(t.plane, "door" | "drawers") {
                 painter.text(m + Vec2::new(12.0, 12.0), egui::Align2::LEFT_TOP, if t.plane == "door" { "click — a door in this opening" } else { "click — drawers in this opening" }, egui::FontId::proportional(12.0), Color32::from_rgb(160, 70, 0));
                 if resp.clicked() {
-                    let heights: Vec<f64> = t.heights.split_whitespace().filter_map(|v| v.replace(',', ".").parse().ok()).collect();
+                    // "auto" (in either language) or 0 — an auto front.
+                    let auto = crate::i18n::t("auto").to_lowercase();
+                    let heights: Vec<f64> = t
+                        .heights
+                        .split_whitespace()
+                        .filter_map(|v| if v.to_lowercase() == "auto" || v.to_lowercase() == auto { Some(0.0) } else { v.replace(',', ".").parse().ok() })
+                        .collect();
                     let (cmd, args) = if t.plane == "door" {
                         ("door.add", json!({ "at": at, "material": t.material, "mount": t.mount, "double": t.double }))
                     } else {
