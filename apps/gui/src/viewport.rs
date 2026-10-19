@@ -27,7 +27,7 @@ impl Mode {
 }
 
 /// Result of a click in the model window.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Click {
     None,
     /// Click on a part (index in the part list).
@@ -42,6 +42,8 @@ pub enum Click {
     Move([f64; 3]),
     /// A handle changed the size of the selected panel: new `lo`, `hi` in mm.
     Resize([f64; 3], [f64; 3]),
+    /// Shift+drag drew a frame: parts that are entirely inside it; `true` — Ctrl was held at the start (add to the selection).
+    Frame(Vec<usize>, bool),
 }
 
 /// New bounds of panel `i` when handle `h` (−1 — edge `lo`, 1 — `hi`, 0 — leave) along axes
@@ -408,6 +410,8 @@ pub struct Viewport {
     offset_built: [f32; 3],
     /// A size handle is being dragged: which one (by screen axes) and the accumulated mouse offset (pixels).
     resize: Option<([i8; 2], Vec2)>,
+    /// Shift+drag selection frame: where it started (screen point) and whether Ctrl was held then.
+    framing: Option<(egui::Pos2, bool)>,
     /// Axis the 3D grid was perpendicular to last frame (1 — the floor), see `grid_axis`.
     grid_axis: usize,
 }
@@ -435,6 +439,7 @@ impl Default for Viewport {
             mode_built: None,
             dragging: None,
             resize: None,
+            framing: None,
             offset_built: [0.0; 3],
         }
     }
@@ -973,7 +978,7 @@ impl Viewport {
             self.gpu = Some(Gpu::new(&rs.device, &rs.queue));
         }
         if self.revision != Some(revision) {
-            self.mesh = mesh::build(parts, skip);
+            self.mesh = mesh::build(parts, &skip);
             self.errors = self.mesh.errors.iter().map(|(i, e)| (parts[*i].panel.name.clone(), e.clone())).collect();
             if self.revision.is_none() {
                 self.fitted = false;
@@ -1072,8 +1077,31 @@ impl Viewport {
         } else {
             self.resize = None;
         }
+        // Shift+drag — a selection frame: parts entirely inside it.
+        if self.resize.is_none() && resp.drag_started_by(egui::PointerButton::Primary) && ui.input(|i| i.modifiers.shift) {
+            self.framing = ui.input(|i| i.pointer.press_origin().map(|o| (o, i.modifiers.command)));
+        }
+        if let Some((start, add)) = self.framing {
+            let now = ui.input(|i| i.pointer.interact_pos()).unwrap_or(start);
+            let frame_rect = egui::Rect::from_two_pos(start, now);
+            ui.painter().rect(frame_rect, 0.0, Color32::from_rgba_unmultiplied(90, 150, 230, 30), egui::Stroke::new(1.0, Color32::from_rgb(90, 150, 230)), egui::StrokeKind::Middle);
+            if !resp.dragged() {
+                self.framing = None;
+                let inside = |p: &Part| {
+                    (0..8).all(|c| {
+                        let corner: [f64; 3] = std::array::from_fn(|k| p.origin[k] + if c >> k & 1 == 1 { p.size[k] } else { 0.0 });
+                        frame_rect.contains(rect.center() + self.to_screen(corner))
+                    })
+                };
+                // A tiny Shift+drag is a slip of the hand, not a frame: the selection stays.
+                if frame_rect.width() > 4.0 || frame_rect.height() > 4.0 {
+                    click = Click::Frame(parts.iter().enumerate().filter(|(_, p)| !skip(p) && inside(p)).map(|(i, _)| i).collect(), add);
+                }
+            }
+        }
         // Drag started on a selected part — move it; on empty space or another part — rotate the view.
         if self.resize.is_none()
+            && self.framing.is_none()
             && resp.drag_started_by(egui::PointerButton::Primary)
             && let Some(o) = ui.input(|i| i.pointer.press_origin())
             && matches!(self.pick(o - rect.center()), Some(Ok(i)) if selected.contains(&i))
@@ -1091,7 +1119,7 @@ impl Viewport {
                     click = Click::Move(mv);
                 }
             }
-        } else if self.resize.is_some() {
+        } else if self.resize.is_some() || self.framing.is_some() {
         } else if resp.dragged_by(egui::PointerButton::Primary) && self.label.is_some() {
             // "Front", "Left", "Top" windows (4 views) don't rotate: dragging pans the view.
             self.camera.pan(resp.drag_delta());

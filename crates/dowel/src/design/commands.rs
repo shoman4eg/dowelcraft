@@ -15,6 +15,8 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("project.rename", "{name}"),
     ("material.add", "{name, thickness, article?, sheet?: [length, width], coef?, trim?: edge trim, kerf?: saw kerf, price?: per m², weight?: kg per m²}"),
     ("material.set", "{name, ...fields} — change a material"),
+    ("material.replace", "{from, to, ids?} → {changed} — replace a material everywhere (carcass, doors, back panels, countertops, panels) or only in objects ids; changed counts template fields and panels"),
+    ("edge.replace", "{from, to, ids?} → {changed} — replace an edge banding everywhere or only in objects ids; changed counts template fields and panels"),
     ("material.remove", "{name} — delete a material; refused while it is in use"),
     ("edge.add", "{name, thickness, article?, width?, price?: per metre}"),
     ("edge.set", "{name, ...fields} — change an edge banding (price per metre and so on)"),
@@ -248,6 +250,7 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
             }
             pr.edges.remove(i);
         }
+        "material.replace" | "edge.replace" => return replace(pr, cmd, p),
         "edge.set" => {
             let name = s(p, "name")?;
             let i = pr.edges.iter().position(|e| e.name == name).ok_or_else(|| format!("no edge banding “{name}”"))?;
@@ -563,6 +566,85 @@ fn inside(segs: &[Seg], pt: [f64; 2]) -> bool {
         }
     }
     odd
+}
+
+/// Mass replacement of a material (carcass, doors, back panels, countertops, free panels) or an edge banding,
+/// in the whole project or only in objects `ids` (a template by its id, a block with everything inside).
+fn replace(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
+    let (from, to) = (s(p, "from")?.to_string(), s(p, "to")?.to_string());
+    let ids: Option<Vec<u32>> = p.get("ids").map(|v| serde_json::from_value(v.clone()).map_err(|e| format!("ids: {e}"))).transpose()?;
+    if let Some(bad) = ids.iter().flatten().find(|&&id| {
+        !(pr.cabinets.iter().any(|c| c.id == id) || pr.corners.iter().any(|c| c.id == id) || pr.countertops.iter().any(|c| c.id == id) || find_mut(&mut pr.objects, id).is_some())
+    }) {
+        return Err(format!("no object {bad}"));
+    }
+    if from == to {
+        return Ok(json!({ "changed": 0 }));
+    }
+    let picked = |id: u32| ids.as_ref().is_none_or(|v| v.contains(&id));
+    let mut n = 0;
+    let mut swap = |name: &mut String| {
+        if *name == from {
+            *name = to.clone();
+            n += 1;
+        }
+    };
+    if cmd == "material.replace" {
+        pr.material(&from)?;
+        pr.material(&to)?;
+        for c in pr.cabinets.iter_mut().filter(|c| picked(c.id)) {
+            swap(&mut c.material);
+            c.door_material.iter_mut().chain(c.back.iter_mut()).for_each(&mut swap);
+        }
+        for c in pr.corners.iter_mut().filter(|c| picked(c.id)) {
+            swap(&mut c.material);
+            c.door_material.iter_mut().chain(c.back.iter_mut()).for_each(&mut swap);
+        }
+        for c in pr.countertops.iter_mut().filter(|c| picked(c.id)) {
+            swap(&mut c.material);
+        }
+        walk_mut(&mut pr.objects, ids.is_none(), &picked, &mut |fp| swap(&mut fp.material));
+    } else {
+        let e = pr.edges.iter().find(|e| e.name == to).cloned().ok_or_else(|| format!("no edge banding “{to}”"))?;
+        if !pr.edges.iter().any(|e| e.name == from) {
+            return Err(format!("no edge banding “{from}”"));
+        }
+        for c in pr.cabinets.iter_mut().filter(|c| picked(c.id)) {
+            c.edge.iter_mut().for_each(&mut swap);
+        }
+        for c in pr.corners.iter_mut().filter(|c| picked(c.id)) {
+            c.edge.iter_mut().for_each(&mut swap);
+        }
+        for c in pr.countertops.iter_mut().filter(|c| picked(c.id)) {
+            c.edge.iter_mut().for_each(&mut swap);
+        }
+        // Free panels keep the banding itself (full name, thickness, width) on each edge.
+        walk_mut(&mut pr.objects, ids.is_none(), &picked, &mut |fp| {
+            let mut hit = false;
+            for b in fp.edges.iter_mut().filter(|b| crate::panel::material_name(&b.material) == from) {
+                b.material = full(&e.name, &e.article);
+                b.thickness = e.thickness;
+                b.width = e.width;
+                hit = true;
+            }
+            n += usize::from(hit);
+        });
+    }
+    Ok(json!({ "changed": n }))
+}
+
+/// Tree panels that are picked (all, by their id or inside a picked block).
+fn walk_mut(objects: &mut [Object], all: bool, picked: &impl Fn(u32) -> bool, f: &mut impl FnMut(&mut FreePanel)) {
+    for o in objects {
+        match o {
+            Object::Panel(fp) if all || picked(fp.id) => f(fp),
+            Object::Block(b) => {
+                let inside = all || picked(b.id);
+                walk_mut(&mut b.children, inside, picked, f);
+            }
+            _ => {}
+        }
+    }
 }
 
 fn panel_edge(pr: &mut Project, p: &Value) -> Result<Value, String> {

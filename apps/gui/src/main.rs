@@ -453,6 +453,8 @@ enum MenuAct {
     Block,
     Explode,
     Deselect,
+    /// Select every part of the same material as the clicked one.
+    SameMaterial,
 }
 
 /// Fields of the new material / edge banding form.
@@ -473,6 +475,8 @@ struct App {
     layout: Layout<Pane>,
     /// Selected parts; the last one is the primary (its properties are shown).
     selection: Vec<Sel>,
+    /// Shift+drag selection frame in the front view: where it started and whether Ctrl was held then.
+    framing: Option<(Pos2, bool)>,
     /// Parameters of actions on the selection: move/copy (dx, dy, dz), axis, angle, number of copies.
     actions: ([f64; 3], char, f64, u32),
     /// Dragging in the front view: offset in mm.
@@ -572,6 +576,7 @@ impl Default for App {
             path: None,
             layout: default_layout(),
             selection: Vec::new(),
+            framing: None,
             actions: ([0.0; 3], 'x', 90.0, 1),
             drag: None,
             handle: None,
@@ -1075,6 +1080,26 @@ impl App {
                 .on_hover_text(crate::i18n::t("Quantities with the usage factor × prices; weight of the parts. Details: File → Export → Material estimate"));
         }
 
+        // "Replace with…": in the selected objects if something is selected, otherwise in the whole project.
+        let sel_ids = self.targets();
+        let replace = |ui: &mut egui::Ui, cmds: &mut Cmds, cmd: &'static str, from: &str, names: Vec<String>| {
+            let tip = if sel_ids.is_empty() { "In the whole project" } else { "Only in the selected objects" };
+            egui::ComboBox::from_id_salt((cmd, from.to_string())).selected_text(crate::i18n::t("Replace with…")).show_ui(ui, |ui| {
+                for n in names.into_iter().filter(|n| n != from) {
+                    if ui.selectable_label(false, &n).clicked() {
+                        let mut v = json!({ "from": from, "to": n });
+                        if !sel_ids.is_empty() {
+                            v["ids"] = json!(sel_ids);
+                        }
+                        cmds.push((cmd, v));
+                    }
+                }
+            })
+            .response
+            .on_hover_text(crate::i18n::t(tip));
+        };
+        let material_names: Vec<String> = project.materials.iter().map(|m| m.name.clone()).collect();
+        let edge_names: Vec<String> = project.edges.iter().map(|e| e.name.clone()).collect();
         egui::CollapsingHeader::new(crate::i18n::t(format!("Materials ({})", project.materials.len()))).default_open(true).show(ui, |ui| {
             for m in &project.materials {
                 // Each material in its own frame so it doesn't blend with the new-material form.
@@ -1085,6 +1110,7 @@ impl App {
                         if ui.small_button(crate::i18n::t("Delete")).on_hover_text(crate::i18n::t("Remove the material from the project (if it is not used anywhere)")).clicked() {
                             cmds.push(("material.remove", json!({ "name": m.name })));
                         }
+                        replace(ui, &mut cmds, "material.replace", &m.name, material_names.clone());
                     });
                     ui.label(crate::i18n::t(format!("{} mm, sheet {}×{}, factor {}", m.thickness, m.sheet.0, m.sheet.1, m.coef)));
                     ui.horizontal_wrapped(|ui| {
@@ -1203,6 +1229,7 @@ impl App {
                         if ui.small_button(crate::i18n::t("Delete")).on_hover_text(crate::i18n::t("Remove the edge banding from the project (if no part uses it)")).clicked() {
                             cmds.push(("edge.remove", json!({ "name": e.name })));
                         }
+                        replace(ui, &mut cmds, "edge.replace", &e.name, edge_names.clone());
                     });
                     ui.label(crate::i18n::t(format!("{} mm × {} mm", e.thickness, e.width)));
                     ui.horizontal(|ui| {
@@ -1390,6 +1417,9 @@ impl App {
             act = Some(MenuAct::Explode);
         }
         ui.separator();
+        if ui.button(crate::i18n::t("Select the same material")).on_hover_text(crate::i18n::t("Every part made of the material of the clicked one")).clicked() {
+            act = Some(MenuAct::SameMaterial);
+        }
         if ui.button(crate::i18n::t("Clear selection")).clicked() {
             act = Some(MenuAct::Deselect);
         }
@@ -1427,6 +1457,12 @@ impl App {
             }
             MenuAct::Deselect => {
                 self.selection.clear();
+                self.furniture_sel = None;
+            }
+            MenuAct::SameMaterial => {
+                let Ok(parts) = &self.parts else { return };
+                let Some(m) = self.selected().map(|i| parts[i].panel.material.clone()) else { return };
+                self.selection = (0..parts.len()).filter(|&i| parts[i].panel.material == m).map(|i| Sel::of(parts, i)).collect();
                 self.furniture_sel = None;
             }
         }
@@ -1944,9 +1980,12 @@ impl App {
         });
         // The part nearest to the viewer under the cursor is the last one drawn.
         let mut hovered: Option<usize> = None;
+        // Screen rectangles of the parts, for a Shift+drag selection frame.
+        let mut screen: Vec<(usize, Rect)> = Vec::new();
         for fr in &rects {
             let mv = moving.filter(|_| selected.contains(&fr.part)).unwrap_or([0.0; 2]);
             let r = Rect::from_two_pos(to(fr.x + mv[0], fr.y + mv[1]), to(fr.x + fr.w + mv[0], fr.y + fr.h + mv[1]));
+            screen.push((fr.part, r));
             let fill = match fr.kind {
                 _ if selected.contains(&fr.part) => Color32::from_rgb(255, 170, 70),
                 design::Kind::Door | design::Kind::Drawer => Color32::from_rgba_unmultiplied(170, 200, 230, 150),
@@ -2089,6 +2128,33 @@ impl App {
             self.menu_apply(a);
             return;
         }
+        // Shift+drag — a selection frame: parts entirely inside it (Ctrl+Shift adds to the selection).
+        if resp.drag_started_by(egui::PointerButton::Primary) && ui.input(|i| i.modifiers.shift) {
+            self.framing = ui.input(|i| i.pointer.press_origin().map(|o| (o, i.modifiers.command)));
+        }
+        if let Some((start, add)) = self.framing {
+            let now = ui.input(|i| i.pointer.interact_pos()).unwrap_or(start);
+            let frame = Rect::from_two_pos(start, now);
+            painter.rect(frame, 0.0, Color32::from_rgba_unmultiplied(90, 150, 230, 30), Stroke::new(1.0, Color32::from_rgb(90, 150, 230)), StrokeKind::Middle);
+            if resp.drag_stopped() || !resp.dragged() {
+                self.framing = None;
+                // A tiny Shift+drag is a slip of the hand: the selection stays.
+                if frame.width() <= 4.0 && frame.height() <= 4.0 {
+                    return;
+                }
+                if !add {
+                    self.selection.clear();
+                    self.furniture_sel = None;
+                }
+                for (i, _) in screen.iter().filter(|(_, r)| frame.contains_rect(*r)) {
+                    let s = Sel::of(&parts, *i);
+                    if !self.selection.contains(&s) {
+                        self.selection.push(s);
+                    }
+                }
+            }
+            return;
+        }
         if resp.drag_started_by(egui::PointerButton::Primary) && hovered.is_some_and(|h| selected.contains(&h)) && self.session.is_some() {
             self.drag = Some([0.0; 2]);
         }
@@ -2211,6 +2277,20 @@ impl App {
                 viewport::Click::Part(i) => self.select(Some(i)),
                 viewport::Click::Empty => self.select(None),
                 viewport::Click::Menu(hit) => self.menu_pick(hit),
+                viewport::Click::Frame(found, add) => {
+                    // Ctrl+Shift adds to the selection, Shift alone replaces it.
+                    let Ok(parts) = &self.parts else { continue };
+                    let new: Vec<Sel> = found.iter().map(|&i| Sel::of(parts, i)).collect();
+                    if !add {
+                        self.selection.clear();
+                        self.furniture_sel = None;
+                    }
+                    for s in new {
+                        if !self.selection.contains(&s) {
+                            self.selection.push(s);
+                        }
+                    }
+                }
                 viewport::Click::Resize(lo, hi) => {
                     if let Some(id) = self.parts.as_ref().ok().and_then(|p| self.selected_all().first().map(|&i| p[i].id)) {
                         self.exec("panel.box", json!({ "id": id, "lo": lo, "hi": hi }));

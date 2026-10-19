@@ -810,3 +810,34 @@ fn estimate_has_prices_and_weight() {
     let csv = crate::report::materials_csv(&rows);
     assert!(csv.lines().last().unwrap().contains(&crate::report::money(cost)), "{csv}");
 }
+
+/// Mass replacement: a material everywhere or only in chosen objects; an edge banding on templates and free panels.
+#[test]
+fn materials_and_edges_are_replaced() {
+    let mut s = Session::new(Project::new("Replace"));
+    for (name, t) in [("White 16", 16), ("Oak 16", 16)] {
+        s.execute("material.add", &json!({"name": name, "thickness": t})).unwrap();
+    }
+    s.execute("edge.add", &json!({"name": "PVC white", "thickness": 0.4})).unwrap();
+    s.execute("edge.add", &json!({"name": "PVC oak", "thickness": 2, "width": 22})).unwrap();
+    s.execute("cabinet.add", &json!({"width": 600, "height": 720, "depth": 500, "material": "White 16", "door_material": "White 16", "edge": "PVC white", "doors": 1})).unwrap();
+    s.execute("cabinet.add", &json!({"width": 600, "height": 720, "depth": 500, "material": "White 16", "edge": "PVC white", "position": [700, 0, 0]})).unwrap();
+    let panel = s.execute("panel.add", &json!({"material": "White 16", "plane": "front", "size": [400, 300], "position": [0, 1000, 0]})).unwrap()["id"].as_u64().unwrap();
+    s.execute("panel.edge", &json!({"id": panel, "segments": [0, 2], "edge": "PVC white"})).unwrap();
+    // Only the first cabinet: its carcass and door material.
+    let r = s.execute("material.replace", &json!({"from": "White 16", "to": "Oak 16", "ids": [1]})).unwrap();
+    assert_eq!(r["changed"], 2);
+    assert_eq!((s.project.cabinets[0].material.as_str(), s.project.cabinets[1].material.as_str()), ("Oak 16", "White 16"));
+    // Everywhere: the second cabinet and the free panel.
+    assert_eq!(s.execute("material.replace", &json!({"from": "White 16", "to": "Oak 16"})).unwrap()["changed"], 2);
+    assert!(build(&s.project).unwrap().iter().all(|p| crate::panel::material_name(&p.panel.material) == "Oak 16"));
+    // Edge banding: two cabinets and two edges of the panel; the panel edges take the new thickness.
+    // Two cabinets and one panel (with two banded edges).
+    assert_eq!(s.execute("edge.replace", &json!({"from": "PVC white", "to": "PVC oak"})).unwrap()["changed"], 3);
+    let parts = build(&s.project).unwrap();
+    let p = parts.iter().find(|p| p.id == panel as u32).unwrap();
+    assert!(p.panel.edges.iter().all(|e| crate::panel::material_name(&e.material) == "PVC oak" && e.thickness == 2.0));
+    assert!(s.execute("material.replace", &json!({"from": "White 16", "to": "Nothing"})).is_err());
+    assert!(s.execute("material.replace", &json!({"from": "Oak 16", "to": "White 16", "ids": [999]})).is_err(), "unknown object");
+    assert_eq!(s.execute("material.replace", &json!({"from": "Oak 16", "to": "Oak 16"})).unwrap()["changed"], 0);
+}

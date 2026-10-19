@@ -812,3 +812,10 @@ Cost {}, weight {} kg	Стоимость {}, вес {} кг
 Quantities with the usage factor × prices; weight of the parts. Details: File → Export → Material estimate	Количества с коэффициентом расхода × цены; вес деталей. Подробно: Файл → Экспорт → Смета материалов
 by its parts	по составу
 price and weight cannot be negative	цена и вес не могут быть отрицательными
+Select the same material	Выделить такие же по материалу
+Every part made of the material of the clicked one	Все детали из того же материала, что и выбранная
+Replace with…	Заменить на…
+In the whole project	Во всём проекте
+Only in the selected objects	Только в выделенных объектах
+{from, to, ids?} → {changed} — replace a material everywhere (carcass, doors, back panels, countertops, panels) or only in objects ids; changed counts template fields and panels	{from, to, ids?} → {changed} — заменить материал везде (корпус, двери, задние стенки, столешницы, панели) или только в объектах ids; changed — сколько полей шаблонов и панелей изменено
+{from, to, ids?} → {changed} — replace an edge banding everywhere or only in objects ids; changed counts template fields and panels	{from, to, ids?} → {changed} — заменить кромку везде или только в объектах ids; changed — сколько полей шаблонов и панелей изменено
