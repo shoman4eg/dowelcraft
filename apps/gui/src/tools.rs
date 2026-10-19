@@ -133,7 +133,7 @@ impl App {
             if tool(ui, editable, Icon::Script, "Run a Bazis script (.js)", false).clicked() {
                 pick = Some(Pick::Script);
             }
-            if tool(ui, true, Icon::Ruler, "Ruler (M): click two points — part corners and contour points snap; Esc to leave", self.ruler.is_some()).clicked() {
+            if tool(ui, true, Icon::Ruler, "Ruler (M): click two points for each measurement — part corners and contour points snap; they stay until you leave (Esc or M)", self.ruler.is_some()).clicked() {
                 pick = Some(Pick::Ruler);
             }
         });
@@ -173,7 +173,7 @@ impl App {
     /// The ruler on or off; the other tools step aside.
     pub(crate) fn toggle_ruler(&mut self) {
         (self.fill, self.modify, self.fastening) = (None, None, false);
-        self.ruler = if self.ruler.is_some() { None } else { Some([None, None]) };
+        self.ruler = if self.ruler.is_some() { None } else { Some(crate::viewport::Ruler::default()) };
     }
 
     /// Toggle the "into opening" tool and show the front view, where it is clicked.

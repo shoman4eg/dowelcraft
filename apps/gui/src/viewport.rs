@@ -412,8 +412,8 @@ pub struct Viewport {
     offset_built: [f32; 3],
     /// A size handle is being dragged: which one (by screen axes) and the accumulated mouse offset (pixels).
     resize: Option<([i8; 2], Vec2)>,
-    /// The ruler is on: its points (the second one missing while measuring); clicks pick part vertices.
-    pub ruler: Option<[Option<[f64; 3]>; 2]>,
+    /// The ruler is on: its measurements; clicks pick part vertices.
+    pub ruler: Option<Ruler>,
     /// Shift+drag selection frame: where it started (screen point) and whether Ctrl was held then.
     framing: Option<(egui::Pos2, bool)>,
     /// Axis the 3D grid was perpendicular to last frame (1 — the floor), see `grid_axis`.
@@ -1034,7 +1034,7 @@ impl Viewport {
         // LMB — rotate, RMB — pan, wheel — zoom about the point under the cursor.
         let mut click = Click::None;
         // The ruler: the part vertex nearest to the cursor (closer than 10 px) is the point.
-        let snap = self.ruler.and_then(|_| ui.input(|i| i.pointer.hover_pos()).filter(|p| rect.contains(*p))).and_then(|h| self.snap_vertex(h - rect.center(), 10.0));
+        let snap = self.ruler.as_ref().and_then(|_| ui.input(|i| i.pointer.hover_pos()).filter(|p| rect.contains(*p))).and_then(|h| self.snap_vertex(h - rect.center(), 10.0));
         if self.ruler.is_some() {
             if resp.clicked()
                 && let Some(p) = snap
@@ -1313,15 +1313,49 @@ impl Viewport {
             ui.painter().text(rect.left_top() + Vec2::new(6.0, 4.0), egui::Align2::LEFT_TOP, crate::i18n::t(l), egui::FontId::proportional(13.0), Color32::from_gray(90));
             ui.painter().rect_stroke(rect, 0.0, egui::Stroke::new(1.0, Color32::from_gray(150)), egui::StrokeKind::Inside);
         }
-        if let Some([a, b]) = self.ruler {
+        if let Some(r) = &self.ruler {
             let at = |p: [f64; 3]| rect.center() + self.to_screen(p);
-            draw_ruler(&ui.painter_at(rect), a.map(at), b.or(snap.filter(|_| a.is_some())).map(at), snap.map(at), a.zip(b.or(snap)));
+            r.draw(&ui.painter_at(rect), false, at, snap);
         }
         if !self.errors.is_empty() {
             let text = format!("Part contours not built ({}): {}", self.errors.len(), self.errors.iter().map(|(n, e)| format!("«{n}» — {e}")).collect::<Vec<_>>().join("; "));
             ui.painter().text(rect.left_bottom() + Vec2::new(8.0, -8.0), egui::Align2::LEFT_BOTTOM, text, egui::FontId::proportional(13.0), Color32::from_rgb(200, 40, 40));
         }
         (click, Some(resp))
+    }
+}
+
+/// Ruler measurements, kept until the ruler is switched off: finished ones and the first point of the one being
+/// taken. `bool` — taken in the front view (no depth): those are shown there, the others in the 3D views.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Ruler {
+    pub done: Vec<([f64; 3], [f64; 3], bool)>,
+    pub first: Option<([f64; 3], bool)>,
+}
+
+impl Ruler {
+    /// A click: the first point, then the second, which completes a measurement.
+    /// A point from the other kind of view starts anew. Returns the finished one.
+    pub fn point(&mut self, p: [f64; 3], front: bool) -> Option<([f64; 3], [f64; 3])> {
+        match self.first.take() {
+            Some((a, f)) if f == front => {
+                self.done.push((a, p, front));
+                Some((a, p))
+            }
+            _ => {
+                self.first = Some((p, front));
+                None
+            }
+        }
+    }
+
+    /// The measurements of one kind of view, the one being taken going to the snapped point under the cursor.
+    pub fn draw(&self, painter: &egui::Painter, front: bool, at: impl Fn([f64; 3]) -> egui::Pos2, snap: Option<[f64; 3]>) {
+        for &(a, b, _) in self.done.iter().filter(|m| m.2 == front) {
+            draw_ruler(painter, Some(at(a)), Some(at(b)), None, Some((a, b)));
+        }
+        let first = self.first.filter(|(_, f)| *f == front).map(|(a, _)| a);
+        draw_ruler(painter, first.map(&at), snap.filter(|_| first.is_some()).map(&at), snap.map(&at), first.zip(snap));
     }
 }
 
@@ -1397,6 +1431,18 @@ mod tests {
         assert_eq!(grid_axis(dir(45.0, 0.0), 2), 2);
         assert_eq!(grid_axis(dir(45.0, 0.0), 0), 0);
         assert_eq!(grid_axis([f32::NAN; 3], 2), 1);
+    }
+
+    /// Measurements pile up; a point from the other kind of view (front vs 3D) starts a new one.
+    #[test]
+    fn ruler_keeps_measurements() {
+        let mut r = Ruler::default();
+        assert_eq!(r.point([0.0; 3], false), None);
+        assert_eq!(r.point([100.0, 0.0, 0.0], false), Some(([0.0; 3], [100.0, 0.0, 0.0])));
+        assert_eq!(r.point([0.0; 3], false), None);
+        assert_eq!(r.point([0.0, 50.0, 0.0], true), None, "the front view starts anew");
+        assert_eq!(r.point([0.0, 80.0, 0.0], true), Some(([0.0, 50.0, 0.0], [0.0, 80.0, 0.0])));
+        assert_eq!(r.done.len(), 2);
     }
 
     /// The ruler's label: the length and, for a slanted line, the differences along the axes.

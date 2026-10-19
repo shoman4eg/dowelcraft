@@ -565,10 +565,8 @@ struct App {
     /// Waiting for a key press in settings: the new shortcut for this action.
     key_capture: Option<&'static str>,
     views: [viewport::Viewport; 3],
-    /// The ruler tool is on: its two points in mm (the second missing while measuring).
-    ruler: Option<[Option<[f64; 3]>; 2]>,
-    /// The first ruler point was taken in the front view (its Z is 0): a second one from 3D starts anew.
-    ruler_front: bool,
+    /// The ruler tool is on: its measurements (cleared when it is switched off).
+    ruler: Option<viewport::Ruler>,
 }
 
 impl Default for App {
@@ -633,7 +631,6 @@ impl Default for App {
             quad_max: None,
             key_capture: None,
             ruler: None,
-            ruler_front: false,
             views: [viewport::Viewport::with_view(0.0, 0.0, "Front"), viewport::Viewport::with_view(90.0, 0.0, "Left"), viewport::Viewport::with_view(0.0, 89.9, "Top")],
         };
         app.refresh();
@@ -958,8 +955,7 @@ impl eframe::App for App {
         let g = self.settings.grid;
         for v in std::iter::once(&mut self.viewport).chain(self.views.iter_mut()) {
             v.grid = viewport::Grid { on: g.on, step: g.step, major: g.major };
-            // Points taken in the front view (no depth) are not shown in 3D.
-            v.ruler = self.ruler.map(|r| if self.ruler_front { [None, None] } else { r });
+            v.ruler = self.ruler.clone();
         }
         self.help_windows(&ctx);
         self.close_window(&ctx);
@@ -1041,18 +1037,10 @@ impl App {
     }
 
     /// Hotkey action (`keys::ACTIONS`).
-    /// A ruler click: the first point, then the second; the next click starts a new measurement.
-    /// `front` — taken in the front view: a measurement stays in one kind of view (the front view has no depth).
+    /// A ruler click; `front` — taken in the front view (a measurement stays in one kind of view: that one has no depth).
     pub(crate) fn ruler_point(&mut self, p: [f64; 3], front: bool) {
         let Some(r) = &mut self.ruler else { return };
-        *r = match *r {
-            [Some(a), None] if self.ruler_front == front => [Some(a), Some(p)],
-            _ => {
-                self.ruler_front = front;
-                [Some(p), None]
-            }
-        };
-        if let [Some(a), Some(b)] = *r {
+        if let Some((a, b)) = r.point(p, front) {
             self.status = viewport::ruler_text(a, b);
         }
     }
@@ -2178,7 +2166,7 @@ impl App {
             }
         }
         // The ruler: part corners snap (closer than 10 px); clicks measure instead of selecting.
-        if let Some(r) = self.ruler {
+        if self.ruler.is_some() {
             let hover = ui.input(|i| i.pointer.hover_pos()).filter(|p| resp.rect.contains(*p));
             let snap = hover.and_then(|h| {
                 rects
@@ -2194,10 +2182,9 @@ impl App {
             {
                 self.ruler_point(p, true);
             }
-            // Points from the 3D views are not drawn here (they have depth).
-            let r = if self.ruler_front { self.ruler.unwrap_or(r) } else { [None, None] };
-            let at = |p: [f64; 3]| to(p[0], p[1]);
-            viewport::draw_ruler(&painter, r[0].map(at), r[1].or(snap.filter(|_| r[0].is_some())).map(at), snap.map(at), r[0].zip(r[1].or(snap)));
+            if let Some(r) = &self.ruler {
+                r.draw(&painter, true, |p| to(p[0], p[1]), snap);
+            }
             return;
         }
         if resp.clicked() {
