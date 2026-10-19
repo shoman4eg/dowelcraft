@@ -13,6 +13,7 @@ pub mod i18n;
 pub mod live;
 pub mod mesh;
 pub mod nest;
+pub mod obj;
 pub mod pdf;
 pub mod panel;
 pub mod raskroy;

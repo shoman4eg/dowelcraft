@@ -421,11 +421,12 @@ fn num(v: f64) -> String {
 }
 
 /// Export kinds: (what, menu item).
-const EXPORTS: [(&str, &str); 8] = [
+const EXPORTS: [(&str, &str); 9] = [
     ("html", "Cutting maps and production list (HTML)…"),
     ("xml", "BAZIS-Cutting project (XML)…"),
     ("spec", "Specification (CSV)…"),
     ("smeta", "Material estimate (CSV)…"),
+    ("obj", "3D model (OBJ) for visualisation…"),
     ("b3d", "Bazis-Mebelshchik model (.b3d)…"),
     ("drawings", "Drawings: assembly and parts (printable HTML)…"),
     ("drawings_pdf", "Drawings (PDF)…"),
@@ -443,7 +444,8 @@ fn side(ui: &mut egui::Ui, id: &str, body: impl FnOnce(&mut egui::Ui)) {
 fn free_name(base: &str, taken: &[&str]) -> String {
     let base = base.trim();
     let stem = base.rsplit_once(" (").filter(|(_, n)| n.trim_end_matches(')').parse::<u32>().is_ok()).map_or(base, |(s, _)| s);
-    std::iter::once(base.to_string()).chain((2..).map(|k| format!("{stem} ({k})"))).find(|n| !taken.contains(&n.as_str())).unwrap_or_default()
+    // From the stem each time: "Chipboard 16 (2)" left from another project becomes "Chipboard 16" again where that is free.
+    std::iter::once(stem.to_string()).chain((2..).map(|k| format!("{stem} ({k})"))).find(|n| !taken.contains(&n.as_str())).unwrap_or_default()
 }
 
 /// Right-click menu item (and the Delete key).
@@ -571,8 +573,8 @@ impl Default for App {
         i18n::set_language(&settings.language);
         let textures = textures::TextureLib::new(settings.texture_dirs.clone());
         let mut app = App {
-            session: Some(Session::new(Project::new("New project"))),
-            job: Job::from_project(Project::new("New project")),
+            session: Some(Session::new(Project::new(&crate::i18n::t("New project")))),
+            job: Job::from_project(Project::new(&crate::i18n::t("New project"))),
             path: None,
             layout: default_layout(),
             selection: Vec::new(),
@@ -800,6 +802,7 @@ impl App {
             "xml" => ("xml", "BAZIS-Cutting project"),
             "spec" | "smeta" => ("csv", "CSV table"),
             "b3d" => ("b3d", "Bazis-Mebelshchik model"),
+            "obj" => ("obj", "OBJ 3D model"),
             "drawings" => ("html", "Drawings"),
             "drawings_pdf" | "cards_pdf" => ("pdf", "PDF"),
             _ => return,
@@ -832,6 +835,15 @@ impl App {
                 Ok(parts) => dowel::report::document_html(&job.name, &dowel::drawing::drawings(&parts, &job.name), "").into_bytes(),
                 Err(e) => return self.error = Some(e),
             },
+            "obj" => {
+                // Two files: the model and its materials (.mtl) next to it.
+                let r = job::parts(job).and_then(|parts| dowel::obj::save(&p, &parts, job.project.as_ref(), &job.name));
+                match r {
+                    Ok(()) => self.status = format!("Saved: {}", p.display()),
+                    Err(e) => self.error = Some(e),
+                }
+                return;
+            }
             "b3d" => match job.project.as_ref().map(dowel::export::b3d) {
                 Some(Ok(b)) => b,
                 Some(Err(e)) => return self.error = Some(e),
@@ -1082,21 +1094,35 @@ impl App {
 
         // "Replace with…": in the selected objects if something is selected, otherwise in the whole project.
         let sel_ids = self.targets();
-        let replace = |ui: &mut egui::Ui, cmds: &mut Cmds, cmd: &'static str, from: &str, names: Vec<String>| {
-            let tip = if sel_ids.is_empty() { "In the whole project" } else { "Only in the selected objects" };
-            egui::ComboBox::from_id_salt((cmd, from.to_string())).selected_text(crate::i18n::t("Replace with…")).show_ui(ui, |ui| {
-                for n in names.into_iter().filter(|n| n != from) {
-                    if ui.selectable_label(false, &n).clicked() {
-                        let mut v = json!({ "from": from, "to": n });
-                        if !sel_ids.is_empty() {
-                            v["ids"] = json!(sel_ids);
+        // Card header: the name, and in the right corner a "…" menu with Delete and "Replace with ▸".
+        let header = |ui: &mut egui::Ui, cmds: &mut Cmds, name: &str, remove: (&'static str, &str), replace: &'static str, names: &[String]| {
+            ui.horizontal(|ui| {
+                ui.strong(name);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.menu_button("…", |ui| {
+                        let where_ = if sel_ids.is_empty() { "In the whole project" } else { "Only in the selected objects" };
+                        ui.menu_button(crate::i18n::t("Replace with"), |ui| {
+                            ui.weak(crate::i18n::t(where_));
+                            for n in names.iter().filter(|n| n.as_str() != name) {
+                                if ui.button(n).clicked() {
+                                    let mut v = json!({ "from": name, "to": n });
+                                    if !sel_ids.is_empty() {
+                                        v["ids"] = json!(sel_ids);
+                                    }
+                                    cmds.push((replace, v));
+                                    ui.close();
+                                }
+                            }
+                        });
+                        if ui.button(crate::i18n::t("Delete")).on_hover_text(crate::i18n::t(remove.1)).clicked() {
+                            cmds.push((remove.0, json!({ "name": name })));
+                            ui.close();
                         }
-                        cmds.push((cmd, v));
-                    }
-                }
-            })
-            .response
-            .on_hover_text(crate::i18n::t(tip));
+                    })
+                    .response
+                    .on_hover_text(crate::i18n::t("Delete, replace"));
+                });
+            });
         };
         let material_names: Vec<String> = project.materials.iter().map(|m| m.name.clone()).collect();
         let edge_names: Vec<String> = project.edges.iter().map(|e| e.name.clone()).collect();
@@ -1105,55 +1131,56 @@ impl App {
                 // Each material in its own frame so it doesn't blend with the new-material form.
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     ui.set_width(ui.available_width());
-                    ui.horizontal(|ui| {
-                        ui.strong(&m.name);
-                        if ui.small_button(crate::i18n::t("Delete")).on_hover_text(crate::i18n::t("Remove the material from the project (if it is not used anywhere)")).clicked() {
-                            cmds.push(("material.remove", json!({ "name": m.name })));
-                        }
-                        replace(ui, &mut cmds, "material.replace", &m.name, material_names.clone());
-                    });
-                    ui.label(crate::i18n::t(format!("{} mm, sheet {}×{}, factor {}", m.thickness, m.sheet.0, m.sheet.1, m.coef)));
-                    ui.horizontal_wrapped(|ui| {
-                        let shown = m.texture.as_deref().map_or_else(|| crate::i18n::t("none"), |t| textures::label(std::path::Path::new(t)));
-                        ui.label(crate::i18n::t(format!("texture: {shown}")));
-                        if ui.small_button(crate::i18n::t("Choose…")).on_hover_text(crate::i18n::t("Texture library: folders, previews, search")).clicked() {
+                    header(ui, &mut cmds, &m.name, ("material.remove", "Remove the material from the project (if it is not used anywhere)"), "material.replace", &material_names);
+                    ui.weak(crate::i18n::t(format!("{} mm, sheet {}×{}, factor {}", m.thickness, m.sheet.0, m.sheet.1, m.coef)));
+                    let done = |r: &egui::Response| r.drag_stopped() || (r.changed() && !r.dragged());
+                    editors::props(ui, ("mat_card", &m.name), |ui| {
+                        // Narrow fields: the card fits a narrow panel.
+                        ui.spacing_mut().interact_size.x = 48.0;
+                        editors::caption(ui, "Texture");
+                        // The button shows the chosen image (or "Choose…") and opens the library.
+                        let shown = m.texture.as_deref().map_or_else(|| crate::i18n::t("Choose…"), |t| textures::label(std::path::Path::new(t)));
+                        if ui.small_button(shown).on_hover_text(crate::i18n::t("Texture library: folders, previews, search")).clicked() {
                             self.textures.open_for = Some(textures::Target::Material(m.name.clone()));
                         }
+                        ui.end_row();
+                        ui.label("");
                         if ui.small_button(crate::i18n::t("by article")).on_hover_text(crate::i18n::t("Find d(<article>)1.jpg in the texture folders (Baltlaminat)")).clicked() {
                             match self.textures.dirs().iter().find_map(|d| dowel::library::find_texture(std::path::Path::new(d), &m.article)) {
                                 Some(p) => cmds.push(("material.set", json!({ "name": m.name, "texture": p.display().to_string() }))),
                                 None => self.status = format!("No texture for article “{}”", m.article),
                             }
                         }
-                        let mut tile = m.texture_size.unwrap_or([1000.0, 1000.0]);
-                        ui.label(crate::i18n::t("tile")).on_hover_text(crate::i18n::t("Texture image size on the part, mm: along the grain × across"));
-                        let r1 = crate::expr::add(ui, &mut tile[0], |d| d.range(10.0..=5000.0).suffix(crate::i18n::t(" mm")));
-                        let r2 = crate::expr::add(ui, &mut tile[1], |d| d.range(10.0..=5000.0).suffix(crate::i18n::t(" mm"))).on_hover_text(crate::i18n::t("Texture tile: along the grain × across"));
-                        let done = |r: &egui::Response| r.drag_stopped() || (r.changed() && !r.dragged());
-                        if (done(&r1) || done(&r2)) && Some(tile) != m.texture_size {
-                            cmds.push(("material.set", json!({ "name": m.name, "texture_size": tile })));
+                        ui.end_row();
+                        // Texture image size on the part: along the grain and across.
+                        for (k, label) in [(0, "Tile along, mm"), (1, "Tile across, mm")] {
+                            editors::caption(ui, label).on_hover_text(crate::i18n::t("Texture image size on the part, mm: along the grain × across"));
+                            let mut tile = m.texture_size.unwrap_or([1000.0, 1000.0]);
+                            let r = crate::expr::add(ui, &mut tile[k], |d| d.range(10.0..=5000.0));
+                            if done(&r) && Some(tile) != m.texture_size {
+                                cmds.push(("material.set", json!({ "name": m.name, "texture_size": tile })));
+                            }
+                            ui.end_row();
                         }
-                    });
-                    ui.horizontal(|ui| {
                         // Empty means the general cutting parameters from the "Cutting" tab.
-                        for (key, label, value, general) in [("trim", "trim", m.trim, self.params.trim), ("kerf", "kerf", m.kerf, self.params.kerf)] {
+                        for (key, label, value, general) in [("trim", "Trim, mm", m.trim, self.params.trim), ("kerf", "Kerf, mm", m.kerf, self.params.kerf)] {
+                            editors::caption(ui, label);
                             let mut v = value.unwrap_or(general);
-                            ui.label(crate::i18n::t(label));
-                            let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=50.0).speed(0.1).suffix(crate::i18n::t(" mm")));
-                            if (r.drag_stopped() || (r.changed() && !r.dragged())) && Some(v) != value {
+                            let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=50.0).speed(0.1));
+                            if done(&r) && Some(v) != value {
                                 cmds.push(("material.set", json!({ "name": m.name, key: v })));
                             }
+                            ui.end_row();
                         }
-                    });
-                    // For the estimate: price per m² and weight of 1 m² (a sheet's weight divided by its area).
-                    ui.horizontal(|ui| {
-                        for (key, label, value, unit) in [("price", "price", m.price, " /m²"), ("weight", "weight", m.weight, " kg/m²")] {
+                        // For the estimate: price per m² and weight of 1 m² (a sheet's weight divided by its area).
+                        for (key, label, value) in [("price", "Price per m²", m.price), ("weight", "Weight of 1 m², kg", m.weight)] {
+                            editors::caption(ui, label);
                             let mut v = value;
-                            ui.label(crate::i18n::t(label));
-                            let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=1e6).speed(0.1).suffix(crate::i18n::t(unit)));
-                            if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != value {
+                            let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=1e6).speed(0.1));
+                            if done(&r) && v != value {
                                 cmds.push(("material.set", json!({ "name": m.name, key: v })));
                             }
+                            ui.end_row();
                         }
                     });
                 });
@@ -1161,9 +1188,13 @@ impl App {
             let nm = &mut self.new_material;
             let name_id = egui::Id::new("new_material_name");
             let names: Vec<&str> = project.materials.iter().map(|m| m.name.as_str()).collect();
-            // A taken name not currently being edited is immediately replaced with a free one ("Chipboard 16 (2)").
-            if names.contains(&nm.name.trim()) && !ui.memory(|m| m.has_focus(name_id)) {
-                nm.name = free_name(&nm.name, &names);
+            // While not being edited the name is the first free one in this project ("Chipboard 16", else "Chipboard 16 (2)"…):
+            // the form is shared by all tabs.
+            if !ui.memory(|m| m.has_focus(name_id)) {
+                let free = free_name(&nm.name, &names);
+                if free != nm.name {
+                    nm.name = free;
+                }
             }
             let taken = names.contains(&nm.name.trim());
             ui.add_space(6.0);
@@ -1224,29 +1255,27 @@ impl App {
             for e in &project.edges {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     ui.set_width(ui.available_width());
-                    ui.horizontal(|ui| {
-                        ui.strong(&e.name);
-                        if ui.small_button(crate::i18n::t("Delete")).on_hover_text(crate::i18n::t("Remove the edge banding from the project (if no part uses it)")).clicked() {
-                            cmds.push(("edge.remove", json!({ "name": e.name })));
-                        }
-                        replace(ui, &mut cmds, "edge.replace", &e.name, edge_names.clone());
-                    });
-                    ui.label(crate::i18n::t(format!("{} mm × {} mm", e.thickness, e.width)));
-                    ui.horizontal(|ui| {
+                    header(ui, &mut cmds, &e.name, ("edge.remove", "Remove the edge banding from the project (if no part uses it)"), "edge.replace", &edge_names);
+                    ui.weak(crate::i18n::t(format!("{} mm × {} mm", e.thickness, e.width)));
+                    editors::props(ui, ("edge_card", &e.name), |ui| {
+                        editors::caption(ui, "Price per metre");
                         let mut v = e.price;
-                        ui.label(crate::i18n::t("price"));
-                        let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=1e6).speed(0.1).suffix(crate::i18n::t(" /m")));
+                        let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=1e6).speed(0.1));
                         if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != e.price {
                             cmds.push(("edge.set", json!({ "name": e.name, "price": v })));
                         }
+                        ui.end_row();
                     });
                 });
             }
             let (n, t, w) = &mut self.new_edge;
             let name_id = egui::Id::new("new_edge_name");
             let names: Vec<&str> = project.edges.iter().map(|e| e.name.as_str()).collect();
-            if names.contains(&n.trim()) && !ui.memory(|m| m.has_focus(name_id)) {
-                *n = free_name(n, &names);
+            if !ui.memory(|m| m.has_focus(name_id)) {
+                let free = free_name(n, &names);
+                if free != *n {
+                    *n = free;
+                }
             }
             let taken = names.contains(&n.trim());
             ui.add_space(6.0);
@@ -1820,7 +1849,8 @@ impl App {
                 ui.weak(crate::i18n::t("Add edge banding in the “Project” panel."));
             }
             let (edge, clip, allowance) = &mut self.edging;
-            if edge.is_none() {
+            // The choice is kept for the window; one from another project (tab) is not offered here.
+            if edge.as_ref().is_none_or(|e| !names.contains(e)) {
                 *edge = names.first().cloned();
             }
             ui.horizontal(|ui| {
@@ -1828,7 +1858,7 @@ impl App {
                     *edge = Some(v);
                 }
                 ui.checkbox(clip, crate::i18n::t("Trim")).on_hover_text(crate::i18n::t("Blank reduced by the banding thickness: the part size is finished size"));
-                crate::expr::add(ui, allowance, |d| d.range(0.0..=10.0).speed(0.1).prefix("allowance").suffix(crate::i18n::t(" mm")));
+                crate::expr::add(ui, allowance, |d| d.range(0.0..=10.0).speed(0.1).prefix(crate::i18n::t("allowance ")).suffix(crate::i18n::t(" mm")));
             });
             ui.separator();
             ui.heading(crate::i18n::t("Contour"));
@@ -2461,5 +2491,7 @@ mod tests {
         assert_eq!(free_name("Chipboard 16", &["Chipboard 16"]), "Chipboard 16 (2)");
         assert_eq!(free_name("Chipboard 16 (2)", &["Chipboard 16", "Chipboard 16 (2)"]), "Chipboard 16 (3)");
         assert_eq!(free_name(" Chipboard 16 ", &["Chipboard 16", "Chipboard 16 (2)"]), "Chipboard 16 (3)");
+        // A number left from another project goes away where the plain name is free.
+        assert_eq!(free_name("Chipboard 16 (2)", &[]), "Chipboard 16");
     }
 }

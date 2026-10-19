@@ -29,6 +29,7 @@ A model is a Bazis .b3d file or your own .dcraft project:
 Your own project:
   dowel-craft import <file.b3d> [-o project.dcraft]  Bazis model → your project (parts become editable)
   dowel-craft b3d <project.dcraft> [-o model.b3d]     your project → a Bazis-Mebelshchik model
+  dowel-craft obj <model> [-o model.obj]              3D model for visualisation (OBJ + MTL, mm)
   dowel-craft script <project.dcraft> <script.js>     run a Bazis script on the project and save it
   dowel-craft check <model>                           model check: overlaps, fasteners, sizes
   dowel-craft drawings <model> [-o drawings.html|.pdf] assembly and part drawings (A4; .pdf without a browser)
@@ -45,7 +46,7 @@ fn usage() -> String {
 
 /// Commands handled here (the first argument of `dowel-craft`); anything else opens the window.
 pub fn is_command(name: &str) -> bool {
-    matches!(name, "spec" | "cut" | "smeta" | "raskroy" | "dump" | "import" | "b3d" | "script" | "check" | "drawings" | "design" | "help" | "--help" | "-h")
+    matches!(name, "spec" | "cut" | "smeta" | "raskroy" | "dump" | "import" | "b3d" | "obj" | "script" | "check" | "drawings" | "design" | "help" | "--help" | "-h")
 }
 
 /// Run a command: `args` without the program name.
@@ -128,6 +129,14 @@ fn run(args: &[String]) -> Result<(), String> {
                 std::fs::write(path, s.project.save()).map_err(|e| format!("{path}: {e}"))?;
             }
             println!("{}", t(format!("changes: {}, dialogs: {}", r.changes, r.forms.len())));
+            return Ok(());
+        }
+        "obj" => {
+            let job = Job::open(Path::new(path))?;
+            let parts = dowel::job::parts(&job)?;
+            let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("obj"));
+            dowel::obj::save(&out, &parts, job.project.as_ref(), &job.name)?;
+            println!("{}", t(format!("parts {} → {}", parts.len(), out.display())));
             return Ok(());
         }
         "drawings" => {

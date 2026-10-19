@@ -824,3 +824,17 @@ auto drawer fronts: {} mm left for {} of them, at least 100 mm each is needed	ф
 auto	авто
 Auto fronts share the free height of the cabinet front equally (a cabinet without doors)	Фасады «авто» поровну делят свободную высоту фасада корпуса (корпус без дверей)
 Front heights from the bottom up, separated by spaces; 0 or “auto” — the auto fronts share the rest of the opening	Высоты фасадов снизу вверх через пробел; 0 или «авто» — такие фасады поровну делят остаток проёма
+3D model (OBJ) for visualisation…	3D-модель (OBJ) для визуализации…
+OBJ 3D model	3D-модель OBJ
+  dowel-craft obj <model> [-o model.obj]              3D model for visualisation (OBJ + MTL, mm)	  dowel-craft obj <модель> [-o модель.obj]             3D-модель для визуализации (OBJ + MTL, мм)
+Replace with	Заменить на
+Delete, replace	Удалить, заменить
+Texture	Текстура
+Tile along, mm	Плитка вдоль, мм
+Tile across, mm	Плитка поперёк, мм
+Trim, mm	Обрезка, мм
+Kerf, mm	Пропил, мм
+Price per m²	Цена за м²
+Weight of 1 m², kg	Вес 1 м², кг
+Price per metre	Цена за метр
+allowance 	припуск 

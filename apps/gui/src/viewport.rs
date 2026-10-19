@@ -1003,6 +1003,12 @@ impl Viewport {
         }
 
         let (rect, resp) = ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
+        // This frame's mouse movement goes in first: the size handles drawn below then move together with the part.
+        if let Some(d) = &mut self.dragging
+            && resp.dragged_by(egui::PointerButton::Primary)
+        {
+            *d += resp.drag_delta();
+        }
         if !self.fitted {
             self.fit(rect.size());
             self.fitted = true;
@@ -1106,12 +1112,10 @@ impl Viewport {
             && let Some(o) = ui.input(|i| i.pointer.press_origin())
             && matches!(self.pick(o - rect.center()), Some(Ok(i)) if selected.contains(&i))
         {
-            self.dragging = Some(Vec2::ZERO);
+            // The movement of this first frame too (the top of `show` ran before the drag was known).
+            self.dragging = Some(resp.drag_delta());
         }
-        if let Some(d) = &mut self.dragging {
-            if resp.dragged_by(egui::PointerButton::Primary) {
-                *d += resp.drag_delta();
-            }
+        if self.dragging.is_some() {
             if !resp.dragged() {
                 let mv = self.drag_offset();
                 self.dragging = None;

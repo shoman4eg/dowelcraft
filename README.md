@@ -108,6 +108,7 @@ The macOS archive also has `Dowel Craft.app`.
 - **Documents:**
   - cutting maps and “Panels for production” (printable HTML, PDF);
   - a BAZIS-Raskroy project (XML, the same as Mebelshchik writes it);
+  - an OBJ 3D model for visualisation (Blender, 3ds Max, SketchUp Pro): parts as named objects, hardware meshes, materials with textures in a .mtl, mm;
   - specification and cost estimate (CSV for Excel): boards in m², edge banding in m, hardware in pcs; with prices (per m², per metre, per piece) — sums, the total cost and the weight of the product (from the weight of 1 m² of each board);
   - assembly and part drawings (A4, HTML or PDF);
   - a model for Bazis-Mebelshchik (`.b3d`).
@@ -179,6 +180,7 @@ A model is a Bazis `.b3d` file or your own `.dcraft` project.
 | `dowel-craft dump <file.b3d> [depth]` | the Bazis model tree (for debugging) |
 | `dowel-craft import <file.b3d> [-o project.dcraft]` | Bazis model → your project |
 | `dowel-craft b3d <project.dcraft> [-o model.b3d]` | your project → Bazis model |
+| `dowel-craft obj <model> [-o model.obj]` | 3D model for visualisation (OBJ + MTL) |
 | `dowel-craft script <project.dcraft> <script.js>` | run a Bazis script on the project |
 | `dowel-craft design <project.dcraft> <command> ['{json}']` | a project command; the file is created if missing |
 

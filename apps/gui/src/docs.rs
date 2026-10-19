@@ -22,7 +22,7 @@ pub struct Doc {
 
 impl Doc {
     pub fn empty() -> Doc {
-        Doc { session: Some(Session::new(Project::new("New project"))), job: Job::from_project(Project::new("New project")), path: None, selection: Vec::new(), furniture_sel: None, card: 0, dirty: false, hidden: Default::default() }
+        Doc { session: Some(Session::new(Project::new(&crate::i18n::t("New project")))), job: Job::from_project(Project::new(&crate::i18n::t("New project"))), path: None, selection: Vec::new(), furniture_sel: None, card: 0, dirty: false, hidden: Default::default() }
     }
 
     /// Name for the tab.

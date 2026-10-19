@@ -92,9 +92,9 @@ fn tools() -> Value {
          "inputSchema": {"type": "object", "properties": {
              "sheet": {"type": "array", "items": {"type": "number"}, "description": "default sheet [length, width]"},
              "kerf": {"type": "number"}, "trim": {"type": "number"}}}},
-        {"name": "export", "description": "Save a document: cards_html (cutting maps and “Panels for production”), raskroy_xml (a BAZIS-Raskroy project), spec_csv, smeta_csv, b3d (a Bazis-Mebelshchik model from your project), drawings_html (assembly and part drawings with holes).",
+        {"name": "export", "description": "Save a document: cards_html (cutting maps and “Panels for production”), raskroy_xml (a BAZIS-Raskroy project), spec_csv, smeta_csv, b3d (a Bazis-Mebelshchik model from your project), drawings_html (assembly and part drawings with holes), obj (a 3D model for visualisation, with a .mtl next to it).",
          "inputSchema": {"type": "object", "properties": {
-             "kind": {"type": "string", "enum": ["cards_html", "raskroy_xml", "spec_csv", "smeta_csv", "b3d", "drawings_html"]},
+             "kind": {"type": "string", "enum": ["cards_html", "raskroy_xml", "spec_csv", "smeta_csv", "b3d", "drawings_html", "obj"]},
              "path": {"type": "string"}}, "required": ["kind", "path"]}},
         {"name": "render_iso", "description": "A 3D picture (PNG, axonometric from front-right-top) of the project or a Bazis model.",
          "inputSchema": {"type": "object", "properties": {
@@ -310,6 +310,10 @@ impl Server {
                     "smeta_csv" => dowel::report::materials_csv(&job.estimate(1.2)).into_bytes(),
                     "drawings_html" => dowel::report::document_html(&job.name, &dowel::drawing::drawings(&job::parts(job)?, &job.name), "").into_bytes(),
                     "b3d" => dowel::export::b3d(job.project.as_ref().ok_or_else(|| t("b3d is written from your own project: open or import one"))?)?,
+                    "obj" => {
+                        dowel::obj::save(&path, &job::parts(job)?, job.project.as_ref(), &job.name)?;
+                        return Ok(text(t(format!("Saved: {}", path.display()))));
+                    }
                     k => return Err(t(format!("unknown document kind “{k}”"))),
                 };
                 std::fs::write(&path, bytes).map_err(|e| format!("{}: {e}", path.display()))?;
