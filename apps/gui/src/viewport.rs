@@ -42,6 +42,8 @@ pub enum Click {
     Move([f64; 3]),
     /// A handle changed the size of the selected panel: new `lo`, `hi` in mm.
     Resize([f64; 3], [f64; 3]),
+    /// The ruler picked a point (a part vertex under the cursor), mm.
+    Point([f64; 3]),
     /// Shift+drag drew a frame: parts that are entirely inside it; `true` — Ctrl was held at the start (add to the selection).
     Frame(Vec<usize>, bool),
 }
@@ -410,6 +412,8 @@ pub struct Viewport {
     offset_built: [f32; 3],
     /// A size handle is being dragged: which one (by screen axes) and the accumulated mouse offset (pixels).
     resize: Option<([i8; 2], Vec2)>,
+    /// The ruler is on: its points (the second one missing while measuring); clicks pick part vertices.
+    pub ruler: Option<[Option<[f64; 3]>; 2]>,
     /// Shift+drag selection frame: where it started (screen point) and whether Ctrl was held then.
     framing: Option<(egui::Pos2, bool)>,
     /// Axis the 3D grid was perpendicular to last frame (1 — the floor), see `grid_axis`.
@@ -440,6 +444,7 @@ impl Default for Viewport {
             dragging: None,
             resize: None,
             framing: None,
+            ruler: None,
             offset_built: [0.0; 3],
         }
     }
@@ -921,6 +926,19 @@ impl Viewport {
     }
 
     /// Project point on screen: offset from the window center, egui points.
+    /// The mesh vertex nearest to screen point `at` (relative to the view centre), closer than `px`.
+    fn snap_vertex(&self, at: Vec2, px: f32) -> Option<[f64; 3]> {
+        // The camera basis once, not per vertex: big Bazis models have hundreds of thousands of them.
+        let (_, r, u) = self.camera.basis();
+        let (t, k) = (self.camera.target, 1.0 / self.camera.mm_per_px);
+        let screen = |p: [f32; 3]| {
+            let d: [f32; 3] = std::array::from_fn(|i| p[i] - t[i]);
+            Vec2::new(d[0] * r[0] + d[1] * r[1] + d[2] * r[2], -(d[0] * u[0] + d[1] * u[1] + d[2] * u[2])) * k
+        };
+        let best = self.mesh.vertices.iter().map(|v| (v.pos, (screen(v.pos) - at).length_sq())).filter(|(_, d)| *d < px * px).min_by(|a, b| a.1.total_cmp(&b.1));
+        best.map(|(p, _)| p.map(f64::from))
+    }
+
     fn to_screen(&self, p: [f64; 3]) -> Vec2 {
         let (_, r, u) = self.camera.basis();
         let d: [f32; 3] = std::array::from_fn(|k| p[k] as f32 - self.camera.target[k]);
@@ -1015,7 +1033,15 @@ impl Viewport {
         }
         // LMB — rotate, RMB — pan, wheel — zoom about the point under the cursor.
         let mut click = Click::None;
-        if resp.clicked()
+        // The ruler: the part vertex nearest to the cursor (closer than 10 px) is the point.
+        let snap = self.ruler.and_then(|_| ui.input(|i| i.pointer.hover_pos()).filter(|p| rect.contains(*p))).and_then(|h| self.snap_vertex(h - rect.center(), 10.0));
+        if self.ruler.is_some() {
+            if resp.clicked()
+                && let Some(p) = snap
+            {
+                click = Click::Point(p);
+            }
+        } else if resp.clicked()
             && let Some(pos) = resp.interact_pointer_pos()
         {
             click = match self.pick(pos - rect.center()) {
@@ -1034,7 +1060,8 @@ impl Viewport {
         }
         // Size handles, as in the front view: in unrotated windows, for a single selected rectangular panel.
         let sized = match (self.label, self.screen_axes(), selected) {
-            (Some(_), Some(axes), &[i]) if parts[i].id != 0 && parts[i].panel.is_rect() => Some((i, axes)),
+            // Not while measuring: a click on a handle would resize instead.
+            (Some(_), Some(axes), &[i]) if self.ruler.is_none() && parts[i].id != 0 && parts[i].panel.is_rect() => Some((i, axes)),
             _ => None,
         };
         let mut markers = Vec::new();
@@ -1286,12 +1313,53 @@ impl Viewport {
             ui.painter().text(rect.left_top() + Vec2::new(6.0, 4.0), egui::Align2::LEFT_TOP, crate::i18n::t(l), egui::FontId::proportional(13.0), Color32::from_gray(90));
             ui.painter().rect_stroke(rect, 0.0, egui::Stroke::new(1.0, Color32::from_gray(150)), egui::StrokeKind::Inside);
         }
+        if let Some([a, b]) = self.ruler {
+            let at = |p: [f64; 3]| rect.center() + self.to_screen(p);
+            draw_ruler(&ui.painter_at(rect), a.map(at), b.or(snap.filter(|_| a.is_some())).map(at), snap.map(at), a.zip(b.or(snap)));
+        }
         if !self.errors.is_empty() {
             let text = format!("Part contours not built ({}): {}", self.errors.len(), self.errors.iter().map(|(n, e)| format!("«{n}» — {e}")).collect::<Vec<_>>().join("; "));
             ui.painter().text(rect.left_bottom() + Vec2::new(8.0, -8.0), egui::Align2::LEFT_BOTTOM, text, egui::FontId::proportional(13.0), Color32::from_rgb(200, 40, 40));
         }
         (click, Some(resp))
     }
+}
+
+/// The ruler on screen: the first point, the line to the second (or to the snapped point under the cursor) with its
+/// length, and a ring where the next click lands. `measured` — the two points in mm, for the label.
+pub fn draw_ruler(p: &egui::Painter, a: Option<egui::Pos2>, b: Option<egui::Pos2>, snap: Option<egui::Pos2>, measured: Option<([f64; 3], [f64; 3])>) {
+    let colour = Color32::from_rgb(0x3d, 0xd6, 0xc6);
+    if let Some(s) = snap {
+        p.circle_stroke(s, 5.0, egui::Stroke::new(1.5, colour));
+    }
+    if let Some(a) = a {
+        p.circle_filled(a, 3.0, colour);
+    }
+    if let (Some(a), Some(b), Some((pa, pb))) = (a, b, measured) {
+        p.line_segment([a, b], egui::Stroke::new(1.5, colour));
+        p.circle_filled(b, 3.0, colour);
+        let text = ruler_text(pa, pb);
+        let at = a + (b - a) / 2.0 + Vec2::new(8.0, -8.0);
+        let galley = p.layout_no_wrap(text, egui::FontId::proportional(14.0), colour);
+        p.rect_filled(egui::Rect::from_min_size(at - Vec2::new(3.0, 2.0), galley.size() + Vec2::new(6.0, 4.0)), 3.0, Color32::from_black_alpha(180));
+        p.galley(at, galley, colour);
+    }
+}
+
+/// "1234.5 mm" and the differences along the axes that are not zero.
+pub fn ruler_text(a: [f64; 3], b: [f64; 3]) -> String {
+    let d: [f64; 3] = std::array::from_fn(|k| b[k] - a[k]);
+    let len = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+    let n = |v: f64| {
+        let r = (v * 10.0).round() / 10.0;
+        if r.fract() == 0.0 { format!("{r:.0}") } else { format!("{r:.1}") }
+    };
+    let mut s = crate::i18n::t(format!("{} mm", n(len)));
+    let parts: Vec<String> = ["X", "Y", "Z"].iter().zip(d).filter(|(_, v)| v.abs() >= 0.05).map(|(a, v)| format!("Δ{a} {}", n(v.abs()))).collect();
+    if parts.len() > 1 {
+        s += &format!("  ({})", parts.join(", "));
+    }
+    s
 }
 
 #[cfg(test)]
@@ -1329,6 +1397,14 @@ mod tests {
         assert_eq!(grid_axis(dir(45.0, 0.0), 2), 2);
         assert_eq!(grid_axis(dir(45.0, 0.0), 0), 0);
         assert_eq!(grid_axis([f32::NAN; 3], 2), 1);
+    }
+
+    /// The ruler's label: the length and, for a slanted line, the differences along the axes.
+    #[test]
+    fn ruler_label() {
+        assert_eq!(ruler_text([0.0; 3], [600.0, 0.0, 0.0]), "600 mm");
+        assert_eq!(ruler_text([0.0; 3], [300.0, 400.0, 0.0]), "500 mm  (ΔX 300, ΔY 400)");
+        assert_eq!(ruler_text([10.0, 0.0, 0.0], [0.0, 0.0, 0.25]), "10 mm  (ΔX 10, ΔZ 0.3)");
     }
 
     /// Zooming out goes 1-2-5: step 10 → 20 → 50 → 100 mm.
@@ -1382,3 +1458,4 @@ mod tests {
         assert!(iso[0] > 0.0 && iso[1] == 0.0 && iso[2] == 0.0, "{iso:?}");
     }
 }
+

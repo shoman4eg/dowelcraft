@@ -565,6 +565,10 @@ struct App {
     /// Waiting for a key press in settings: the new shortcut for this action.
     key_capture: Option<&'static str>,
     views: [viewport::Viewport; 3],
+    /// The ruler tool is on: its two points in mm (the second missing while measuring).
+    ruler: Option<[Option<[f64; 3]>; 2]>,
+    /// The first ruler point was taken in the front view (its Z is 0): a second one from 3D starts anew.
+    ruler_front: bool,
 }
 
 impl Default for App {
@@ -628,6 +632,8 @@ impl Default for App {
             quad: false,
             quad_max: None,
             key_capture: None,
+            ruler: None,
+            ruler_front: false,
             views: [viewport::Viewport::with_view(0.0, 0.0, "Front"), viewport::Viewport::with_view(90.0, 0.0, "Left"), viewport::Viewport::with_view(0.0, 89.9, "Top")],
         };
         app.refresh();
@@ -866,8 +872,8 @@ impl eframe::App for App {
         self.top_bar(ui);
         // Esc leaves the tool, and with no tool active, clears the selection.
         if !ctx.text_edit_focused() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            if self.fill.is_some() || self.modify.is_some() || self.fastening {
-                (self.fill, self.modify, self.fastening) = (None, None, false);
+            if self.fill.is_some() || self.modify.is_some() || self.fastening || self.ruler.is_some() {
+                (self.fill, self.modify, self.fastening, self.ruler) = (None, None, false, None);
             } else {
                 self.menu_apply(MenuAct::Deselect);
             }
@@ -952,6 +958,8 @@ impl eframe::App for App {
         let g = self.settings.grid;
         for v in std::iter::once(&mut self.viewport).chain(self.views.iter_mut()) {
             v.grid = viewport::Grid { on: g.on, step: g.step, major: g.major };
+            // Points taken in the front view (no depth) are not shown in 3D.
+            v.ruler = self.ruler.map(|r| if self.ruler_front { [None, None] } else { r });
         }
         self.help_windows(&ctx);
         self.close_window(&ctx);
@@ -1033,10 +1041,27 @@ impl App {
     }
 
     /// Hotkey action (`keys::ACTIONS`).
+    /// A ruler click: the first point, then the second; the next click starts a new measurement.
+    /// `front` — taken in the front view: a measurement stays in one kind of view (the front view has no depth).
+    pub(crate) fn ruler_point(&mut self, p: [f64; 3], front: bool) {
+        let Some(r) = &mut self.ruler else { return };
+        *r = match *r {
+            [Some(a), None] if self.ruler_front == front => [Some(a), Some(p)],
+            _ => {
+                self.ruler_front = front;
+                [Some(p), None]
+            }
+        };
+        if let [Some(a), Some(b)] = *r {
+            self.status = viewport::ruler_text(a, b);
+        }
+    }
+
     fn hotkey(&mut self, id: &str) {
         let (undo, redo) = self.session.as_ref().map_or((false, false), |s| (s.can_undo(), s.can_redo()));
         match id {
             "save" => self.save(false),
+            "ruler" => self.toggle_ruler(),
             "undo" if undo => self.exec("undo", json!({})),
             "redo" if redo => self.exec("redo", json!({})),
             "delete" => self.menu_apply(MenuAct::Delete),
@@ -2083,7 +2108,7 @@ impl App {
             return;
         }
         // Resize handles: on a single selected rectangular tree panel, along the axes other than thickness.
-        let target = (selected.len() == 1).then(|| selected[0]).filter(|&i| parts[i].id != 0 && parts[i].panel.is_rect() && self.session.is_some());
+        let target = (selected.len() == 1 && self.ruler.is_none()).then(|| selected[0]).filter(|&i| parts[i].id != 0 && parts[i].panel.is_rect() && self.session.is_some());
         if let Some(i) = target {
             let p = &parts[i];
             let f = p.panel.frame.unwrap_or(dowel::geom::Frame::IDENTITY);
@@ -2151,6 +2176,29 @@ impl App {
                 }
                 return;
             }
+        }
+        // The ruler: part corners snap (closer than 10 px); clicks measure instead of selecting.
+        if let Some(r) = self.ruler {
+            let hover = ui.input(|i| i.pointer.hover_pos()).filter(|p| resp.rect.contains(*p));
+            let snap = hover.and_then(|h| {
+                rects
+                    .iter()
+                    .flat_map(|fr| [(fr.x, fr.y), (fr.x + fr.w, fr.y), (fr.x, fr.y + fr.h), (fr.x + fr.w, fr.y + fr.h)])
+                    .map(|(x, y)| ([x, y, 0.0], (to(x, y) - h).length()))
+                    .filter(|(_, d)| *d < 10.0)
+                    .min_by(|a, b| a.1.total_cmp(&b.1))
+                    .map(|(p, _)| p)
+            });
+            if resp.clicked()
+                && let Some(p) = snap
+            {
+                self.ruler_point(p, true);
+            }
+            // Points from the 3D views are not drawn here (they have depth).
+            let r = if self.ruler_front { self.ruler.unwrap_or(r) } else { [None, None] };
+            let at = |p: [f64; 3]| to(p[0], p[1]);
+            viewport::draw_ruler(&painter, r[0].map(at), r[1].or(snap.filter(|_| r[0].is_some())).map(at), snap.map(at), r[0].zip(r[1].or(snap)));
+            return;
         }
         if resp.clicked() {
             self.select(hovered);
@@ -2313,6 +2361,7 @@ impl App {
                 viewport::Click::Part(i) => self.select(Some(i)),
                 viewport::Click::Empty => self.select(None),
                 viewport::Click::Menu(hit) => self.menu_pick(hit),
+                viewport::Click::Point(p) => self.ruler_point(p, false),
                 viewport::Click::Frame(found, add) => {
                     // Ctrl+Shift adds to the selection, Shift alone replaces it.
                     let Ok(parts) = &self.parts else { continue };

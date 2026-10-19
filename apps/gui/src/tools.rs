@@ -41,6 +41,7 @@ enum Pick {
     Fasteners,
     Analyze,
     Script,
+    Ruler,
 }
 
 /// Palette group: a header and icons in a wrapping row.
@@ -132,6 +133,9 @@ impl App {
             if tool(ui, editable, Icon::Script, "Run a Bazis script (.js)", false).clicked() {
                 pick = Some(Pick::Script);
             }
+            if tool(ui, true, Icon::Ruler, "Ruler (M): click two points — part corners and contour points snap; Esc to leave", self.ruler.is_some()).clicked() {
+                pick = Some(Pick::Ruler);
+            }
         });
         match pick {
             Some(Pick::Add(kind)) => self.add_object(kind),
@@ -139,16 +143,18 @@ impl App {
             Some(Pick::Modify(m)) => {
                 self.fill = None;
                 self.fastening = false;
+                self.ruler = None;
                 self.modify = (self.modify != Some(m)).then_some(m);
             }
             Some(Pick::Menu(a)) => self.menu_apply(a),
             Some(Pick::Library) => self.show_pane(Pane::Library),
             Some(Pick::Fasteners) => {
-                (self.fill, self.modify) = (None, None);
+                (self.fill, self.modify, self.ruler) = (None, None, None);
                 self.fastening = !self.fastening;
             }
             Some(Pick::Analyze) => self.analyze(),
             Some(Pick::Script) => self.pick_script(),
+            Some(Pick::Ruler) => self.toggle_ruler(),
             None => {}
         }
         // Parameters of the active tool.
@@ -164,10 +170,17 @@ impl App {
         }
     }
 
+    /// The ruler on or off; the other tools step aside.
+    pub(crate) fn toggle_ruler(&mut self) {
+        (self.fill, self.modify, self.fastening) = (None, None, false);
+        self.ruler = if self.ruler.is_some() { None } else { Some([None, None]) };
+    }
+
     /// Toggle the "into opening" tool and show the front view, where it is clicked.
     pub(crate) fn toggle_fill(&mut self, plane: &'static str) {
         self.modify = None;
         self.fastening = false;
+        self.ruler = None;
         if self.fill.as_ref().is_some_and(|f| f.plane == plane) {
             self.fill = None;
             return;

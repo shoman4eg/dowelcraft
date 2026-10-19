@@ -51,6 +51,7 @@ pub enum Icon {
     Grid,
     Gear,
     Table,
+    Ruler,
     CutSheet,
     Eye,
     EyeOff,
@@ -361,6 +362,12 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, dim: bool) {
                 pen.poly(&[(4.0, 20.0), (20.0, 4.0)], false, DANGER.gamma_multiply(if dim { 0.35 } else { 1.0 }));
             }
         }
+        Ruler => {
+            pen.rect(2.0, 8.0, 20.0, 8.0, b);
+            for (x, long) in [(6.0, false), (10.0, true), (14.0, false), (18.0, true)] {
+                if long { pen.l(x, 8.0, x, 13.0) } else { pen.la(x, 8.0, x, 11.0) }
+            }
+        }
         Table => {
             pen.rect(3.0, 4.0, 18.0, 16.0, b);
             pen.fill_rect(3.0, 4.0, 18.0, 4.0, a.gamma_multiply(0.6));
@@ -467,6 +474,7 @@ pub fn caption(icon: Icon) -> &'static str {
         Explode => "Explode",
         Erase => "Delete",
         Analyze => "Analyze",
+        Ruler => "Ruler",
         Script => "Script",
         _ => "",
     }
