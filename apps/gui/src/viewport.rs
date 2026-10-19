@@ -414,6 +414,9 @@ pub struct Viewport {
     resize: Option<([i8; 2], Vec2)>,
     /// The ruler is on: its measurements; clicks pick part vertices.
     pub ruler: Option<Ruler>,
+    /// Fronts opening: each part's motion, how far open (0…1) and the parts that hit something.
+    pub opening: Option<Opening>,
+    opening_built: Option<Opening>,
     /// Shift+drag selection frame: where it started (screen point) and whether Ctrl was held then.
     framing: Option<(egui::Pos2, bool)>,
     /// Axis the 3D grid was perpendicular to last frame (1 — the floor), see `grid_axis`.
@@ -445,6 +448,8 @@ impl Default for Viewport {
             resize: None,
             framing: None,
             ruler: None,
+            opening: None,
+            opening_built: None,
             offset_built: [0.0; 3],
         }
     }
@@ -680,21 +685,36 @@ fn upload(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLa
 
 impl Scene {
     /// `look` — how to color: "Textured" — the part's material image (index, tile mm), "Wireframe" — edges in part color.
-    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: &[usize], furniture: &[FurnView], look: Look, offset: [f32; 3]) -> Scene {
+    #[allow(clippy::too_many_arguments)]
+    fn new(device: &wgpu::Device, parts: &[Part], m: &Mesh, selected: &[usize], furniture: &[FurnView], look: Look, offset: [f32; 3], opening: Option<&Opening>) -> Scene {
         let (textures, wire) = match look {
             Look::Textured(t) => (Some(t), false),
             Look::Wire => (None, true),
             Look::Plain => (None, false),
         };
-        // While the selection is being dragged it is drawn shifted by `offset`.
-        let moved = |part: usize, p: [f32; 3]| if selected.contains(&part) { std::array::from_fn(|k| p[k] + offset[k]) } else { p };
+        // While the selection is being dragged it is drawn shifted by `offset`; open doors turn, drawers slide out.
+        let motion = |part: usize| opening.and_then(|o| o.motions.get(part).copied().flatten().map(|m| (m, f64::from(o.f))));
+        let moved = |part: usize, p: [f32; 3]| {
+            let p = if selected.contains(&part) { std::array::from_fn(|k| p[k] + offset[k]) } else { p };
+            match motion(part) {
+                Some((m, f)) => dowel::design::motion::moved(m, f, p.map(f64::from)).map(|v| v as f32),
+                None => p,
+            }
+        };
+        let turned = |part: usize, n: [f32; 3]| match motion(part) {
+            Some((m, f)) => dowel::design::motion::turned(m, f, n.map(f64::from)).map(|v| v as f32),
+            None => n,
+        };
+        let clash = |part: usize| opening.is_some_and(|o| o.f > 0.5 && o.clash.get(part).copied().unwrap_or(false));
         let mut tris = Vec::with_capacity(m.vertices.len() * STRIDE as usize);
         let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
         let tex_of = |part: usize| textures.and_then(|t| t.iter().position(|(mat, _, _)| *mat == parts[part].panel.material));
         for v in &m.vertices {
             let part = v.part as usize;
             let tex = tex_of(part);
-            let c = if selected.contains(&part) {
+            let c = if clash(part) {
+                [0.9, 0.2, 0.2]
+            } else if selected.contains(&part) {
                 SELECTED
             } else if tex.is_some() {
                 [1.0, 1.0, 1.0]
@@ -711,7 +731,7 @@ impl Scene {
                 }
                 _ => [0.0; 2],
             };
-            push_vertex_uv(&mut tris, moved(part, v.pos), v.normal, [c[0], c[1], c[2], 1.0], uv);
+            push_vertex_uv(&mut tris, moved(part, v.pos), turned(part, v.normal), [c[0], c[1], c[2], 1.0], uv);
             for k in 0..3 {
                 lo[k] = lo[k].min(v.pos[k]);
                 hi[k] = hi[k].max(v.pos[k]);
@@ -935,7 +955,12 @@ impl Viewport {
             let d: [f32; 3] = std::array::from_fn(|i| p[i] - t[i]);
             Vec2::new(d[0] * r[0] + d[1] * r[1] + d[2] * r[2], -(d[0] * u[0] + d[1] * u[1] + d[2] * u[2])) * k
         };
-        let best = self.mesh.vertices.iter().map(|v| (v.pos, (screen(v.pos) - at).length_sq())).filter(|(_, d)| *d < px * px).min_by(|a, b| a.1.total_cmp(&b.1));
+        // With the fronts open, where the vertices are shown.
+        let pos = |v: &mesh::Vertex| match &self.opening {
+            Some(o) => o.moved(v.part as usize, v.pos.map(f64::from)).map(|c| c as f32),
+            None => v.pos,
+        };
+        let best = self.mesh.vertices.iter().map(pos).map(|p| (p, (screen(p) - at).length_sq())).filter(|(_, d)| *d < px * px).min_by(|a, b| a.1.total_cmp(&b.1));
         best.map(|(p, _)| p.map(f64::from))
     }
 
@@ -1006,14 +1031,15 @@ impl Viewport {
         }
         let textured = self.mode == Mode::Textured;
         let offset = self.drag_offset().map(|v| v as f32);
-        if self.offset_built != offset || self.selected.as_deref() != Some(selected) || self.furniture_built != self.furniture || self.textures_built != self.textures || self.mode_built != Some(self.mode) {
+        if self.offset_built != offset || self.selected.as_deref() != Some(selected) || self.furniture_built != self.furniture || self.textures_built != self.textures || self.mode_built != Some(self.mode) || self.opening_built != self.opening {
             let look = match self.mode {
                 Mode::Textured => Look::Textured(&self.textures),
                 Mode::Wire => Look::Wire,
                 Mode::Solid | Mode::Hidden | Mode::XRay => Look::Plain,
             };
-            self.scene = Some(Scene::new(&rs.device, parts, &self.mesh, selected, &self.furniture, look, offset));
+            self.scene = Some(Scene::new(&rs.device, parts, &self.mesh, selected, &self.furniture, look, offset, self.opening.as_ref()));
             self.offset_built = offset;
+            self.opening_built = self.opening.clone();
             self.selected = Some(selected.to_vec());
             self.furniture_built = self.furniture.clone();
             self.textures_built = self.textures.clone();
@@ -1042,6 +1068,8 @@ impl Viewport {
                 click = Click::Point(p);
             }
         } else if resp.clicked()
+            // With the fronts open, picking would find the parts where they are when closed.
+            && self.opening.is_none()
             && let Some(pos) = resp.interact_pointer_pos()
         {
             click = match self.pick(pos - rect.center()) {
@@ -1135,6 +1163,7 @@ impl Viewport {
         // Drag started on a selected part — move it; on empty space or another part — rotate the view.
         if self.resize.is_none()
             && self.framing.is_none()
+            && self.opening.is_none()
             && resp.drag_started_by(egui::PointerButton::Primary)
             && let Some(o) = ui.input(|i| i.pointer.press_origin())
             && matches!(self.pick(o - rect.center()), Some(Ok(i)) if selected.contains(&i))
@@ -1322,6 +1351,34 @@ impl Viewport {
             ui.painter().text(rect.left_bottom() + Vec2::new(8.0, -8.0), egui::Align2::LEFT_BOTTOM, text, egui::FontId::proportional(13.0), Color32::from_rgb(200, 40, 40));
         }
         (click, Some(resp))
+    }
+}
+
+/// Doors and drawers shown open (the project is not changed). The motions are shared, not copied, every frame.
+#[derive(Clone, Debug)]
+pub struct Opening {
+    /// Parts revision the motions were made for (with `f`, all a rebuild needs to compare).
+    pub revision: u64,
+    pub motions: std::sync::Arc<Vec<Option<dowel::design::motion::Motion>>>,
+    /// 0 — closed, 1 — fully open.
+    pub f: f32,
+    /// Parts that hit something when open (drawn red), by part index.
+    pub clash: std::sync::Arc<Vec<bool>>,
+}
+
+impl PartialEq for Opening {
+    fn eq(&self, o: &Self) -> bool {
+        self.revision == o.revision && self.f == o.f
+    }
+}
+
+impl Opening {
+    /// Where a part's point is shown at this opening.
+    fn moved(&self, part: usize, p: [f64; 3]) -> [f64; 3] {
+        match self.motions.get(part).copied().flatten() {
+            Some(m) => dowel::design::motion::moved(m, f64::from(self.f), p),
+            None => p,
+        }
     }
 }
 

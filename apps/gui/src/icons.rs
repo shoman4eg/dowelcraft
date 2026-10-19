@@ -52,6 +52,7 @@ pub enum Icon {
     Gear,
     Table,
     Ruler,
+    OpenFronts,
     CutSheet,
     Eye,
     EyeOff,
@@ -349,6 +350,13 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, dim: bool) {
             pen.l(3.0, 12.0, 21.0, 12.0);
             pen.fill_rect(13.0, 13.0, 7.0, 7.0, a.gamma_multiply(0.55));
         }
+        OpenFronts => {
+            // A carcass with a door swung open and a drawer pulled out.
+            pen.rect(4.0, 4.0, 12.0, 16.0, b);
+            pen.poly(&[(16.0, 4.0), (21.0, 7.0), (21.0, 17.0), (16.0, 20.0)], true, a);
+            pen.la(6.0, 14.0, 13.0, 14.0);
+            pen.rect(3.0, 15.0, 9.0, 4.0, a);
+        }
         Doors => {
             pen.carcass(4.0, 3.0, 20.0, 21.0, 0.0);
             pen.poly(&[(4.0, 3.0), (10.0, 6.0), (10.0, 24.0 - 6.0), (4.0, 21.0)], true, a);
@@ -475,6 +483,7 @@ pub fn caption(icon: Icon) -> &'static str {
         Erase => "Delete",
         Analyze => "Analyze",
         Ruler => "Ruler",
+        OpenFronts => "Open",
         Script => "Script",
         _ => "",
     }

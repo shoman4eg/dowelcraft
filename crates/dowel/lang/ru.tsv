@@ -841,3 +841,6 @@ allowance 	припуск
 Ruler	Линейка
 Ruler (M): click two points for each measurement — part corners and contour points snap; they stay until you leave (Esc or M)	Линейка (M): две точки на каждый замер — углы деталей и точки контура притягивают; замеры видны, пока линейка включена (Esc или M — выйти)
 {} mm	{} мм
+Open	Открыть
+Open doors and drawers (O): see that nothing hits — parts that do turn red	Открыть двери и ящики (O): проверить, что ничего не задевает, — задевающие детали станут красными
+Open doors and drawers	Открыть двери и ящики

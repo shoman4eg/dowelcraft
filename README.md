@@ -82,6 +82,7 @@ The macOS archive also has `Dowel Craft.app`.
 - **Grooves** show on part drawings (with width × depth), in “Panels for production” and are kept in `.b3d` export; BAZIS-Raskroy XML does not get them yet.
 - **Explode a template** — the cabinet becomes a set of panels you can edit one by one.
 - **Groups (blocks):** group the selection, move and copy it as a whole.
+- **Open doors and drawers** in 3D: doors swing, drawers slide out; parts that hit something turn red.
 - **Ruler:** measure between part corners and contour points in 3D, “4 windows” and the front view.
 - **Selection:** click, Ctrl+click, a Shift+drag frame, “Select the same material”; **mass replacement** of a material or edge banding in the whole project or in the selection.
 - **Formulas in fields:** `600-4`, `(W-T)/2` (W, H, D, P, T — cabinet width, height, depth, plinth, thickness).
@@ -161,6 +162,7 @@ Defaults (change them in “Edit → Settings…”):
 | Ctrl+Z / Ctrl+Y | undo / redo |
 | Shift + drag | selection frame (Ctrl+Shift — add to the selection) |
 | M | ruler: click two points (snaps to part vertices) |
+| O | open doors and drawers (what hits turns red) |
 | Del | delete the selection |
 | F7 | grid |
 | Esc | leave the tool or clear the selection |

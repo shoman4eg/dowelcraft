@@ -21,6 +21,7 @@ pub mod shape;
 pub mod actions;
 pub mod fronts;
 pub mod analysis;
+pub mod motion;
 pub use commands::{COMMANDS, Session};
 
 /// Native project file `.dcraft`.

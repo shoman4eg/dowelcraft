@@ -88,6 +88,10 @@ fn main() -> eframe::Result {
     app.start = (file.is_none() && tab.is_none()) || tab.as_deref() == Some("start");
     app.show_pane(pane);
     app.quad = args.iter().any(|a| a == "--quad");
+    // For screenshots: doors and drawers open.
+    if args.iter().any(|a| a == "--open") {
+        app.open = (true, 1.0);
+    }
     // For screenshots: the texture picker for a new material.
     if let Some(i) = args.iter().position(|a| a == "--pick-texture") {
         app.textures.open_for = Some(textures::Target::New);
@@ -565,6 +569,10 @@ struct App {
     /// Waiting for a key press in settings: the new shortcut for this action.
     key_capture: Option<&'static str>,
     views: [viewport::Viewport; 3],
+    /// Doors and drawers shown open: wanted (O) and how far open now (0…1, animated).
+    open: (bool, f32),
+    /// Motions and clashes for the current parts (its `revision` says which).
+    open_cache: Option<viewport::Opening>,
     /// The ruler tool is on: its measurements (cleared when it is switched off).
     ruler: Option<viewport::Ruler>,
 }
@@ -631,6 +639,8 @@ impl Default for App {
             quad_max: None,
             key_capture: None,
             ruler: None,
+            open: (false, 0.0),
+            open_cache: None,
             views: [viewport::Viewport::with_view(0.0, 0.0, "Front"), viewport::Viewport::with_view(90.0, 0.0, "Left"), viewport::Viewport::with_view(0.0, 89.9, "Top")],
         };
         app.refresh();
@@ -957,6 +967,7 @@ impl eframe::App for App {
             v.grid = viewport::Grid { on: g.on, step: g.step, major: g.major };
             v.ruler = self.ruler.clone();
         }
+        self.update_opening(&ctx);
         self.help_windows(&ctx);
         self.close_window(&ctx);
         self.texture_window(&ctx);
@@ -1050,6 +1061,7 @@ impl App {
         match id {
             "save" => self.save(false),
             "ruler" => self.toggle_ruler(),
+            "open" => self.open.0 = !self.open.0,
             "undo" if undo => self.exec("undo", json!({})),
             "redo" if redo => self.exec("redo", json!({})),
             "delete" => self.menu_apply(MenuAct::Delete),
@@ -1960,6 +1972,7 @@ impl App {
         ui.horizontal(|ui| {
             ui.add_space(8.0);
             self.doors_toggle(ui);
+            self.open_toggle(ui);
         });
         let parts = match &self.parts {
             Ok(p) => p.clone(),
@@ -2252,6 +2265,45 @@ impl App {
         }
     }
 
+    /// The "Open doors and drawers" icon (O): they swing and slide out smoothly; what they hit turns red.
+    fn open_toggle(&mut self, ui: &mut egui::Ui) {
+        if icons::button(ui, icons::Icon::OpenFronts, 26.0, "Open doors and drawers (O): see that nothing hits — parts that do turn red", self.open.0).clicked() {
+            self.open.0 = !self.open.0;
+        }
+    }
+
+    /// Opening animation and what each viewport shows (called once a frame).
+    fn update_opening(&mut self, ctx: &egui::Context) {
+        let (target, f) = &mut self.open;
+        let goal = if *target { 1.0 } else { 0.0 };
+        if *f != goal {
+            // Half a second from closed to open.
+            let step = ctx.input(|i| i.stable_dt).min(0.1) * 2.0;
+            *f = if goal > *f { (*f + step).min(1.0) } else { (*f - step).max(0.0) };
+            ctx.request_repaint();
+        }
+        let f = *f;
+        let opening = match &self.parts {
+            Ok(parts) if f > 0.0 => {
+                if self.open_cache.as_ref().is_none_or(|c| c.revision != self.revision) {
+                    let hinge = dowel::i18n::bazis("library.hinge");
+                    let hinges: Vec<[f64; 3]> = self.session.as_ref().map(|s| design::furniture(&s.project).into_iter().filter(|(fu, _)| fu.kind == hinge).map(|(_, fr)| fr.origin).collect()).unwrap_or_default();
+                    let motions = design::motion::motions(parts, &hinges);
+                    let mut clash = vec![false; parts.len()];
+                    for i in design::motion::clashes(parts, &motions) {
+                        clash[i] = true;
+                    }
+                    self.open_cache = Some(viewport::Opening { revision: self.revision, motions: std::sync::Arc::new(motions), f, clash: std::sync::Arc::new(clash) });
+                }
+                self.open_cache.clone().map(|o| viewport::Opening { f, ..o })
+            }
+            _ => None,
+        };
+        for v in std::iter::once(&mut self.viewport).chain(self.views.iter_mut()) {
+            v.opening = opening.clone();
+        }
+    }
+
     /// The "Show doors and fronts" icon.
     fn doors_toggle(&mut self, ui: &mut egui::Ui) {
         if icons::button(ui, icons::Icon::Doors, 26.0, "Doors and fronts: show or hide (hide to look inside)", self.show_doors).clicked() {
@@ -2271,6 +2323,7 @@ impl App {
                 self.quad = !self.quad;
             }
             self.doors_toggle(ui);
+            self.open_toggle(ui);
         });
         // Shared mode, furniture boxes and "Show all" for all views.
         let list = self.session.as_ref().map(|s| design::furniture(&s.project)).unwrap_or_default();

@@ -861,3 +861,48 @@ fn auto_drawer_fronts() {
     // With doors there is no fixed space: refused.
     assert!(s.execute("cabinet.set", &json!({"id": 1, "doors": 1})).is_err());
 }
+
+/// Opening fronts: a double door turns on its outer edges, a drawer takes its box along; two neighbouring doors
+/// hinged towards each other hit when open, a lone door doesn't.
+#[test]
+fn doors_and_drawers_open() {
+    use super::motion::{Motion, clashes, moved, motions};
+    let mut s = Session::new(Project::new("Open"));
+    s.execute("material.add", &json!({"name": "Chipboard 16", "thickness": 16})).unwrap();
+    s.execute("cabinet.add", &json!({"width": 800, "height": 720, "depth": 500, "material": "Chipboard 16", "plinth": 0, "doors": 2})).unwrap();
+    let parts = build(&s.project).unwrap();
+    let m = motions(&parts, &[]);
+    let doors: Vec<usize> = (0..parts.len()).filter(|&i| parts[i].kind == Kind::Door).collect();
+    let sides: Vec<f64> = doors.iter().map(|&i| match m[i] { Some(Motion::Swing { side, .. }) => side, _ => 0.0 }).collect();
+    let mut by_x: Vec<(f64, f64)> = doors.iter().map(|&i| parts[i].origin[0]).zip(sides).collect();
+    by_x.sort_by(|a, b| a.0.total_cmp(&b.0));
+    assert_eq!(by_x.iter().map(|d| d.1).collect::<Vec<_>>(), [-1.0, 1.0], "left leaf on the left hinges, right on the right");
+    // Fully open: the left leaf stands out in front of the cabinet along +Z, turned about its front left edge.
+    let left = doors.iter().copied().min_by(|&a, &b| parts[a].origin[0].total_cmp(&parts[b].origin[0])).unwrap();
+    let p = &parts[left];
+    // At 90° exactly (the full opening is a bit more).
+    let far = moved(m[left].unwrap(), 90.0 / super::motion::DOOR_ANGLE, [p.origin[0] + p.size[0], p.origin[1], p.origin[2]]);
+    let (t, front) = (p.size[2], p.origin[2] + p.size[2]);
+    assert!((far[2] - (front + p.size[0])).abs() < 1e-6 && (far[0] - (p.origin[0] + t)).abs() < 1e-6, "{far:?}");
+    assert!(clashes(&parts, &m).is_empty(), "the two leaves open away from each other");
+    // A drawer: the front and the box behind it slide out together.
+    s.execute("cabinet.add", &json!({"width": 600, "height": 720, "depth": 500, "material": "Chipboard 16", "plinth": 100, "drawers": [0, 0], "position": [900, 0, 0]})).unwrap();
+    let parts = build(&s.project).unwrap();
+    let m = motions(&parts, &[]);
+    let sliding = (0..parts.len()).filter(|&i| matches!(m[i], Some(Motion::Slide { .. }))).count();
+    assert_eq!(sliding, 2 * 6, "2 drawers × (front, 2 sides, front and back walls, bottom)");
+    // A door hinged on the side of a deeper neighbour (it stands out in front): opened past 90° the door hits it.
+    let mut s = Session::new(Project::new("Clash"));
+    s.execute("material.add", &json!({"name": "Chipboard 16", "thickness": 16})).unwrap();
+    s.execute("cabinet.add", &json!({"width": 400, "height": 720, "depth": 500, "material": "Chipboard 16", "plinth": 0, "doors": 1})).unwrap();
+    s.execute("cabinet.add", &json!({"width": 400, "height": 720, "depth": 650, "material": "Chipboard 16", "plinth": 0, "position": [400, 0, 0]})).unwrap();
+    let parts = build(&s.project).unwrap();
+    let door = (0..parts.len()).find(|&i| parts[i].kind == Kind::Door).unwrap();
+    let d = &parts[door];
+    // A hinge model at the right edge of the door says it opens to the right, towards the neighbour.
+    let right = [d.origin[0] + d.size[0] - 20.0, d.origin[1] + 100.0, d.origin[2]];
+    let hit = clashes(&parts, &motions(&parts, &[right]));
+    assert!(hit.contains(&door), "{hit:?}");
+    // Hinged on the left (away from it), nothing is hit.
+    assert!(clashes(&parts, &motions(&parts, &[])).is_empty());
+}
