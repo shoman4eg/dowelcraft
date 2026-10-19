@@ -85,8 +85,13 @@ pub fn export(parts: &[Part], project: Option<&Project>, title: &str, mtl_file: 
         let hardware = unique("hardware".into(), &materials);
         let mut grey = false;
         for (f, frame) in design::furniture(p) {
-            let Ok(model) = crate::library::read(std::path::Path::new(&f.source)) else { continue };
-            if model.mesh.is_empty() {
+            let mesh = if f.source.is_empty() && f.kind == crate::i18n::bazis("library.leg") {
+                design::leg_mesh(f.hi[1])
+            } else {
+                let Ok(model) = crate::library::read(std::path::Path::new(&f.source)) else { continue };
+                model.mesh
+            };
+            if mesh.is_empty() {
                 continue;
             }
             if !grey {
@@ -94,7 +99,7 @@ pub fn export(parts: &[Part], project: Option<&Project>, title: &str, mtl_file: 
                 grey = true;
             }
             let _ = write!(obj, "\no {}\nusemtl {hardware}\n", f.name);
-            for t in &model.mesh {
+            for t in &mesh {
                 let w = t.map(|q| frame.apply(q.map(f64::from)));
                 let (a, b) = (std::array::from_fn::<f64, 3, _>(|k| w[1][k] - w[0][k]), std::array::from_fn::<f64, 3, _>(|k| w[2][k] - w[0][k]));
                 let n = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];

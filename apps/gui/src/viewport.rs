@@ -347,8 +347,8 @@ struct Scene {
     line_count: u32,
     axes_count: u32,
     part_axes_count: u32,
-    /// Drilling holes: a line from the entry point to the drilling depth.
-    holes_count: u32,
+    /// Boxes of hardware without a mesh (lines).
+    boxes_count: u32,
     /// Scene bounds.
     lo: [f32; 3],
     hi: [f32; 3],
@@ -453,6 +453,35 @@ impl Default for Viewport {
             offset_built: [0.0; 3],
         }
     }
+}
+
+/// Triangles (position, normal) of a cylinder: from `a` along unit `d` for `len`, radius `r`, 12 sides with caps.
+/// It starts 0.2 mm before `a` so that a hole's mouth shows on the panel face.
+fn cylinder(a: [f64; 3], d: [f64; 3], r: f64, len: f64) -> Vec<([f32; 3], [f32; 3])> {
+    const N: usize = 12;
+    let cross = |u: [f64; 3], v: [f64; 3]| [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    let other = if d[0].abs() < 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+    let u = cross(d, other);
+    let l = (u[0] * u[0] + u[1] * u[1] + u[2] * u[2]).sqrt();
+    let u = u.map(|c| c / l);
+    let v = cross(d, u);
+    let ring = |k: usize| {
+        let t = std::f64::consts::TAU * k as f64 / N as f64;
+        std::array::from_fn::<f64, 3, _>(|i| u[i] * t.cos() + v[i] * t.sin())
+    };
+    let at = |s: f64, n: [f64; 3]| std::array::from_fn::<f32, 3, _>(|i| (a[i] + d[i] * s + n[i] * r) as f32);
+    let f = |n: [f64; 3]| n.map(|c| c as f32);
+    // The far end just short of the bottom: a through hole's cap would flicker on the opposite face.
+    let (s0, s1) = (-0.2, len - 0.05);
+    let mut out = Vec::with_capacity(N * 12);
+    for k in 0..N {
+        let (n0, n1) = (ring(k), ring(k + 1));
+        let (p0, p1, q0, q1) = (at(s0, n0), at(s0, n1), at(s1, n0), at(s1, n1));
+        out.extend([(p0, f(n0)), (p1, f(n1)), (q1, f(n1)), (p0, f(n0)), (q1, f(n1)), (q0, f(n0))]);
+        out.extend([(at(s0, [0.0; 3]), f(d.map(|c| -c))), (p1, f(d.map(|c| -c))), (p0, f(d.map(|c| -c)))]);
+        out.extend([(at(s1, [0.0; 3]), f(d)), (q0, f(d)), (q1, f(d))]);
+    }
+    out
 }
 
 fn push_vertex(out: &mut Vec<u8>, pos: [f32; 3], normal: [f32; 3], rgba: [f32; 4]) {
@@ -784,18 +813,7 @@ impl Scene {
                 part_axes += 2;
             }
         }
-        // Holes: a red line from the entry along the drilling direction to the depth.
-        let mut holes = 0;
-        for p in parts {
-            let Some(f) = p.panel.frame else { continue };
-            for h in &p.panel.holes {
-                let a = f.apply(h.pos);
-                let b = f.apply(std::array::from_fn(|k| h.pos[k] + h.dir[k] * h.depth));
-                push_vertex(&mut lines, a.map(|v| v as f32), [0.0; 3], [0.85, 0.05, 0.05, 1.0]);
-                push_vertex(&mut lines, b.map(|v| v as f32), [0.0; 3], [0.85, 0.05, 0.05, 1.0]);
-                holes += 2;
-            }
-        }
+        let mut boxes = 0;
         // Fittings without a mesh — a box by bounds (selected — orange).
         for FurnView { frame: fr, lo, hi, selected: sel, .. } in furniture.iter().filter(|f| f.mesh.is_empty()) {
             let c = if *sel { [1.0, 0.55, 0.1, 1.0] } else { [0.15, 0.35, 0.85, 1.0] };
@@ -803,7 +821,7 @@ impl Scene {
             for (a, b) in [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)] {
                 push_vertex(&mut lines, corner(a), [0.0; 3], c);
                 push_vertex(&mut lines, corner(b), [0.0; 3], c);
-                holes += 2;
+                boxes += 2;
             }
         }
         // Triangles — in batches per image.
@@ -843,6 +861,22 @@ impl Scene {
                 furn_tris.push((w, f.id));
             }
         }
+        // Holes: red cylinders of their diameter and depth (a confirmat — ⌀8 through the side and ⌀5 into the edge);
+        // only on parts that are shown, moving with them.
+        let mut shown = vec![false; parts.len()];
+        for v in &m.vertices {
+            shown[v.part as usize] = true;
+        }
+        for (i, p) in parts.iter().enumerate().filter(|(i, _)| shown[*i]) {
+            let Some(f) = p.panel.frame else { continue };
+            for h in &p.panel.holes {
+                for (pos, n) in cylinder(f.apply(h.pos), f.dir(h.dir), h.diameter / 2.0, h.depth) {
+                    push_vertex_uv(&mut tris, moved(i, pos), turned(i, n), [0.85, 0.05, 0.05, 1.0], [0.0; 2]);
+                    sorted.push(next);
+                    next += 1;
+                }
+            }
+        }
         let end = sorted.len() as u32;
         if end > start {
             match batches.last_mut() {
@@ -865,7 +899,7 @@ impl Scene {
             line_count,
             axes_count: 6,
             part_axes_count: part_axes,
-            holes_count: holes,
+            boxes_count: boxes,
             furniture: furn_tris,
             lo,
             hi,
@@ -1268,7 +1302,7 @@ impl Viewport {
             let edges = 0..scene.line_count;
             let axes = scene.line_count..scene.line_count + scene.axes_count;
             let part_axes = axes.end..axes.end + scene.part_axes_count;
-            let holes = part_axes.end..part_axes.end + scene.holes_count;
+            let boxes = part_axes.end..part_axes.end + scene.boxes_count;
             // Grid first and with depth: parts occlude it.
             if self.grid.on {
                 pass.set_pipeline(&gpu.grid_pipe);
@@ -1290,7 +1324,7 @@ impl Viewport {
                     }
                     pass.set_pipeline(&gpu.lines_visible);
                     pass.draw(edges, 0..1);
-                    pass.draw(holes.clone(), 0..1);
+                    pass.draw(boxes.clone(), 0..1);
                 }
                 Mode::Textured => {
                     pass.set_pipeline(&gpu.solid);
@@ -1320,7 +1354,7 @@ impl Viewport {
                     pass.set_pipeline(&gpu.lines_all);
                     pass.draw(edges, 0..1);
                     pass.draw(part_axes, 0..1);
-                    pass.draw(holes.clone(), 0..1);
+                    pass.draw(boxes.clone(), 0..1);
                 }
             }
             pass.set_pipeline(&gpu.lines_all);

@@ -83,6 +83,7 @@ The macOS archive also has `Dowel Craft.app`.
 - **Explode a template** — the cabinet becomes a set of panels you can edit one by one.
 - **Groups (blocks):** group the selection, move and copy it as a whole.
 - **Open doors and drawers** in 3D: doors swing, drawers slide out; parts that hit something turn red.
+- **Drilling in 3D:** holes are red cylinders of their diameter and depth; legs are a plate, a post and a foot.
 - **Ruler:** measure between part corners and contour points in 3D, “4 windows” and the front view.
 - **Selection:** click, Ctrl+click, a Shift+drag frame, “Select the same material”; **mass replacement** of a material or edge banding in the whole project or in the selection.
 - **Formulas in fields:** `600-4`, `(W-T)/2` (W, H, D, P, T — cabinet width, height, depth, plinth, thickness).

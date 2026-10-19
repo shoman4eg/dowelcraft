@@ -860,10 +860,30 @@ pub fn furniture(p: &Project) -> Vec<(Furniture, Frame)> {
     out
 }
 
+/// A leg `h` mm tall for the 3D view, in its own axes (Y up from the floor): a ⌀60×20 mounting plate under the
+/// bottom, a ⌀32 post and a ⌀50×15 foot on the floor.
+pub fn leg_mesh(h: f64) -> Vec<crate::panel::Tri> {
+    const N: usize = 16;
+    let (foot, plate) = (15.0f64.min(h / 3.0), 20.0f64.min(h / 3.0));
+    let mut out = Vec::new();
+    for (r, y0, y1) in [(25.0, 0.0, foot), (16.0, foot, h - plate), (30.0, h - plate, h)] {
+        let at = |k: usize, y: f64| {
+            let t = std::f64::consts::TAU * k as f64 / N as f64;
+            [(r * t.cos()) as f32, y as f32, (r * t.sin()) as f32]
+        };
+        let (c0, c1) = ([0.0, y0 as f32, 0.0], [0.0, y1 as f32, 0.0]);
+        for k in 0..N {
+            // Counter-clockwise seen from outside: normals point out.
+            out.extend([[at(k, y0), at(k, y1), at(k + 1, y1)], [at(k, y0), at(k + 1, y1), at(k + 1, y0)], [c0, at(k, y0), at(k + 1, y0)], [c1, at(k + 1, y1), at(k, y1)]]);
+        }
+    }
+    out
+}
+
 /// Adjustable legs under a cabinet's bottom, 50 mm in from its edges (a quarter of a small cabinet): 4, or 6 on
 /// cabinets wider than 1000 mm. They carry the cabinet's id: picking one picks the cabinet, moving it moves the cabinet.
 fn legs(c: &Cabinet) -> Vec<(Furniture, Frame)> {
-    const R: f64 = 25.0;
+    const R: f64 = 30.0;
     let (ix, iz) = ((c.width / 4.0).min(50.0), (c.depth / 4.0).min(50.0));
     let xs = if c.width > 1000.0 { vec![ix, c.width / 2.0, c.width - ix] } else { vec![ix, c.width - ix] };
     let o = c.position;
@@ -873,7 +893,7 @@ fn legs(c: &Cabinet) -> Vec<(Furniture, Frame)> {
             let leg = Furniture {
                 id: c.id,
                 name: crate::i18n::t(format!("Adjustable leg {:.0} mm", c.plinth)),
-                kind: String::new(),
+                kind: crate::i18n::bazis("library.leg").into(),
                 source: String::new(),
                 frame: Frame::IDENTITY,
                 holes: Vec::new(),

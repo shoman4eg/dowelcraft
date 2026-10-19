@@ -1414,6 +1414,13 @@ impl App {
     }
 
     /// Fastener model mesh by source file (read once; if it fails to read, empty and drawn as a box).
+    /// A cabinet leg's mesh, one per height (the same `Arc` every frame: the scene is not rebuilt).
+    fn leg_mesh(&mut self, h: f64) -> std::sync::Arc<Vec<dowel::panel::Tri>> {
+        // "\0" — no file path starts with it.
+        let key = format!("\0leg {h}");
+        self.meshes.entry(key).or_insert_with(|| std::sync::Arc::new(design::leg_mesh(h))).clone()
+    }
+
     fn furniture_mesh(&mut self, source: &str) -> std::sync::Arc<Vec<dowel::panel::Tri>> {
         if let Some(m) = self.meshes.get(source) {
             return m.clone();
@@ -2330,7 +2337,7 @@ impl App {
         let boxes: Vec<viewport::FurnView> = list
             .into_iter()
             .map(|(f, frame)| {
-                let mesh = self.furniture_mesh(&f.source);
+                let mesh = if f.source.is_empty() && f.kind == dowel::i18n::bazis("library.leg") { self.leg_mesh(f.hi[1]) } else { self.furniture_mesh(&f.source) };
                 viewport::FurnView { id: f.id, frame, lo: f.lo, hi: f.hi, selected: self.furniture_sel == Some(f.id), mesh }
             })
             .collect();

@@ -19,6 +19,7 @@ guess.back	задн,стен
 # Hardware kinds as Bazis libraries name them.
 library.drawer	Ящик
 library.hinge	Петля
+library.leg	Опора
 # Built-in fasteners by their former Russian names (projects saved before 0.5 still open).
 fastener.Confirmat 7x50	Конфирмат 7х50
 fastener.Minifix 15 cam	Эксцентрик Minifix 15
