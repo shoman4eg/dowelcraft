@@ -455,10 +455,10 @@ impl Default for Viewport {
     }
 }
 
-/// Triangles (position, normal) of a cylinder: from `a` along unit `d` for `len`, radius `r`, 12 sides with caps.
+/// Triangles (position, normal) of a cylinder: from `a` along unit `d` for `len`, radius `r`, 8 sides with caps.
 /// It starts 0.2 mm before `a` so that a hole's mouth shows on the panel face.
 fn cylinder(a: [f64; 3], d: [f64; 3], r: f64, len: f64) -> Vec<([f32; 3], [f32; 3])> {
-    const N: usize = 12;
+    const N: usize = 8;
     let cross = |u: [f64; 3], v: [f64; 3]| [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
     let other = if d[0].abs() < 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
     let u = cross(d, other);
