@@ -59,6 +59,16 @@ pub struct Material {
     /// Texture tile size on parts, mm (length along the grain × width); none — 1000 × 1000.
     #[serde(default)]
     pub texture_size: Option<[f64; 2]>,
+    /// Price per m² for the estimate; 0 — not set.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub price: f64,
+    /// Weight of 1 m², kg (a sheet's weight divided by its area); 0 — not set.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub weight: f64,
+}
+
+fn is_zero(v: &f64) -> bool {
+    *v == 0.0
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -70,6 +80,9 @@ pub struct EdgeMaterial {
     /// Band width, mm.
     #[serde(default)]
     pub width: f64,
+    /// Price per metre for the estimate; 0 — not set.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub price: f64,
 }
 
 fn default_sheet() -> (f64, f64) {
@@ -499,7 +512,8 @@ impl Project {
 }
 
 /// Name and article number in Bazis format `Name\rArticle`.
-fn full(name: &str, article: &str) -> String {
+/// Material as panels carry it: `Name\rArticle`, or just the name.
+pub fn full(name: &str, article: &str) -> String {
     if article.is_empty() { name.into() } else { format!("{name}\r{article}") }
 }
 
@@ -538,7 +552,7 @@ pub fn import(name: &str, panels: &[Panel], blocks: &[BlockInfo], panel_block: &
             None => {
                 let taken = p.materials.iter().any(|m| m.name == mat_name);
                 let key = if taken { format!("{mat_name} ({})", src.thickness) } else { mat_name.to_string() };
-                p.materials.push(Material { name: key.clone(), article: article.into(), thickness: src.thickness, sheet: default_sheet(), coef: default_coef(), trim: None, kerf: None, texture: None, texture_size: None });
+                p.materials.push(Material { name: key.clone(), article: article.into(), thickness: src.thickness, sheet: default_sheet(), price: 0.0, weight: 0.0, coef: default_coef(), trim: None, kerf: None, texture: None, texture_size: None });
                 seen.push(((src.material.as_str(), src.thickness), key.clone()));
                 key
             }

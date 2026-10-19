@@ -17,6 +17,7 @@ dowel-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 3. **Shelves and partitions.** The shelf (or partition) icon in “Panels and fronts into an opening” → the “Front view” opens → click inside an opening. The shelf goes between the nearest parts. Gaps are set below the palette. Esc exits the tool.
 4. **Doors and drawers** — the same: the door or drawers icon → click into an opening. Hinges, runners and their drilling are added automatically.
 5. **Result.** “Parts” — the list with sizes and banding; “Cutting” — sheet maps. “File → Export” — cutting maps (HTML, PDF), BAZIS-Cutting project (XML), specification and estimate (CSV), drawings, .b3d model.
+6. **Cost and weight.** Set a material's “price” (per m²) and “weight” (kg per 1 m² — a sheet's weight divided by its area), an edge banding's price per metre and a fastener's “Price per piece” in the “Fasteners” tool. The total “Cost … weight … kg” shows under the project name; details are in the estimate (CSV): “Price”, “Sum”, “Weight” columns and a “Total” line.
 
 ## Mouse and keys
 

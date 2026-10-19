@@ -402,6 +402,18 @@ impl App {
                     });
                     ui.end_row();
                 }
+                crate::editors::caption(ui, "Price per piece");
+                if def.items.is_empty() {
+                    let mut price = changed.price;
+                    let r = crate::expr::add(ui, &mut price, |d| d.range(0.0..=1e6).speed(0.1));
+                    if (r.drag_stopped() || (r.changed() && !r.dragged())) && price != def.price {
+                        changed.price = price;
+                    }
+                } else {
+                    // A composite fastener is bought as its parts: the estimate prices those.
+                    ui.weak(crate::i18n::t("by its parts"));
+                }
+                ui.end_row();
                 if changed != def {
                     cmds_def = Some(changed);
                 }

@@ -1068,6 +1068,12 @@ impl App {
         if let Some(name) = text_field(ui, "project_name", &project.name) {
             cmds.push(("project.rename", json!({ "name": name })));
         }
+        // Estimate totals from the prices and weights set at materials, edge banding and fasteners.
+        let (cost, weight) = dowel::report::totals(&self.job.estimate(1.2));
+        if cost > 0.0 || weight > 0.0 {
+            ui.label(crate::i18n::t(format!("Cost {}, weight {} kg", dowel::report::money_shown(cost), dowel::report::money_shown(weight))))
+                .on_hover_text(crate::i18n::t("Quantities with the usage factor × prices; weight of the parts. Details: File → Export → Material estimate"));
+        }
 
         egui::CollapsingHeader::new(crate::i18n::t(format!("Materials ({})", project.materials.len()))).default_open(true).show(ui, |ui| {
             for m in &project.materials {
@@ -1109,6 +1115,17 @@ impl App {
                             ui.label(crate::i18n::t(label));
                             let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=50.0).speed(0.1).suffix(crate::i18n::t(" mm")));
                             if (r.drag_stopped() || (r.changed() && !r.dragged())) && Some(v) != value {
+                                cmds.push(("material.set", json!({ "name": m.name, key: v })));
+                            }
+                        }
+                    });
+                    // For the estimate: price per m² and weight of 1 m² (a sheet's weight divided by its area).
+                    ui.horizontal(|ui| {
+                        for (key, label, value, unit) in [("price", "price", m.price, " /m²"), ("weight", "weight", m.weight, " kg/m²")] {
+                            let mut v = value;
+                            ui.label(crate::i18n::t(label));
+                            let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=1e6).speed(0.1).suffix(crate::i18n::t(unit)));
+                            if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != value {
                                 cmds.push(("material.set", json!({ "name": m.name, key: v })));
                             }
                         }
@@ -1188,6 +1205,14 @@ impl App {
                         }
                     });
                     ui.label(crate::i18n::t(format!("{} mm × {} mm", e.thickness, e.width)));
+                    ui.horizontal(|ui| {
+                        let mut v = e.price;
+                        ui.label(crate::i18n::t("price"));
+                        let r = crate::expr::add(ui, &mut v, |d| d.range(0.0..=1e6).speed(0.1).suffix(crate::i18n::t(" /m")));
+                        if (r.drag_stopped() || (r.changed() && !r.dragged())) && v != e.price {
+                            cmds.push(("edge.set", json!({ "name": e.name, "price": v })));
+                        }
+                    });
                 });
             }
             let (n, t, w) = &mut self.new_edge;

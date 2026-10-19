@@ -58,6 +58,9 @@ pub struct Def {
     /// leave the part are skipped.
     #[serde(default, skip_serializing_if = "is_none2")]
     pub rows: [usize; 2],
+    /// Price per piece for the estimate; 0 — not set.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub price: f64,
 }
 
 fn is_zero(v: &f64) -> bool {
@@ -93,6 +96,7 @@ pub fn library() -> Vec<Def> {
             items: Vec::new(),
             grid: GRID,
             rows: [0, 0],
+            price: 0.0,
         },
         Def {
             name: "Minifix 15 cam".into(),
@@ -109,6 +113,7 @@ pub fn library() -> Vec<Def> {
             items: Vec::new(),
             grid: GRID,
             rows: [0, 0],
+            price: 0.0,
         },
         Def {
             name: "Dowel 8x30".into(),
@@ -120,6 +125,7 @@ pub fn library() -> Vec<Def> {
             items: Vec::new(),
             grid: GRID,
             rows: [0, 0],
+            price: 0.0,
         },
         Def {
             name: "Shelf support 5".into(),
@@ -132,6 +138,7 @@ pub fn library() -> Vec<Def> {
             items: Vec::new(),
             grid: GRID,
             rows: [2, 2],
+            price: 0.0,
         },
         Def {
             name: "Minifix 15 + dowel 8x30".into(),
@@ -150,6 +157,7 @@ pub fn library() -> Vec<Def> {
             items: vec![("Minifix 15 cam".into(), 1), ("Dowel 8x30".into(), 1)],
             grid: GRID,
             rows: [0, 0],
+            price: 0.0,
         },
     ]
 }

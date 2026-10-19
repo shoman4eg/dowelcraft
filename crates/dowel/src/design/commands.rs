@@ -13,10 +13,11 @@ pub struct Session {
 pub const COMMANDS: &[(&str, &str)] = &[
     ("project.get", "the whole project as JSON"),
     ("project.rename", "{name}"),
-    ("material.add", "{name, thickness, article?, sheet?: [length, width], coef?, trim?: edge trim, kerf?: saw kerf}"),
+    ("material.add", "{name, thickness, article?, sheet?: [length, width], coef?, trim?: edge trim, kerf?: saw kerf, price?: per m², weight?: kg per m²}"),
     ("material.set", "{name, ...fields} — change a material"),
     ("material.remove", "{name} — delete a material; refused while it is in use"),
-    ("edge.add", "{name, thickness, article?, width?}"),
+    ("edge.add", "{name, thickness, article?, width?, price?: per metre}"),
+    ("edge.set", "{name, ...fields} — change an edge banding (price per metre and so on)"),
     ("edge.remove", "{name} — delete an edge banding; refused while parts use it"),
     ("cabinet.add", "{width, height, depth, material, name?, edge?, plinth?, back?, back_groove?: {offset?: 16, depth?: 8} — the back panel in grooves, doors?, door_material?, door_gap?, drawers?: [front heights, bottom up], drawer_depth?, drawer_section?, position?: [x,y,z]} → {id}. A wall unit: plinth 0 and a position with height, e.g. [0, 1400, 250]"),
     ("cabinet.set", "{id, ...cabinet fields} — change the parameters"),
@@ -213,12 +214,19 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
             if !(m.thickness > 0.0 && m.sheet.0 > 0.0 && m.sheet.1 > 0.0 && m.coef > 0.0) {
                 return Err("thickness, sheet size and factor must be greater than zero".into());
             }
+            if m.price < 0.0 || m.weight < 0.0 {
+                return Err("price and weight cannot be negative".into());
+            }
             pr.materials.push(m);
         }
         "material.set" => {
             let name = s(p, "name")?;
             let i = pr.materials.iter().position(|m| m.name == name).ok_or_else(|| format!("no material “{name}”"))?;
-            pr.materials[i] = patch(&pr.materials[i], p, "name")?;
+            let m: Material = patch(&pr.materials[i], p, "name")?;
+            if m.price < 0.0 || m.weight < 0.0 {
+                return Err("price and weight cannot be negative".into());
+            }
+            pr.materials[i] = m;
         }
         "material.remove" => {
             let name = s(p, "name")?;
@@ -240,10 +248,22 @@ fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
             }
             pr.edges.remove(i);
         }
+        "edge.set" => {
+            let name = s(p, "name")?;
+            let i = pr.edges.iter().position(|e| e.name == name).ok_or_else(|| format!("no edge banding “{name}”"))?;
+            let e: EdgeMaterial = patch(&pr.edges[i], p, "name")?;
+            if e.price < 0.0 {
+                return Err("price and weight cannot be negative".into());
+            }
+            pr.edges[i] = e;
+        }
         "edge.add" => {
             let e: EdgeMaterial = serde_json::from_value(p.clone()).map_err(|e| format!("edge banding: {e}"))?;
             if pr.edges.iter().any(|x| x.name == e.name) {
                 return Err(format!("edge banding “{}” already exists", e.name));
+            }
+            if e.price < 0.0 {
+                return Err("price and weight cannot be negative".into());
             }
             pr.edges.push(e);
         }
@@ -408,7 +428,7 @@ fn fastener_cmd(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String>
             if d.holes.is_empty() || !(d.step > 0.0 && d.offset >= 0.0 && d.min >= 1 && d.max >= d.min) {
                 return Err("fastener: holes, step > 0, offset ≥ 0, 1 ≤ min ≤ max are required".into());
             }
-            if !(d.grid >= 0.0 && d.grid.is_finite()) || d.rows.iter().any(|&r| r > 10) {
+            if !(d.grid >= 0.0 && d.grid.is_finite()) || d.rows.iter().any(|&r| r > 10) || d.price < 0.0 {
                 return Err("fastener: grid ≥ 0 and at most 10 spare holes each way are required".into());
             }
             // An existing entry is replaced where it is, so the catalogue keeps its order.

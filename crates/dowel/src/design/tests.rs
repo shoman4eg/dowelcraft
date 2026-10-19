@@ -773,3 +773,40 @@ fn groove_on_a_panel() {
     s.execute("panel.groove_remove", &json!({"id": id, "index": 0})).unwrap();
     assert_eq!(build(&s.project).unwrap()[0].panel.grooves.len(), 3);
 }
+
+/// Prices and weights reach the estimate: boards by m² (with the factor), edge banding by metres, fasteners by pieces.
+#[test]
+fn estimate_has_prices_and_weight() {
+    let mut s = Session::new(Project::new("Priced"));
+    s.execute("material.add", &json!({"name": "Chipboard 16", "thickness": 16, "coef": 1.0, "price": 500, "weight": 11})).unwrap();
+    s.execute("edge.add", &json!({"name": "PVC 2", "thickness": 2})).unwrap();
+    s.execute("edge.set", &json!({"name": "PVC 2", "price": 30})).unwrap();
+    s.execute("cabinet.add", &json!({"width": 600, "height": 720, "depth": 500, "material": "Chipboard 16", "edge": "PVC 2", "fastener": "Confirmat 7x50"})).unwrap();
+    let mut confirmat = serde_json::to_value(crate::fasteners::library().into_iter().find(|d| d.name == "Confirmat 7x50").unwrap()).unwrap();
+    confirmat["price"] = json!(3);
+    s.execute("fastener.def", &confirmat).unwrap();
+    let job = crate::job::Job::from_project(s.project.clone());
+    let rows = job.estimate(1.0);
+    let row = |unit: &str| rows.iter().find(|r| r.unit == unit).unwrap();
+    let board = row("m²");
+    assert_eq!(board.price, 500.0);
+    assert!((board.weight - board.net * 11.0).abs() < 1e-9 && board.weight > 0.0);
+    assert_eq!(row("m").price, 30.0);
+    assert_eq!(row("pcs").price, 3.0);
+    let (cost, weight) = crate::report::totals(&rows);
+    let expect: f64 = rows.iter().map(|r| r.qty * r.price).sum();
+    assert!((cost - expect).abs() < 1e-9 && cost > 0.0);
+    assert!((weight - board.weight).abs() < 0.005, "{weight} vs {}", board.weight);
+    // Composite fasteners are priced by their parts.
+    s.execute("cabinet.set", &json!({"id": 1, "fastener": "Minifix 15 + dowel 8x30"})).unwrap();
+    let mut dowel = serde_json::to_value(s.project.def("Dowel 8x30").unwrap()).unwrap();
+    dowel["price"] = json!(1.5);
+    s.execute("fastener.def", &dowel).unwrap();
+    let parts_rows = crate::job::Job::from_project(s.project.clone()).estimate(1.0);
+    assert!(parts_rows.iter().any(|r| r.material == "Dowel 8x30" && r.price == 1.5), "{parts_rows:?}");
+    // Negative prices are refused and leave the material as it was.
+    assert!(s.execute("material.set", &json!({"name": "Chipboard 16", "price": -1})).is_err());
+    assert_eq!(s.project.materials[0].price, 500.0);
+    let csv = crate::report::materials_csv(&rows);
+    assert!(csv.lines().last().unwrap().contains(&crate::report::money(cost)), "{csv}");
+}

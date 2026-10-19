@@ -107,7 +107,7 @@ The macOS archive also has `Dowel Craft.app`.
 - **Documents:**
   - cutting maps and “Panels for production” (printable HTML, PDF);
   - a BAZIS-Raskroy project (XML, the same as Mebelshchik writes it);
-  - specification and cost estimate (CSV for Excel): boards in m², edge banding in m, hardware in pcs;
+  - specification and cost estimate (CSV for Excel): boards in m², edge banding in m, hardware in pcs; with prices (per m², per metre, per piece) — sums, the total cost and the weight of the product (from the weight of 1 m² of each board);
   - assembly and part drawings (A4, HTML or PDF);
   - a model for Bazis-Mebelshchik (`.b3d`).
 - **Model check:** overlapping parts, fasteners missing a panel, hardware without a panel, parts larger than a sheet.
@@ -170,7 +170,7 @@ A model is a Bazis `.b3d` file or your own `.dcraft` project.
 |---|---|
 | `dowel-craft spec <model> [-o out.csv]` | parts specification |
 | `dowel-craft cut <model> [-o maps.html] [--sheet 2800x2070] [--kerf 4] [--trim 10]` | cutting: maps and “Panels for production” |
-| `dowel-craft smeta <model> [-o smeta.csv] [--coef 1.2]` | board and edge banding usage, like the Bazis estimate |
+| `dowel-craft smeta <model> [-o smeta.csv] [--coef 1.2]` | board, edge banding and hardware usage, like the Bazis estimate, with prices, sums and weight |
 | `dowel-craft raskroy <model> [-o project.xml] [--sheet 2800x2070]` | a BAZIS-Raskroy project |
 | `dowel-craft drawings <model> [-o drawings.html\|.pdf]` | assembly and part drawings |
 | `dowel-craft check <model>` | model check |

@@ -86,8 +86,32 @@ impl Job {
 
     /// Cost estimate: panels and edge banding with coefficients (`default` if the project has none), then hardware in pieces.
     pub fn estimate(&self, default: f64) -> Vec<panel::MaterialRow> {
-        let mut rows = panel::materials(&self.panels, |m| self.coef(m, default));
-        rows.extend(self.hardware.iter().map(|(n, q)| panel::MaterialRow { material: n.clone(), unit: "pcs", coef: 1.0, qty: *q as f64 }));
+        self.estimate_by(|m| self.coef(m, default))
+    }
+
+    /// The estimate with a factor per material (the CLI's `--coef` overrides the project's).
+    pub fn estimate_by(&self, coef: impl Fn(&str) -> f64) -> Vec<panel::MaterialRow> {
+        let mut rows = panel::materials(&self.panels, coef);
+        rows.extend(self.hardware.iter().map(|(n, q)| panel::MaterialRow { material: n.clone(), unit: "pcs", coef: 1.0, qty: *q as f64, net: *q as f64, price: 0.0, weight: 0.0 }));
+        // Prices and weights come from our own project (a Bazis model has none).
+        if let Some(p) = &self.project {
+            for r in &mut rows {
+                match r.unit {
+                    "m²" => {
+                        if let Some(m) = p.materials.iter().find(|m| design::full(&m.name, &m.article) == r.material) {
+                            r.price = m.price;
+                            r.weight = r.net * m.weight;
+                        }
+                    }
+                    "m" => {
+                        if let Some(e) = p.edges.iter().find(|e| design::full(&e.name, &e.article) == r.material) {
+                            r.price = e.price;
+                        }
+                    }
+                    _ => r.price = p.def(&r.material).map_or(0.0, |d| d.price),
+                }
+            }
+        }
         rows
     }
 

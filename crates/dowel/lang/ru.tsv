@@ -796,3 +796,19 @@ below 	снизу
 above 	сверху 
 Extra holes 32 mm apart under and over each shelf support, so the shelf can be moved	Дополнительные отверстия через 32 мм ниже и выше каждого полкодержателя — полку можно переставить
 fastener: grid ≥ 0 and at most 10 spare holes each way are required	крепёж: нужны сетка ≥ 0 и не больше 10 запасных отверстий в каждую сторону
+Price	Цена
+Sum	Сумма
+Weight, kg	Вес, кг
+Total	Итого
+Total: {}, weight {} kg	Итого: {}, вес {} кг
+price	цена
+weight	вес
+ /m²	 /м²
+ kg/m²	 кг/м²
+ /m	 /м
+{name, ...fields} — change an edge banding (price per metre and so on)	{name, ...поля} — изменить кромку (цена за метр и т. п.)
+Price per piece	Цена за штуку
+Cost {}, weight {} kg	Стоимость {}, вес {} кг
+Quantities with the usage factor × prices; weight of the parts. Details: File → Export → Material estimate	Количества с коэффициентом расхода × цены; вес деталей. Подробно: Файл → Экспорт → Смета материалов
+by its parts	по составу
+price and weight cannot be negative	цена и вес не могут быть отрицательными

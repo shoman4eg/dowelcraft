@@ -55,16 +55,42 @@ pub fn spec_csv(rows: &[SpecRow]) -> String {
 }
 
 /// Material usage in Bazis cost estimate columns.
+/// Bazis estimate columns, then price, sum and weight; the last line is the totals.
 pub fn materials_csv(rows: &[MaterialRow]) -> String {
-    let head = ["Article", "Material name", "Unit", "Factor", "Order quantity"];
+    let head = ["Article", "Material name", "Unit", "Factor", "Order quantity", "Price", "Sum", "Weight, kg"];
     let mut s = format!("\u{feff}{}\r\n", head.map(t).join(";"));
+    let blank = |v: f64| if v == 0.0 { String::new() } else { money(v) };
     for r in rows {
         let (name, code) = r.material.split_once('\r').unwrap_or((&r.material, ""));
-        let line = [code.to_string(), name.to_string(), t(r.unit), num(r.coef), num(r.qty)];
+        let line = [code.to_string(), name.to_string(), t(r.unit), num(r.coef), num(r.qty), blank(r.price), blank(r.qty * r.price), blank(r.weight)];
+        s.push_str(&line.iter().map(|f| csv_field(f)).collect::<Vec<_>>().join(";"));
+        s.push_str("\r\n");
+    }
+    let (cost, weight) = totals(rows);
+    if cost > 0.0 || weight > 0.0 {
+        let line = [String::new(), t("Total"), String::new(), String::new(), String::new(), String::new(), money(cost), money(weight)];
         s.push_str(&line.iter().map(|f| csv_field(f)).collect::<Vec<_>>().join(";"));
         s.push_str("\r\n");
     }
     s
+}
+
+/// Cost (quantity × price) and weight of the estimate, each row rounded to a cent first, as printed.
+pub fn totals(rows: &[MaterialRow]) -> (f64, f64) {
+    let cent = |v: f64| (v * 100.0).round() / 100.0;
+    rows.iter().fold((0.0, 0.0), |(c, w), r| (c + cent(r.qty * r.price), w + cent(r.weight)))
+}
+
+/// [`money`] for the screen: a decimal point in English, a comma in Russian.
+pub fn money_shown(v: f64) -> String {
+    let s = money(v);
+    if crate::i18n::russian() { s } else { s.replace(',', ".") }
+}
+
+/// Two decimals with a decimal comma, as Excel in Russian expects ("1234,50"); whole numbers without them.
+pub fn money(v: f64) -> String {
+    let r = (v * 100.0).round() / 100.0;
+    if r.fract() == 0.0 { format!("{r:.0}") } else { format!("{r:.2}").replace('.', ",") }
 }
 
 pub(crate) fn xml(s: &str) -> String {

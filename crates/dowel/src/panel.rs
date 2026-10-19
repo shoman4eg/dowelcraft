@@ -573,6 +573,12 @@ pub struct MaterialRow {
     pub unit: &'static str,
     pub coef: f64,
     pub qty: f64,
+    /// Without the coefficient: m² of parts, m of edge banding, pieces.
+    pub net: f64,
+    /// Price per unit; 0 — not set.
+    pub price: f64,
+    /// Weight of the parts, kg (boards with a known weight per m²); 0 — not known.
+    pub weight: f64,
 }
 
 /// Material usage: panels — sum of bounding boxes (m²), edge banding — length of banded segments (m);
@@ -597,7 +603,7 @@ pub fn materials(panels: &[Panel], coef: impl Fn(&str) -> f64) -> Vec<MaterialRo
             // Drop float noise before rounding up: 2.0000000001 → 2.0.
             let up = |x: f64, step: f64| ((x / step - 1e-9).ceil() * step * 1e6).round() / 1e6;
             let qty = if unit == "m" { up(v * k, 1.0) } else { up(v * k, 0.1) };
-            MaterialRow { material, unit, coef: k, qty }
+            MaterialRow { material, unit, coef: k, qty, net: v, price: 0.0, weight: 0.0 }
         })
         .collect();
     rows.sort_by(|a, b| a.material.cmp(&b.material));

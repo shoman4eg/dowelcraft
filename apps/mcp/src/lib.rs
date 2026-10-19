@@ -272,7 +272,16 @@ impl Server {
             }
             "smeta" => {
                 let rows = self.job.estimate(1.2);
-                Ok(text(rows.iter().map(|r| format!("{} — {} {}\n", panel::material_name(&r.material), r.qty, r.unit)).collect::<String>()))
+                let mut out: String = rows
+                    .iter()
+                    .map(|r| {
+                        let price = if r.price > 0.0 { format!(" × {} = {}", r.price, dowel::report::money_shown(r.qty * r.price)) } else { String::new() };
+                        format!("{} — {} {}{price}\n", panel::material_name(&r.material), r.qty, r.unit)
+                    })
+                    .collect();
+                let (cost, weight) = dowel::report::totals(&rows);
+                out += &t(format!("Total: {}, weight {} kg", dowel::report::money_shown(cost), dowel::report::money_shown(weight)));
+                Ok(text(out))
             }
             "cut" => {
                 let p = self.params(a);
