@@ -130,6 +130,34 @@ impl App {
         }
     }
 
+    /// Closing the window with unsaved projects: the close is held back and each one is asked about in turn
+    /// (Save / Don't save / Cancel); once none is left the window closes. Cancel keeps the program open.
+    pub(crate) fn quit_check(&mut self, ctx: &eframe::egui::Context) {
+        if ctx.input(|i| i.viewport().close_requested()) && self.screenshot.is_none() {
+            if !self.any_dirty() {
+                return;
+            }
+            ctx.send_viewport_cmd(eframe::egui::ViewportCommand::CancelClose);
+            self.quitting = true;
+        }
+        if !self.quitting || self.close_ask.is_some() {
+            return;
+        }
+        let next = (0..self.docs.len()).find(|&i| if i == self.active { self.dirty } else { self.docs[i].dirty });
+        match next {
+            Some(i) => {
+                self.switch_doc(i);
+                self.request_close(i);
+                ctx.request_repaint();
+            }
+            None => ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Close),
+        }
+    }
+
+    fn any_dirty(&self) -> bool {
+        self.dirty || self.docs.iter().enumerate().any(|(i, d)| i != self.active && d.dirty)
+    }
+
     /// The "Save changes?" window before closing a tab.
     pub(crate) fn close_window(&mut self, ctx: &eframe::egui::Context) {
         let Some(ask) = &self.close_ask else { return };
@@ -154,7 +182,10 @@ impl App {
                 self.close_ask = None;
                 self.switch_doc(index);
                 self.save(false);
-                if !self.dirty {
+                if self.dirty {
+                    // The save dialog was cancelled or saving failed: stay open.
+                    self.quitting = false;
+                } else {
                     self.close_doc(self.active);
                 }
             }
@@ -162,8 +193,12 @@ impl App {
                 self.close_ask = None;
                 self.close_doc(index);
             }
-            Some(_) => self.close_ask = None,
+            Some(_) => (self.close_ask, self.quitting) = (None, false),
             None => {}
+        }
+        // The next question, or the close itself, comes on the next frame.
+        if self.quitting {
+            ctx.request_repaint();
         }
     }
 }
@@ -240,6 +275,41 @@ mod tests {
         app.request_close(0);
         assert!(app.close_ask.as_ref().is_some_and(|a| a.title == "Wardrobe"));
         assert_eq!(app.doc_title(), "Wardrobe");
+    }
+
+    /// Closing the window: an unsaved project in a background tab is asked about; Cancel keeps the window open.
+    #[test]
+    fn closing_window_asks_about_unsaved() {
+        use eframe::egui;
+        let ctx = egui::Context::default();
+        let mut app = App::default();
+        app.exec("project.rename", json!({ "name": "Table" }));
+        app.new_project();
+        let mut frame = eframe::Frame::_new_kittest();
+        let mut run = |app: &mut App, close: bool| {
+            let mut input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1400.0, 900.0))), ..Default::default() };
+            input.viewports.entry(egui::ViewportId::ROOT).or_default().events = if close { vec![egui::ViewportEvent::Close] } else { vec![] };
+            let mut out = ctx.run_ui(input, |ui| {
+                eframe::App::logic(app, ui.ctx(), &mut frame);
+                eframe::App::ui(app, ui, &mut frame);
+            });
+            out.textures_delta.clear();
+            out.viewport_output.get(&egui::ViewportId::ROOT).map(|v| v.commands.clone()).unwrap_or_default()
+        };
+        let cmds = run(&mut app, true);
+        assert!(cmds.contains(&egui::ViewportCommand::CancelClose));
+        run(&mut app, false);
+        assert!(app.close_ask.as_ref().is_some_and(|a| a.title == "Table"));
+        assert_eq!(app.doc_title(), "Table");
+        // "Don't save": the tab closes, nothing unsaved is left, so the window closes.
+        let index = app.close_ask.as_ref().unwrap().index;
+        app.close_ask = None;
+        app.close_doc(index);
+        let cmds = run(&mut app, false);
+        assert!(cmds.contains(&egui::ViewportCommand::Close));
+        // Nothing unsaved: closing is not held back.
+        let cmds = run(&mut app, true);
+        assert!(!cmds.contains(&egui::ViewportCommand::CancelClose));
     }
 }
 

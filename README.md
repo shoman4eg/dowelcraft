@@ -89,7 +89,7 @@ The macOS archive also has `Dowel Craft.app`.
 - **Selection:** click (click the same spot again to take the part behind it), Ctrl+click, a Shift+drag frame, “Select the same material”; **mass replacement** of a material or edge banding in the whole project or in the selection.
 - **Formulas in fields:** `600-4`, `(W-T)/2` (W, H, D, P, T — cabinet width, height, depth, plinth, thickness).
 - **Undo and redo** for every change; an invalid change (a shelf above the cabinet, etc.) is rejected and the reason is shown at the bottom of the window.
-- **Several projects** in tabs, with a reminder about unsaved changes.
+- **Several projects** in tabs, with a reminder about unsaved changes — when closing a tab and when closing the window.
 
 ### Fasteners and hardware
 - **Fasteners** with drilling on both parts of every joint: confirmat screws, cam locks (Minifix), dowels, shelf supports, “Minifix + dowel”. The cam cup can face inside or outside the carcass.

@@ -42,7 +42,7 @@ dowel-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 
 ## Projects, textures, grid
 
-- **Several projects.** Each project is a tab under the menu. “+” or “New” opens a new tab, so does opening a file. “*” after the name means unsaved changes; closing asks whether to save.
+- **Several projects.** Each project is a tab under the menu. “+” or “New” opens a new tab, so does opening a file. “*” after the name means unsaved changes; closing the tab or the whole window asks about each unsaved project: save, don't save, or cancel (the window stays open).
 - **Material texture.** “Project” → “Choose…” at a material (or in the new material form): an image library by folders with previews and search. Add your folders with “+ Add folder…”. “by article” finds the Baltlaminat image by the material article. See it in the 3D “Textured” mode.
 - **The grid** in the front view and in 3D is infinite and its spacing grows when you zoom out. Toggle it with F7 or the grid icon at the bottom right; spacing and major lines — the gear or “Edit → Settings…”, which also has the program language (English by default) and the **interface scale** (75–200%: the whole window larger or smaller). New parts and cabinets get names in the chosen language.
 - **Drawer front height “auto”:** the “auto” checkbox in a cabinet's drawer list, or `0` / `auto` in the “Drawers into an opening” heights (e.g. `140 auto auto`). Auto fronts share the free height (of the opening, or of a cabinet front without doors) equally in whole mm; the rounding remainder goes to the top one.

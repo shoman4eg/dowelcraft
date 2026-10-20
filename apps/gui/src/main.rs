@@ -518,6 +518,8 @@ struct App {
     dirty: bool,
     /// Ask "Save changes?" before closing a tab.
     close_ask: Option<docs::CloseAsk>,
+    /// The window is being closed: the projects with unsaved changes are asked about one by one, then it closes.
+    quitting: bool,
     /// The "Settings" window is open (language, grid).
     drafting: bool,
     /// The start page is shown (instead of the work panes), like the "Start" tab in cadcraft.
@@ -630,6 +632,7 @@ impl Default for App {
             active: 0,
             dirty: false,
             close_ask: None,
+            quitting: false,
             help: false,
             fastening: false,
             view: Pane::Model,
@@ -894,6 +897,11 @@ impl App {
 }
 
 impl eframe::App for App {
+    // Also runs while the window is minimized, when `ui` does not: a close from the taskbar must ask too.
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.quit_check(ctx);
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.ctx_ctrl = ui.input(|i| i.modifiers.command);
         self.serve_live();
