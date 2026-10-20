@@ -21,7 +21,7 @@ dowel-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 
 ## Mouse and keys
 
-- **3D:** left drag rotates, right drag pans, the wheel zooms. Click a part to select it, Ctrl+click adds to the selection. **Drag a selected part** to move it along X, Y or Z (whichever the mouse follows) in whole mm; the offset is shown in the corner.
+- **3D:** left drag rotates, right drag pans, the wheel zooms. Click a part to select it; **click the same spot again** (in 3D and in the front view) to take the part behind it (and so on round) — that is how you get a shelf behind a door or the back panel; Ctrl+click adds to the selection. **Drag a selected part** to move it along X, Y or Z (whichever the mouse follows) in whole mm; the offset is shown in the corner.
 - **Front view:** drag the selected part — its edges snap to neighbours. A free panel has orange handles: drag them to resize.
 - **Open doors and drawers** (the button above 3D next to “Doors and fronts” or **O**): doors swing on their hinges (~95°), drawers slide out with their boxes. If something hits — e.g. a door against a deeper neighbouring cabinet — both parts turn red. The project is not changed; press again to close. The hinge side comes from hinge models; a double door opens outwards, otherwise the left. While the fronts are open, clicks do not select parts. Fronts facing forward open; hitting is judged by part bounding boxes (with a small margin).
 - **Drilling in 3D:** every hole is a red cylinder of its diameter and depth (a confirmat — ⌀8 through the side and ⌀5 into the edge, a hinge cup — ⌀35). Cabinet legs are a ⌀60 plate, a ⌀32 post and a ⌀50 foot on the floor.
@@ -44,7 +44,7 @@ dowel-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, s
 
 - **Several projects.** Each project is a tab under the menu. “+” or “New” opens a new tab, so does opening a file. “*” after the name means unsaved changes; closing asks whether to save.
 - **Material texture.** “Project” → “Choose…” at a material (or in the new material form): an image library by folders with previews and search. Add your folders with “+ Add folder…”. “by article” finds the Baltlaminat image by the material article. See it in the 3D “Textured” mode.
-- **The grid** in the front view and in 3D is infinite and its spacing grows when you zoom out. Toggle it with F7 or the grid icon at the bottom right; spacing and major lines — the gear or “Edit → Settings…”, which also has the program language (English by default). New parts and cabinets get names in the chosen language.
+- **The grid** in the front view and in 3D is infinite and its spacing grows when you zoom out. Toggle it with F7 or the grid icon at the bottom right; spacing and major lines — the gear or “Edit → Settings…”, which also has the program language (English by default) and the **interface scale** (75–200%: the whole window larger or smaller). New parts and cabinets get names in the chosen language.
 - **Drawer front height “auto”:** the “auto” checkbox in a cabinet's drawer list, or `0` / `auto` in the “Drawers into an opening” heights (e.g. `140 auto auto`). Auto fronts share the free height (of the opening, or of a cabinet front without doors) equally in whole mm; the rounding remainder goes to the top one.
 - **The 3D grid** lies on the floor and moves to a wall only when you look almost level with the floor (the Front and Left views); zooming out goes 10 → 20 → 50 → 100 mm.
 

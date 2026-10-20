@@ -86,7 +86,7 @@ The macOS archive also has `Dowel Craft.app`.
 - **Drilling in 3D:** holes are red cylinders of their diameter and depth; legs are a plate, a post and a foot.
 - **Ruler:** measure between part corners and contour points in 3D, “4 windows” and the front view.
 - **Guide lines:** helper lines along X, Y or Z. Click in the front view to place one (Shift for a horizontal one), drag it to move it, or set it by number. Right click on a part adds one at its edge. Dragged parts, size handles and the ruler snap to them. They are saved in the project.
-- **Selection:** click, Ctrl+click, a Shift+drag frame, “Select the same material”; **mass replacement** of a material or edge banding in the whole project or in the selection.
+- **Selection:** click (click the same spot again to take the part behind it), Ctrl+click, a Shift+drag frame, “Select the same material”; **mass replacement** of a material or edge banding in the whole project or in the selection.
 - **Formulas in fields:** `600-4`, `(W-T)/2` (W, H, D, P, T — cabinet width, height, depth, plinth, thickness).
 - **Undo and redo** for every change; an invalid change (a shelf above the cabinet, etc.) is rejected and the reason is shown at the bottom of the window.
 - **Several projects** in tabs, with a reminder about unsaved changes.
@@ -124,6 +124,8 @@ The macOS archive also has `Dowel Craft.app`.
 - Run BAZIS-Script scripts (`.js`) that build and change the model; script dialogs are shown. Details (in Russian): [docs/scripts.md](docs/scripts.md).
 
 ### Other
+- Interface scale 75–200% (Edit → Settings).
+- Saving never leaves a half-written file: the project is written beside the old one and replaces it only when complete.
 - English and Russian: the window (Edit → Settings → Language; English by default), and the command line and MCP server with `--lang ru` or `DOWEL_LANG=ru` (messages, part names, cutting maps, drawings, CSV).
 - Every hotkey is configurable.
 - An AI assistant can edit the project right in the open window (Linux and macOS).

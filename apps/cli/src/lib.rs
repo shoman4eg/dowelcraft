@@ -84,7 +84,7 @@ const DEFAULT_SHEET: (f64, f64) = (2800.0, 2070.0);
 
 fn write_or_print(args: &[String], text: &str) -> Result<(), String> {
     match opt(args, "-o") {
-        Some(out) => std::fs::write(out, text).map_err(|e| format!("{out}: {e}")),
+        Some(out) => dowel::write(out, text).map_err(|e| format!("{out}: {e}")),
         None => {
             print!("{text}");
             Ok(())
@@ -102,7 +102,7 @@ fn run(args: &[String]) -> Result<(), String> {
             let job = Job::open(Path::new(path))?;
             let p = job.import();
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("dcraft"));
-            std::fs::write(&out, p.save()).map_err(|e| format!("{}: {e}", out.display()))?;
+            dowel::write(&out, p.save()).map_err(|e| format!("{}: {e}", out.display()))?;
             println!("{}", t(format!("parts {}, materials {} → {}", p.panels().len(), p.materials.len(), out.display())));
             return Ok(());
         }
@@ -110,7 +110,7 @@ fn run(args: &[String]) -> Result<(), String> {
             let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
             let project = dowel::design::Project::load(&text)?;
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("b3d"));
-            std::fs::write(&out, dowel::export::b3d(&project)?).map_err(|e| format!("{}: {e}", out.display()))?;
+            dowel::write(&out, dowel::export::b3d(&project)?).map_err(|e| format!("{}: {e}", out.display()))?;
             println!("{}", t(format!("parts {} → {}", dowel::design::build(&project)?.len(), out.display())));
             return Ok(());
         }
@@ -126,7 +126,7 @@ fn run(args: &[String]) -> Result<(), String> {
                 return Err(t(format!("script: {e} (the project is unchanged)")));
             }
             if r.changes > 0 {
-                std::fs::write(path, s.project.save()).map_err(|e| format!("{path}: {e}"))?;
+                dowel::write(path, s.project.save()).map_err(|e| format!("{path}: {e}"))?;
             }
             println!("{}", t(format!("changes: {}, dialogs: {}", r.changes, r.forms.len())));
             return Ok(());
@@ -145,7 +145,7 @@ fn run(args: &[String]) -> Result<(), String> {
             let pages = dowel::drawing::drawings(&parts, &job.name);
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("drawings.html"));
             let data = if out.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf")) { dowel::pdf::from_svg_pages(&pages)? } else { report::document_html(&t(format!("{} — drawings", job.name)), &pages, "").into_bytes() };
-            std::fs::write(&out, data).map_err(|e| format!("{}: {e}", out.display()))?;
+            dowel::write(&out, data).map_err(|e| format!("{}: {e}", out.display()))?;
             println!("{}", t(format!("sheets {} → {}", parts.len().min(1) + dowel::panel::spec(&job.panels).len(), out.display())));
             return Ok(());
         }
@@ -186,7 +186,7 @@ fn run(args: &[String]) -> Result<(), String> {
         "raskroy" => {
             let xml = dowel::raskroy::project_xml(&job.name, &job.panels, sheet_for);
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("xml"));
-            std::fs::write(&out, xml).map_err(|e| format!("{}: {e}", out.display()))?;
+            dowel::write(&out, xml).map_err(|e| format!("{}: {e}", out.display()))?;
             let holes: usize = job.panels.iter().map(|p| p.holes.len()).sum();
             println!("{}", t(format!("parts {}, drilling holes {holes} → {}", job.panels.len(), out.display())));
             if job.holes_lost > 0 {
@@ -210,7 +210,7 @@ fn run(args: &[String]) -> Result<(), String> {
             let out = opt(args, "-o").map(PathBuf::from).unwrap_or_else(|| Path::new(path).with_extension("html"));
             // .pdf — cutting maps as PDF (no browser), otherwise HTML with the maps and "Panels for production".
             let data = if out.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf")) { dowel::pdf::from_svg_pages(&job::cards(&job, &cuts))? } else { job::document(&job, &cuts).into_bytes() };
-            std::fs::write(&out, data).map_err(|e| format!("{}: {e}", out.display()))?;
+            dowel::write(&out, data).map_err(|e| format!("{}: {e}", out.display()))?;
             println!("→ {}", out.display());
         }
         _ => return Err(USAGE.into()),
@@ -243,7 +243,7 @@ fn design_cmd(path: &str, rest: &[String]) -> Result<(), String> {
     let before = s.project.clone();
     let out = s.execute(cmd, &params)?;
     if s.project != before {
-        std::fs::write(path, s.project.save()).map_err(|e| format!("{path}: {e}"))?;
+        dowel::write(path, s.project.save()).map_err(|e| format!("{path}: {e}"))?;
     }
     if !out.is_null() {
         println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());

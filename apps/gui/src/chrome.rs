@@ -39,7 +39,7 @@ pub fn remember(path: &Path) {
     list.retain(|p| *p != path);
     list.insert(0, path);
     list.truncate(RECENT_MAX);
-    let saved = file.parent().map(std::fs::create_dir_all).transpose().and_then(|_| std::fs::write(&file, serde_json::to_string_pretty(&list).unwrap_or_default()));
+    let saved = file.parent().map(std::fs::create_dir_all).transpose().and_then(|_| dowel::write(&file, serde_json::to_string_pretty(&list).unwrap_or_default()));
     if let Err(e) = saved {
         eprintln!("[recent files] {}: {e}", file.display());
     }
@@ -409,6 +409,16 @@ impl App {
                 for (code, label) in [("en", "English".to_string()), ("ru", dowel::i18n::ru("Russian"))] {
                     if ui.radio(self.settings.language == code, label).clicked() {
                         language = Some(code);
+                    }
+                }
+            });
+            ui.heading(crate::i18n::t("Interface scale"));
+            ui.horizontal(|ui| {
+                for scale in [0.75, 1.0, 1.25, 1.5, 2.0] {
+                    if ui.radio(self.settings.scale == scale, format!("{}%", scale * 100.0)).clicked() {
+                        self.settings.scale = scale;
+                        ctx.set_zoom_factor(scale);
+                        self.settings.save();
                     }
                 }
             });

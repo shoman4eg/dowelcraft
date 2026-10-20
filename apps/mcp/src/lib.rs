@@ -251,7 +251,7 @@ impl Server {
                     Some(p) => PathBuf::from(p),
                     None => self.path.clone().filter(|p| dowel::design::is_project_file(p)).ok_or_else(|| t("give a path"))?,
                 };
-                std::fs::write(&path, s.project.save()).map_err(|e| format!("{}: {e}", path.display()))?;
+                dowel::write(&path, s.project.save()).map_err(|e| format!("{}: {e}", path.display()))?;
                 self.path = Some(path.clone());
                 Ok(text(t(format!("Saved: {}", path.display()))))
             }
@@ -316,7 +316,7 @@ impl Server {
                     }
                     k => return Err(t(format!("unknown document kind “{k}”"))),
                 };
-                std::fs::write(&path, bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+                dowel::write(&path, bytes).map_err(|e| format!("{}: {e}", path.display()))?;
                 Ok(text(t(format!("Saved: {}", path.display()))))
             }
             "run_script" => {

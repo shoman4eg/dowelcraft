@@ -136,7 +136,7 @@ impl Host {
                 }
                 let data = text(&a["data"]);
                 let r = if cmd == "fs.write" {
-                    std::fs::write(&p, data)
+                    dowel::write(&p, data)
                 } else {
                     use std::io::Write;
                     std::fs::OpenOptions::new().create(true).append(true).open(&p).and_then(|mut f| f.write_all(data.as_bytes()))

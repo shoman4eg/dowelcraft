@@ -18,8 +18,8 @@ pub fn save(path: &std::path::Path, parts: &[Part], project: Option<&Project>, t
     let mtl_path = path.with_extension("mtl");
     let mtl_file = mtl_path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "materials.mtl".into());
     let out = export(parts, project, title, &mtl_file);
-    std::fs::write(path, out.obj).map_err(|e| format!("{}: {e}", path.display()))?;
-    std::fs::write(&mtl_path, out.mtl).map_err(|e| format!("{}: {e}", mtl_path.display()))
+    crate::write(path, out.obj).map_err(|e| format!("{}: {e}", path.display()))?;
+    crate::write(&mtl_path, out.mtl).map_err(|e| format!("{}: {e}", mtl_path.display()))
 }
 
 /// Material library name in `mtllib`, e.g. "kitchen.mtl"; parts of a Bazis model have no project (no textures, no hardware).

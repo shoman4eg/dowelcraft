@@ -19,6 +19,8 @@ pub struct Settings {
     pub grid: GridSettings,
     /// Custom hotkeys: action → shortcut ("" means unbound); the rest use defaults (`keys::ACTIONS`).
     pub keys: BTreeMap<String, String>,
+    /// Size of the whole window's text and controls: 1 is normal, 1.25 is a quarter larger.
+    pub scale: f32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
@@ -68,6 +70,9 @@ impl Settings {
         if s.language.is_empty() {
             s.language = "en".into();
         }
+        if !(0.5..=3.0).contains(&s.scale) {
+            s.scale = 1.0;
+        }
         s
     }
 
@@ -85,7 +90,7 @@ impl Settings {
     /// Write to disk; errors go to the terminal (they don't disturb the window).
     pub fn save(&self) {
         let Some(f) = file() else { return };
-        let res = f.parent().map(std::fs::create_dir_all).transpose().and_then(|_| std::fs::write(&f, serde_json::to_string_pretty(self).unwrap_or_default()));
+        let res = f.parent().map(std::fs::create_dir_all).transpose().and_then(|_| dowel::write(&f, serde_json::to_string_pretty(self).unwrap_or_default()));
         if let Err(e) = res {
             eprintln!("[settings] {}: {e}", f.display());
         }

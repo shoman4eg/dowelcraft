@@ -126,6 +126,10 @@ fn main() -> eframe::Result {
         Box::new(move |cc| {
             // cadcraft theme; icon tooltips appear almost immediately.
             theme::apply(&cc.egui_ctx);
+            // Screenshots stay the same whatever scale the user picked.
+            if app.screenshot.is_none() {
+                cc.egui_ctx.set_zoom_factor(app.settings.scale);
+            }
             // MCP commands go to the open tab (not for screenshots).
             if app.screenshot.is_none() {
                 app.live = live::listen(&dowel::live::socket_path(), cc.egui_ctx.clone());
@@ -581,6 +585,8 @@ struct App {
     guiding: Option<GuideTool>,
     /// A guide line dragged in the front view: its index and where it is now, mm.
     guide_drag: Option<(usize, f64)>,
+    /// Front view: where the last click was and how many times in a row (`viewport::cycle`).
+    clicks: Option<(egui::Pos2, f64, usize)>,
 }
 
 /// The guide line tool: a click in the front view places one; the form adds one by number.
@@ -654,6 +660,7 @@ impl Default for App {
             ruler: None,
             guiding: None,
             guide_drag: None,
+            clicks: None,
             open: (false, 0.0),
             open_cache: None,
             views: [viewport::Viewport::with_view(0.0, 0.0, "Front"), viewport::Viewport::with_view(90.0, 0.0, "Left"), viewport::Viewport::with_view(0.0, 89.9, "Top")],
@@ -816,7 +823,7 @@ impl App {
     /// Write our project to a file; it becomes the tab's file.
     fn save_to(&mut self, p: PathBuf) -> Result<(), String> {
         let s = self.session.as_ref().ok_or("The Bazis model is open read-only")?;
-        std::fs::write(&p, s.project.save()).map_err(|e| format!("{}: {e}", p.display()))?;
+        dowel::write(&p, s.project.save()).map_err(|e| format!("{}: {e}", p.display()))?;
         self.status = format!("Saved: {}", p.display());
         self.dirty = false;
         chrome::remember(&p);
@@ -879,7 +886,7 @@ impl App {
             },
             _ => dowel::report::materials_csv(&job.estimate(1.2)).into_bytes(),
         };
-        match std::fs::write(&p, bytes) {
+        match dowel::write(&p, bytes) {
             Ok(()) => self.status = format!("Saved: {}", p.display()),
             Err(e) => self.error = Some(format!("{}: {e}", p.display())),
         }
@@ -2074,8 +2081,9 @@ impl App {
             };
             [snap(0, d[0]), snap(1, d[1])]
         });
-        // The part nearest to the viewer under the cursor is the last one drawn.
+        // The part nearest to the viewer under the cursor is the last one drawn; `under` — all of them, nearest first.
         let mut hovered: Option<usize> = None;
+        let mut under: Vec<usize> = Vec::new();
         // Screen rectangles of the parts, for a Shift+drag selection frame.
         let mut screen: Vec<(usize, Rect)> = Vec::new();
         for fr in &rects {
@@ -2091,6 +2099,8 @@ impl App {
             painter.rect(r, 0.0, fill, Stroke::new(1.0, Color32::from_gray(60)), StrokeKind::Inside);
             if ui.ctx().pointer_hover_pos().is_some_and(|m| resp.rect.contains(m) && r.contains(m)) {
                 hovered = Some(fr.part);
+                under.retain(|&p| p != fr.part);
+                under.insert(0, fr.part);
             }
         }
         // Overall dimensions of cabinets.
@@ -2307,8 +2317,12 @@ impl App {
             }
             return;
         }
-        if resp.clicked() {
-            self.select(hovered);
+        if resp.clicked()
+            && let Some(pos) = resp.interact_pointer_pos()
+        {
+            let (step, now) = ui.input(|i| (i.modifiers.is_none(), i.time));
+            let pick = viewport::cycle(&mut self.clicks, pos, now, &under, step);
+            self.select(pick);
         }
         if resp.secondary_clicked() {
             self.menu_pick(hovered);

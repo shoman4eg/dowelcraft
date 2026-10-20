@@ -151,6 +151,17 @@ fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
 }
 
 /// Ray-triangle intersection (Möller–Trumbore): distance along the ray.
+/// Clicks on one spot step through the things under it: the first takes the nearest, the next one the thing behind it,
+/// and so on round, while each click comes within 1.5 s of the one before. `step` false (a modifier held) always takes the nearest.
+pub fn cycle<T: Copy>(last: &mut Option<(egui::Pos2, f64, usize)>, pos: egui::Pos2, now: f64, hits: &[T], step: bool) -> Option<T> {
+    let n = match *last {
+        Some((p, t, n)) if step && p.distance(pos) < 3.0 && now - t < 1.5 => n + 1,
+        _ => 0,
+    };
+    *last = Some((pos, now, n));
+    hits.get(n % hits.len().max(1)).copied()
+}
+
 fn hit(o: [f32; 3], d: [f32; 3], t: &[[f32; 3]; 3]) -> Option<f32> {
     let sub = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
     let dot = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -413,6 +424,8 @@ pub struct Viewport {
     mode_built: Option<Mode>,
     /// Dragging the selection: accumulated mouse offset (screen pixels) and the offset the scene was built with.
     dragging: Option<Vec2>,
+    /// Where the last click was and how many times in a row (see `cycle`).
+    clicks: Option<(egui::Pos2, f64, usize)>,
     offset_built: [f32; 3],
     /// A size handle is being dragged: which one (by screen axes) and the accumulated mouse offset (pixels).
     resize: Option<([i8; 2], Vec2)>,
@@ -451,6 +464,7 @@ impl Default for Viewport {
             textures_built: Vec::new(),
             mode_built: None,
             dragging: None,
+            clicks: None,
             resize: None,
             framing: None,
             ruler: None,
@@ -1036,10 +1050,9 @@ impl Viewport {
         out
     }
 
-    /// Part under a screen point (offset from the window center in egui points).
-    /// Nearest thing under a screen point: a part (`Ok`) or a fitting (`Err` — object number).
-    fn pick(&self, off: Vec2) -> Option<Result<usize, u32>> {
-        let s = self.scene.as_ref()?;
+    /// Things under a screen point (offset from the window center in egui points), nearest first: parts (`Ok`) and fittings (`Err` — object number).
+    fn pick_all(&self, off: Vec2) -> Vec<Result<usize, u32>> {
+        let Some(s) = self.scene.as_ref() else { return Vec::new() };
         let depth = (0..3).map(|k| (s.hi[k] - s.lo[k]).abs()).sum::<f32>() * 4.0 + 1000.0;
         let (o, d) = self.camera.ray(off, depth);
         let m = &self.mesh;
@@ -1048,7 +1061,20 @@ impl Viewport {
             Some((hit(o, d, &tri)?, Ok(m.vertices[t[0] as usize].part as usize)))
         });
         let furniture = s.furniture.iter().filter_map(|(tri, id)| Some((hit(o, d, tri)?, Err(*id))));
-        parts.chain(furniture).min_by(|a, b| a.0.total_cmp(&b.0)).map(|(_, h)| h)
+        let mut hits: Vec<_> = parts.chain(furniture).collect();
+        hits.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let mut out = Vec::new();
+        for (_, h) in hits {
+            if !out.contains(&h) {
+                out.push(h);
+            }
+        }
+        out
+    }
+
+    /// Nearest thing under a screen point.
+    fn pick(&self, off: Vec2) -> Option<Result<usize, u32>> {
+        self.pick_all(off).first().copied()
     }
 
     /// Model window. `revision` changes when parts change — then the mesh is rebuilt.
@@ -1113,7 +1139,9 @@ impl Viewport {
             && self.opening.is_none()
             && let Some(pos) = resp.interact_pointer_pos()
         {
-            click = match self.pick(pos - rect.center()) {
+            let hits = self.pick_all(pos - rect.center());
+            let (step, now) = ui.input(|i| (i.modifiers.is_none(), i.time));
+            click = match cycle(&mut self.clicks, pos, now, &hits, step) {
                 Some(Ok(i)) => Click::Part(i),
                 Some(Err(id)) => Click::Furniture(id, false),
                 None => Click::Empty,
@@ -1512,6 +1540,22 @@ pub fn ruler_text(a: [f64; 3], b: [f64; 3]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Clicks on one spot go deeper and round; a click elsewhere or with a modifier starts again from the nearest.
+    #[test]
+    fn clicks_cycle_through_overlapping() {
+        let (a, b) = (egui::pos2(10.0, 10.0), egui::pos2(50.0, 10.0));
+        let mut last = None;
+        let hits = [7, 8, 9];
+        let got: Vec<_> = (0..4).map(|k| cycle(&mut last, a, f64::from(k), &hits, true)).collect();
+        assert_eq!(got, [Some(7), Some(8), Some(9), Some(7)]);
+        assert_eq!(cycle(&mut last, b, 4.0, &hits, true), Some(7));
+        assert_eq!(cycle(&mut last, b, 5.0, &hits, false), Some(7));
+        // A pause on the same spot starts again from the nearest.
+        assert_eq!(cycle(&mut last, b, 5.5, &hits, true), Some(8));
+        assert_eq!(cycle(&mut last, b, 9.0, &hits, true), Some(7));
+        assert_eq!(cycle(&mut last, b, 9.1, &[] as &[i32], true), None);
+    }
 
     fn drag(yaw: f32, pitch: f32, d: Vec2) -> [f64; 3] {
         let mut v = Viewport::default();
