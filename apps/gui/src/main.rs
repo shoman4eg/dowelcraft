@@ -461,6 +461,8 @@ enum MenuAct {
     Deselect,
     /// Select every part of the same material as the clicked one.
     SameMaterial,
+    /// A guide line at an edge of the selection: axis and which side (false — the low one).
+    Guide(usize, bool),
 }
 
 /// Fields of the new material / edge banding form.
@@ -575,6 +577,17 @@ struct App {
     open_cache: Option<viewport::Opening>,
     /// The ruler tool is on: its measurements (cleared when it is switched off).
     ruler: Option<viewport::Ruler>,
+    /// The guide line tool is on: the axis and position of the number form.
+    guiding: Option<GuideTool>,
+    /// A guide line dragged in the front view: its index and where it is now, mm.
+    guide_drag: Option<(usize, f64)>,
+}
+
+/// The guide line tool: a click in the front view places one; the form adds one by number.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct GuideTool {
+    pub axis: usize,
+    pub at: f64,
 }
 
 impl Default for App {
@@ -639,6 +652,8 @@ impl Default for App {
             quad_max: None,
             key_capture: None,
             ruler: None,
+            guiding: None,
+            guide_drag: None,
             open: (false, 0.0),
             open_cache: None,
             views: [viewport::Viewport::with_view(0.0, 0.0, "Front"), viewport::Viewport::with_view(90.0, 0.0, "Left"), viewport::Viewport::with_view(0.0, 89.9, "Top")],
@@ -879,8 +894,8 @@ impl eframe::App for App {
         self.top_bar(ui);
         // Esc leaves the tool, and with no tool active, clears the selection.
         if !ctx.text_edit_focused() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            if self.fill.is_some() || self.modify.is_some() || self.fastening || self.ruler.is_some() {
-                (self.fill, self.modify, self.fastening, self.ruler) = (None, None, false, None);
+            if self.fill.is_some() || self.modify.is_some() || self.fastening || self.ruler.is_some() || self.guiding.is_some() {
+                (self.fill, self.modify, self.fastening, self.ruler, self.guiding, self.guide_drag) = (None, None, false, None, None, None);
             } else {
                 self.menu_apply(MenuAct::Deselect);
             }
@@ -963,9 +978,11 @@ impl eframe::App for App {
         }
         // Grid settings go to all model views.
         let g = self.settings.grid;
+        let guides = self.session.as_ref().map(|s| s.project.guides.clone()).unwrap_or_default();
         for v in std::iter::once(&mut self.viewport).chain(self.views.iter_mut()) {
             v.grid = viewport::Grid { on: g.on, step: g.step, major: g.major };
             v.ruler = self.ruler.clone();
+            v.guides = guides.clone();
         }
         self.update_opening(&ctx);
         self.help_windows(&ctx);
@@ -1061,6 +1078,7 @@ impl App {
         match id {
             "save" => self.save(false),
             "ruler" => self.toggle_ruler(),
+            "guide" => self.toggle_guides(),
             "open" => self.open.0 = !self.open.0,
             "undo" if undo => self.exec("undo", json!({})),
             "redo" if redo => self.exec("redo", json!({})),
@@ -1477,6 +1495,13 @@ impl App {
         if ui.add_enabled(editable && explodable, egui::Button::new(crate::i18n::t("Explode"))).on_hover_text(crate::i18n::t("Block — contents to the project root; cabinet, corner unit, countertop — into separate panels")).clicked() {
             act = Some(MenuAct::Explode);
         }
+        ui.menu_button(crate::i18n::t("Guide line at the edge"), |ui| {
+            for (axis, high, label) in [(0, false, "Left edge"), (0, true, "Right edge"), (1, false, "Bottom edge"), (1, true, "Top edge"), (2, false, "Back edge"), (2, true, "Front edge")] {
+                if ui.add_enabled(editable, egui::Button::new(crate::i18n::t(label))).clicked() {
+                    act = Some(MenuAct::Guide(axis, high));
+                }
+            }
+        });
         ui.separator();
         if ui.button(crate::i18n::t("Select the same material")).on_hover_text(crate::i18n::t("Every part made of the material of the clicked one")).clicked() {
             act = Some(MenuAct::SameMaterial);
@@ -1519,6 +1544,11 @@ impl App {
             MenuAct::Deselect => {
                 self.selection.clear();
                 self.furniture_sel = None;
+            }
+            MenuAct::Guide(axis, high) => {
+                let Some((lo, hi)) = self.selection_bounds() else { return };
+                let at = if high { hi[axis] } else { lo[axis] };
+                self.exec("guide.add", json!({ "axis": (["x", "y", "z"][axis]), "at": (at * 10.0).round() / 10.0 }));
             }
             MenuAct::SameMaterial => {
                 let Ok(parts) = &self.parts else { return };
@@ -1995,6 +2025,8 @@ impl App {
         let hidden = self.hidden_parts();
         let rects: Vec<_> = design::front_view(&parts, self.show_doors).into_iter().filter(|r| !hidden.contains(&r.part)).collect();
         let Some((lo, hi)) = design::bounds(&rects) else { return };
+        // Guide lines across the view: X and Y (Z goes into the screen).
+        let guides: Vec<design::Guide> = self.session.as_ref().map(|s| s.project.guides.iter().filter(|g| g.axis < 2).copied().collect()).unwrap_or_default();
         let (resp, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::click_and_drag());
         let area = resp.rect.shrink(30.0);
         let k = ((area.width() as f64) / (hi[0] - lo[0]).max(1.0)).min((area.height() as f64) / (hi[1] - lo[1]).max(1.0));
@@ -2036,8 +2068,9 @@ impl App {
             let snap = |axis: usize, d: f64| -> f64 {
                 let tol = 10.0 / k;
                 let edges = parts.iter().enumerate().filter(|(i, _)| !selected.contains(i)).flat_map(|(_, p)| [p.origin[axis], p.origin[axis] + p.size[axis]]);
+                let edges = edges.chain(guides.iter().filter(|g| g.axis == axis).map(|g| g.at));
                 let best = edges.flat_map(|e| [e - (lo[axis] + d), e - (hi[axis] + d)]).filter(|c| c.abs() < tol).min_by(|a, b| a.abs().total_cmp(&b.abs()));
-                (d + best.unwrap_or(0.0)).round()
+                best.map_or(d.round(), |b| d + b)
             };
             [snap(0, d[0]), snap(1, d[1])]
         });
@@ -2066,6 +2099,60 @@ impl App {
                 painter.text(to(c.position[0] + c.width / 2.0, c.position[1]) + Vec2::new(0.0, 14.0), egui::Align2::CENTER_CENTER, format!("{}", c.width), egui::FontId::proportional(13.0), Color32::from_rgb(0xdd, 0xe2, 0xea));
                 painter.text(to(c.position[0], c.position[1] + c.height / 2.0) - Vec2::new(16.0, 0.0), egui::Align2::CENTER_CENTER, format!("{}", c.height), egui::FontId::proportional(13.0), Color32::from_rgb(0xdd, 0xe2, 0xea));
             }
+        }
+        // Guide lines: dashed across the whole view; the dragged one where the mouse has taken it.
+        let guide_line = |axis: usize, at: f64| {
+            let p = to(at, at);
+            if axis == 0 { [Pos2::new(p.x, resp.rect.top()), Pos2::new(p.x, resp.rect.bottom())] } else { [Pos2::new(resp.rect.left(), p.y), Pos2::new(resp.rect.right(), p.y)] }
+        };
+        let all_guides = self.session.as_ref().map(|s| s.project.guides.clone()).unwrap_or_default();
+        for (i, g) in all_guides.iter().enumerate().filter(|(_, g)| g.axis < 2) {
+            let at = self.guide_drag.filter(|(j, _)| *j == i).map_or(g.at, |(_, at)| at);
+            painter.extend(egui::Shape::dashed_line(&guide_line(g.axis, at), Stroke::new(1.0, viewport::GUIDE), 6.0, 4.0));
+        }
+        // Snapped to part edges and the other guide lines closer than 10 px, whole mm.
+        let snap_line = |axis: usize, v: f64, skip: Option<usize>| -> f64 {
+            let edges = rects.iter().flat_map(|fr| if axis == 0 { [fr.x, fr.x + fr.w] } else { [fr.y, fr.y + fr.h] });
+            let lines = all_guides.iter().enumerate().filter(|(j, g)| Some(*j) != skip && g.axis == axis).map(|(_, g)| g.at);
+            let best = edges.chain(lines).map(|e| e - v).filter(|d| d.abs() < 10.0 / k).min_by(|a, b| a.abs().total_cmp(&b.abs()));
+            best.map_or(v.round(), |b| v + b)
+        };
+        let mm_of = |p: Pos2, axis: usize| if axis == 0 { (p.x - area.left()) as f64 / k + lo[0] } else { (area.bottom() - p.y) as f64 / k + lo[1] };
+        // The guide tool: pressed within 4 px of a line — drag it; otherwise a vertical line under the cursor
+        // (Shift — horizontal), a click places it.
+        if self.guiding.is_some() {
+            if resp.drag_started_by(egui::PointerButton::Primary)
+                && let Some(o) = ui.input(|i| i.pointer.press_origin())
+                && let Some((i, g)) = all_guides.iter().enumerate().filter(|(_, g)| g.axis < 2).find(|(_, g)| if g.axis == 0 { (to(g.at, 0.0).x - o.x).abs() < 4.0 } else { (to(0.0, g.at).y - o.y).abs() < 4.0 })
+            {
+                self.guide_drag = Some((i, g.at));
+            }
+            if let Some((i, _)) = self.guide_drag {
+                let Some(g) = all_guides.get(i).copied() else {
+                    self.guide_drag = None;
+                    return;
+                };
+                let at = ui.input(|inp| inp.pointer.interact_pos()).map_or(g.at, |m| snap_line(g.axis, mm_of(m, g.axis), Some(i)));
+                self.guide_drag = Some((i, at));
+                painter.text(resp.rect.left_top() + Vec2::new(8.0, 8.0), egui::Align2::LEFT_TOP, format!("{} {}", ["X", "Y"][g.axis], num(at)), egui::FontId::proportional(14.0), viewport::GUIDE);
+                if !resp.dragged() {
+                    self.guide_drag = None;
+                    if at != g.at {
+                        self.exec("guide.set", json!({ "index": i, "at": at }));
+                    }
+                }
+                return;
+            }
+            if let Some(m) = ui.ctx().pointer_hover_pos().filter(|m| resp.rect.contains(*m)) {
+                let axis = usize::from(ui.input(|i| i.modifiers.shift));
+                let at = snap_line(axis, mm_of(m, axis), None);
+                painter.line_segment(guide_line(axis, at), Stroke::new(1.5, viewport::GUIDE));
+                painter.text(m + Vec2::new(12.0, 12.0), egui::Align2::LEFT_TOP, format!("{} {}", ["X", "Y"][axis], num(at)), egui::FontId::proportional(13.0), viewport::GUIDE);
+                if resp.clicked() {
+                    self.exec("guide.add", json!({ "axis": (["x", "y"][axis]), "at": at }));
+                }
+            }
+            return;
         }
         // "Into opening" mode: a ghost of the future panel under the cursor; a click places it.
         let mm_at = |p: Pos2| [((p.x - area.left()) as f64 / k + lo[0]).round(), ((area.bottom() - p.y) as f64 / k + lo[1]).round()];
@@ -2125,8 +2212,9 @@ impl App {
             let tol = 10.0 / k;
             let others: Vec<&Part> = parts.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, q)| q).collect();
             let snap = |axis: usize, v: f64| -> f64 {
-                let best = others.iter().flat_map(|q| [q.origin[axis], q.origin[axis] + q.size[axis]]).map(|e| e - v).filter(|d| d.abs() < tol).min_by(|a, b| a.abs().total_cmp(&b.abs()));
-                (v + best.unwrap_or(0.0)).round()
+                let lines = guides.iter().filter(|g| g.axis == axis).map(|g| g.at);
+                let best = others.iter().flat_map(|q| [q.origin[axis], q.origin[axis] + q.size[axis]]).chain(lines).map(|e| e - v).filter(|d| d.abs() < tol).min_by(|a, b| a.abs().total_cmp(&b.abs()));
+                best.map_or(v.round(), |b| v + b)
             };
             // New bounding box while dragging a handle.
             let moved = |h: [i8; 2], d: [f64; 2]| -> ([f64; 2], [f64; 2]) {
@@ -2188,10 +2276,22 @@ impl App {
         // The ruler: part corners snap (closer than 10 px); clicks measure instead of selecting.
         if self.ruler.is_some() {
             let hover = ui.input(|i| i.pointer.hover_pos()).filter(|p| resp.rect.contains(*p));
+            // Where guide lines cross part edges and each other.
+            let (gx, gy): (Vec<f64>, Vec<f64>) = (guides.iter().filter(|g| g.axis == 0).map(|g| g.at).collect(), guides.iter().filter(|g| g.axis == 1).map(|g| g.at).collect());
+            let crossings: Vec<(f64, f64)> = rects
+                .iter()
+                .flat_map(|fr| {
+                    let v = gx.iter().filter(|&&x| x >= fr.x && x <= fr.x + fr.w).flat_map(|&x| [(x, fr.y), (x, fr.y + fr.h)]);
+                    let h = gy.iter().filter(|&&y| y >= fr.y && y <= fr.y + fr.h).flat_map(|&y| [(fr.x, y), (fr.x + fr.w, y)]);
+                    v.chain(h).collect::<Vec<_>>()
+                })
+                .chain(gx.iter().flat_map(|&x| gy.iter().map(move |&y| (x, y))))
+                .collect();
             let snap = hover.and_then(|h| {
                 rects
                     .iter()
                     .flat_map(|fr| [(fr.x, fr.y), (fr.x + fr.w, fr.y), (fr.x, fr.y + fr.h), (fr.x + fr.w, fr.y + fr.h)])
+                    .chain(crossings.iter().copied())
                     .map(|(x, y)| ([x, y, 0.0], (to(x, y) - h).length()))
                     .filter(|(_, d)| *d < 10.0)
                     .min_by(|a, b| a.1.total_cmp(&b.1))

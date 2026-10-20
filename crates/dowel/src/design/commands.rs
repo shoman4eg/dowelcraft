@@ -13,6 +13,10 @@ pub struct Session {
 pub const COMMANDS: &[(&str, &str)] = &[
     ("project.get", "the whole project as JSON"),
     ("project.rename", "{name}"),
+    ("guide.add", "{axis: x|y|z, at: mm} → {index}. A guide line across the model: x — vertical in the front view, y — horizontal, z — depth; dragged and resized parts snap to it"),
+    ("guide.set", "{index, at} — move a guide line"),
+    ("guide.remove", "{index}"),
+    ("guide.clear", "remove every guide line"),
     ("material.add", "{name, thickness, article?, sheet?: [length, width], coef?, trim?: edge trim, kerf?: saw kerf, price?: per m², weight?: kg per m²}"),
     ("material.set", "{name, ...fields} — change a material"),
     ("material.replace", "{from, to, ids?} → {changed} — replace a material everywhere (carcass, doors, back panels, countertops, panels) or only in objects ids; changed counts template fields and panels"),
@@ -149,8 +153,11 @@ impl Session {
         let mut next = self.project.clone();
         let out = apply(&mut next, cmd, p)?;
         build(&next)?;
-        self.undo.push(std::mem::replace(&mut self.project, next));
-        self.redo.clear();
+        // Nothing changed (a guide line where one already is): no empty undo step.
+        if next != self.project {
+            self.undo.push(std::mem::replace(&mut self.project, next));
+            self.redo.clear();
+        }
         Ok(out)
     }
 }
@@ -208,6 +215,33 @@ fn item<T: Item>(list: &mut Vec<T>, next_id: u32, cmd: &str, p: &Value, what: &s
 fn apply(pr: &mut Project, cmd: &str, p: &Value) -> Result<Value, String> {
     match cmd {
         "project.rename" => pr.name = s(p, "name")?.into(),
+        "guide.add" => {
+            let g: Guide = serde_json::from_value(p.clone()).map_err(|e| format!("guide: {e}"))?;
+            if let Some(i) = pr.guides.iter().position(|o| o.axis == g.axis && (o.at - g.at).abs() < 0.5) {
+                return Ok(json!({ "index": i }));
+            }
+            pr.guides.push(g);
+            return Ok(json!({ "index": pr.guides.len() - 1 }));
+        }
+        "guide.set" => {
+            let at = f(p, "at")?;
+            let i = idx(p, "index")?;
+            let axis = pr.guides.get(i).ok_or_else(|| format!("no guide {i}"))?.axis;
+            // Moved onto another line of the same axis: one line stays.
+            if pr.guides.iter().enumerate().any(|(j, o)| j != i && o.axis == axis && (o.at - at).abs() < 0.5) {
+                pr.guides.remove(i);
+            } else {
+                pr.guides[i].at = at;
+            }
+        }
+        "guide.remove" => {
+            let i = idx(p, "index")?;
+            if i >= pr.guides.len() {
+                return Err(format!("no guide {i}"));
+            }
+            pr.guides.remove(i);
+        }
+        "guide.clear" => pr.guides.clear(),
         "material.add" => {
             let m: Material = serde_json::from_value(p.clone()).map_err(|e| format!("material: {e}"))?;
             if pr.materials.iter().any(|x| x.name == m.name) {

@@ -52,6 +52,7 @@ pub enum Icon {
     Gear,
     Table,
     Ruler,
+    Guides,
     OpenFronts,
     CutSheet,
     Eye,
@@ -376,6 +377,14 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, dim: bool) {
                 if long { pen.l(x, 8.0, x, 13.0) } else { pen.la(x, 8.0, x, 11.0) }
             }
         }
+        Guides => {
+            // A panel with a dashed vertical and horizontal line across it.
+            pen.rect(6.0, 6.0, 12.0, 12.0, b);
+            for t in [2.0, 7.0, 12.0, 17.0] {
+                pen.la(15.0, t, 15.0, t + 3.0);
+                pen.la(t, 9.0, t + 3.0, 9.0);
+            }
+        }
         Table => {
             pen.rect(3.0, 4.0, 18.0, 16.0, b);
             pen.fill_rect(3.0, 4.0, 18.0, 4.0, a.gamma_multiply(0.6));
@@ -483,6 +492,7 @@ pub fn caption(icon: Icon) -> &'static str {
         Erase => "Delete",
         Analyze => "Analyze",
         Ruler => "Ruler",
+        Guides => "Guides",
         OpenFronts => "Open",
         Script => "Script",
         _ => "",

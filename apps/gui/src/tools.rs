@@ -42,6 +42,7 @@ enum Pick {
     Analyze,
     Script,
     Ruler,
+    Guides,
 }
 
 /// Palette group: a header and icons in a wrapping row.
@@ -136,6 +137,9 @@ impl App {
             if tool(ui, true, Icon::Ruler, "Ruler (M): click two points for each measurement — part corners and contour points snap; they stay until you leave (Esc or M)", self.ruler.is_some()).clicked() {
                 pick = Some(Pick::Ruler);
             }
+            if tool(ui, editable, Icon::Guides, "Guide lines (G): click in the front view — a vertical one, with Shift — a horizontal one; drag a line to move it. Parts snap to them", self.guiding.is_some()).clicked() {
+                pick = Some(Pick::Guides);
+            }
         });
         match pick {
             Some(Pick::Add(kind)) => self.add_object(kind),
@@ -144,23 +148,27 @@ impl App {
                 self.fill = None;
                 self.fastening = false;
                 self.ruler = None;
+                self.guiding = None;
                 self.modify = (self.modify != Some(m)).then_some(m);
             }
             Some(Pick::Menu(a)) => self.menu_apply(a),
             Some(Pick::Library) => self.show_pane(Pane::Library),
             Some(Pick::Fasteners) => {
-                (self.fill, self.modify, self.ruler) = (None, None, None);
+                (self.fill, self.modify, self.ruler, self.guiding) = (None, None, None, None);
                 self.fastening = !self.fastening;
             }
             Some(Pick::Analyze) => self.analyze(),
             Some(Pick::Script) => self.pick_script(),
             Some(Pick::Ruler) => self.toggle_ruler(),
+            Some(Pick::Guides) => self.toggle_guides(),
             None => {}
         }
         // Parameters of the active tool.
-        if self.fill.is_some() || self.modify.is_some() || self.fastening {
+        if self.fill.is_some() || self.modify.is_some() || self.fastening || self.guiding.is_some() {
             ui.separator();
-            if self.fill.is_some() {
+            if self.guiding.is_some() {
+                self.guide_params(ui);
+            } else if self.fill.is_some() {
                 self.fill_params(ui);
             } else if self.modify.is_some() {
                 self.modify_params(ui);
@@ -172,8 +180,49 @@ impl App {
 
     /// The ruler on or off; the other tools step aside.
     pub(crate) fn toggle_ruler(&mut self) {
-        (self.fill, self.modify, self.fastening) = (None, None, false);
+        (self.fill, self.modify, self.fastening, self.guiding) = (None, None, false, None);
         self.ruler = if self.ruler.is_some() { None } else { Some(crate::viewport::Ruler::default()) };
+    }
+
+    /// The guide line tool on or off (in the front view, where it is clicked); the other tools step aside.
+    pub(crate) fn toggle_guides(&mut self) {
+        (self.fill, self.modify, self.fastening, self.ruler) = (None, None, false, None);
+        self.guiding = if self.guiding.is_some() || self.session.is_none() { None } else { Some(crate::GuideTool::default()) };
+        if self.guiding.is_some() {
+            self.show_pane(Pane::Front);
+        }
+    }
+
+    /// The guide line tool's form: a line by number along any axis (Z too) and the list with removal.
+    fn guide_params(&mut self, ui: &mut egui::Ui) {
+        let Some(mut t) = self.guiding else { return };
+        ui.strong(crate::i18n::t("Guide lines"));
+        ui.horizontal(|ui| {
+            for (axis, name) in ["X", "Y", "Z"].into_iter().enumerate() {
+                ui.radio_value(&mut t.axis, axis, name);
+            }
+            ui.add(egui::DragValue::new(&mut t.at).speed(1.0).suffix(crate::i18n::t(" mm")));
+            if ui.button(crate::i18n::t("Add")).clicked() {
+                self.exec("guide.add", json!({ "axis": (["x", "y", "z"][t.axis]), "at": t.at }));
+            }
+        });
+        self.guiding = Some(t);
+        let guides = self.session.as_ref().map(|s| s.project.guides.clone()).unwrap_or_default();
+        let mut remove = None;
+        for (i, g) in guides.iter().enumerate() {
+            ui.horizontal(|ui| {
+                ui.label(format!("{} {}", ["X", "Y", "Z"][g.axis], crate::num(g.at)));
+                if ui.small_button("✕").on_hover_text(crate::i18n::t("Remove the guide line")).clicked() {
+                    remove = Some(i);
+                }
+            });
+        }
+        if let Some(i) = remove {
+            self.exec("guide.remove", json!({ "index": i }));
+        }
+        if !guides.is_empty() && ui.button(crate::i18n::t("Remove all guide lines")).clicked() {
+            self.exec("guide.clear", json!({}));
+        }
     }
 
     /// Toggle the "into opening" tool and show the front view, where it is clicked.
@@ -181,6 +230,7 @@ impl App {
         self.modify = None;
         self.fastening = false;
         self.ruler = None;
+        self.guiding = None;
         if self.fill.as_ref().is_some_and(|f| f.plane == plane) {
             self.fill = None;
             return;
@@ -480,6 +530,9 @@ impl App {
 
     /// Status bar hint: what to do next.
     pub(crate) fn hint(&self) -> String {
+        if self.guiding.is_some() {
+            return "Guide lines: click in the front view — a vertical line, with Shift — a horizontal one; drag a line to move it. A Z line — by number on the left. Esc exits.".into();
+        }
         if self.fastening {
             return "Fasteners: select a cabinet or panels (Ctrl for several) and press “Apply to selection”. Esc exits.".into();
         }

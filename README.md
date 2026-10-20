@@ -85,6 +85,7 @@ The macOS archive also has `Dowel Craft.app`.
 - **Open doors and drawers** in 3D: doors swing, drawers slide out; parts that hit something turn red.
 - **Drilling in 3D:** holes are red cylinders of their diameter and depth; legs are a plate, a post and a foot.
 - **Ruler:** measure between part corners and contour points in 3D, “4 windows” and the front view.
+- **Guide lines:** helper lines along X, Y or Z. Click in the front view to place one (Shift for a horizontal one), drag it to move it, or set it by number. Right click on a part adds one at its edge. Dragged parts, size handles and the ruler snap to them. They are saved in the project.
 - **Selection:** click, Ctrl+click, a Shift+drag frame, “Select the same material”; **mass replacement** of a material or edge banding in the whole project or in the selection.
 - **Formulas in fields:** `600-4`, `(W-T)/2` (W, H, D, P, T — cabinet width, height, depth, plinth, thickness).
 - **Undo and redo** for every change; an invalid change (a shelf above the cabinet, etc.) is rejected and the reason is shown at the bottom of the window.
@@ -163,6 +164,7 @@ Defaults (change them in “Edit → Settings…”):
 | Ctrl+Z / Ctrl+Y | undo / redo |
 | Shift + drag | selection frame (Ctrl+Shift — add to the selection) |
 | M | ruler: click two points (snaps to part vertices) |
+| G | guide lines: click in the front view (Shift — horizontal) |
 | O | open doors and drawers (what hits turns red) |
 | Del | delete the selection |
 | F7 | grid |

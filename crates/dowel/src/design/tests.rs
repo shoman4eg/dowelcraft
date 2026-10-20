@@ -953,3 +953,35 @@ fn doors_and_drawers_open() {
     // Hinged on the left (away from it), nothing is hit.
     assert!(clashes(&parts, &motions(&parts, &[])).is_empty());
 }
+
+/// Guide lines: added (the same place twice is one line), moved, removed, saved in the file as "x"/"y"/"z", undone.
+#[test]
+fn guide_lines() {
+    let mut s = Session::new(Project::new("Guides"));
+    assert_eq!(s.execute("guide.add", &json!({"axis": "x", "at": 500})).unwrap(), json!({"index": 0}));
+    assert_eq!(s.execute("guide.add", &json!({"axis": "Z", "at": 300})).unwrap(), json!({"index": 1}));
+    assert_eq!(s.execute("guide.add", &json!({"axis": "x", "at": 500.2})).unwrap(), json!({"index": 0}));
+    // The same place again changes nothing: no undo step (undo takes back the Z line).
+    s.execute("undo", &json!({})).unwrap();
+    assert_eq!(s.project.guides.len(), 1);
+    s.execute("redo", &json!({})).unwrap();
+    assert!(s.execute("guide.add", &json!({"axis": "w", "at": 1})).is_err());
+    s.execute("guide.set", &json!({"index": 0, "at": 650})).unwrap();
+    assert_eq!(s.project.guides, vec![Guide { axis: 0, at: 650.0 }, Guide { axis: 2, at: 300.0 }]);
+    let file = serde_json::to_value(&s.project).unwrap();
+    assert_eq!(file["guides"], json!([{"axis": "x", "at": 650.0}, {"axis": "z", "at": 300.0}]));
+    assert_eq!(Project::load(&file.to_string()).unwrap().guides, s.project.guides);
+    // A project without guide lines doesn't write the field.
+    assert!(serde_json::to_value(Project::new("Empty")).unwrap().get("guides").is_none());
+    // Dragged onto another line of the same axis: they merge.
+    s.execute("guide.add", &json!({"axis": "x", "at": 800})).unwrap();
+    s.execute("guide.set", &json!({"index": 2, "at": 650.3})).unwrap();
+    assert_eq!(s.project.guides.len(), 2);
+    s.execute("guide.remove", &json!({"index": 0})).unwrap();
+    assert!(s.execute("guide.remove", &json!({"index": 5})).is_err());
+    assert_eq!(s.project.guides, vec![Guide { axis: 2, at: 300.0 }]);
+    s.execute("guide.clear", &json!({})).unwrap();
+    assert!(s.project.guides.is_empty());
+    s.execute("undo", &json!({})).unwrap();
+    assert_eq!(s.project.guides.len(), 1);
+}

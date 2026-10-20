@@ -188,6 +188,10 @@ impl App {
                 if ui.checkbox(&mut self.show_doors, crate::i18n::t("Doors and fronts")).changed() {
                     self.revision += 1;
                 }
+                let guides = self.session.as_ref().is_some_and(|s| !s.project.guides.is_empty());
+                if ui.add_enabled(guides, egui::Button::new(crate::i18n::t("Remove all guide lines"))).clicked() {
+                    self.exec("guide.clear", json!({}));
+                }
                 ui.separator();
                 for (mode, label) in Mode::ALL {
                     ui.radio_value(&mut self.viewport.mode, mode, crate::i18n::t(label));
@@ -214,7 +218,7 @@ impl App {
             ui.menu_button(crate::i18n::t("Modify"), |ui| {
                 for (m, label) in [(Modify::Move, "Move"), (Modify::Copy, "Copy"), (Modify::Rotate, "Rotate"), (Modify::Mirror, "Mirror"), (Modify::MirrorCopy, "Mirror copy")] {
                     if ui.add_enabled(editable && selected, egui::Button::new(crate::i18n::t(label))).clicked() {
-                        self.fill = None;
+                        (self.fill, self.guiding) = (None, None);
                         self.modify = Some(m);
                         self.show_pane(Pane::Tools);
                     }

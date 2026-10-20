@@ -2,7 +2,7 @@
 //! "Wireframe", "Transparent"; front, left, top and axonometric views; LMB rotates, RMB pans,
 //! the wheel zooms. Renders into its own texture (with antialiasing and depth) and is shown as an image.
 
-use dowel::design::{Kind, Part};
+use dowel::design::{Guide, Kind, Part};
 use dowel::mesh::{self, Mesh};
 use eframe::egui::{self, Color32, Vec2};
 use eframe::egui_wgpu::{self, wgpu};
@@ -48,14 +48,18 @@ pub enum Click {
     Frame(Vec<usize>, bool),
 }
 
+/// Colour of guide lines (front view and 3D).
+pub const GUIDE: Color32 = Color32::from_rgb(0x3d, 0xc8, 0xe6);
+
 /// New bounds of panel `i` when handle `h` (−1 — edge `lo`, 1 — `hi`, 0 — leave) along axes
-/// `axes` moved by `d` mm: edges snap to edges of other parts closer than `tol` mm, whole mm.
-fn resized(parts: &[Part], i: usize, axes: [usize; 2], h: [i8; 2], d: [f64; 2], tol: f64) -> ([f64; 3], [f64; 3]) {
+/// `axes` moved by `d` mm: edges snap to edges of other parts and to guide lines closer than `tol` mm, otherwise whole mm.
+fn resized(parts: &[Part], guides: &[Guide], i: usize, axes: [usize; 2], h: [i8; 2], d: [f64; 2], tol: f64) -> ([f64; 3], [f64; 3]) {
     let p = &parts[i];
     let (mut lo, mut hi) = (p.origin, std::array::from_fn(|k| p.origin[k] + p.size[k]));
     let snap = |k: usize, v: f64| -> f64 {
-        let best = parts.iter().enumerate().filter(|(j, _)| *j != i).flat_map(|(_, q)| [q.origin[k], q.origin[k] + q.size[k]]).map(|e| e - v).filter(|e| e.abs() < tol).min_by(|a, b| a.abs().total_cmp(&b.abs()));
-        (v + best.unwrap_or(0.0)).round()
+        let lines = guides.iter().filter(|g| g.axis == k).map(|g| g.at);
+        let best = parts.iter().enumerate().filter(|(j, _)| *j != i).flat_map(|(_, q)| [q.origin[k], q.origin[k] + q.size[k]]).chain(lines).map(|e| e - v).filter(|e| e.abs() < tol).min_by(|a, b| a.abs().total_cmp(&b.abs()));
+        best.map_or(v.round(), |b| v + b)
     };
     for (n, &k) in axes.iter().enumerate() {
         match h[n] {
@@ -414,6 +418,8 @@ pub struct Viewport {
     resize: Option<([i8; 2], Vec2)>,
     /// The ruler is on: its measurements; clicks pick part vertices.
     pub ruler: Option<Ruler>,
+    /// Guide lines of the project: drawn dashed, size handles snap to them.
+    pub guides: Vec<Guide>,
     /// Fronts opening: each part's motion, how far open (0…1) and the parts that hit something.
     pub opening: Option<Opening>,
     opening_built: Option<Opening>,
@@ -448,6 +454,7 @@ impl Default for Viewport {
             resize: None,
             framing: None,
             ruler: None,
+            guides: Vec::new(),
             opening: None,
             opening_built: None,
             offset_built: [0.0; 3],
@@ -1130,7 +1137,7 @@ impl Viewport {
         if let Some((i, axes)) = sized {
             let f = parts[i].panel.frame.unwrap_or(dowel::geom::Frame::IDENTITY);
             let d = self.resize.map_or([0.0; 2], |(_, m)| self.screen_mm(axes, m));
-            let (lo, hi) = resized(parts, i, axes, self.resize.map_or([0; 2], |(h, _)| h), d, 10.0 * f64::from(self.camera.mm_per_px));
+            let (lo, hi) = resized(parts, &self.guides, i, axes, self.resize.map_or([0; 2], |(h, _)| h), d, 10.0 * f64::from(self.camera.mm_per_px));
             for hx in [-1i8, 0, 1] {
                 for hy in [-1i8, 0, 1] {
                     // Size can't be dragged along the thickness.
@@ -1158,7 +1165,7 @@ impl Viewport {
                 if !resp.dragged() {
                     let (h, m) = (*h, *m);
                     self.resize = None;
-                    let (a, b) = resized(parts, i, axes, h, self.screen_mm(axes, m), 10.0 * f64::from(self.camera.mm_per_px));
+                    let (a, b) = resized(parts, &self.guides, i, axes, h, self.screen_mm(axes, m), 10.0 * f64::from(self.camera.mm_per_px));
                     if (a, b) != (parts[i].origin, std::array::from_fn(|k| parts[i].origin[k] + parts[i].size[k])) {
                         click = Click::Resize(a, b);
                     }
@@ -1368,6 +1375,21 @@ impl Viewport {
             let text = ["X", "Y", "Z"].iter().zip(mv).find(|(_, v)| *v != 0.0).map_or_else(|| crate::i18n::t("offset: 0"), |(a, v)| crate::i18n::t(format!("offset along {a}: {v} mm")));
             ui.painter().text(rect.left_top() + Vec2::new(10.0, 28.0), egui::Align2::LEFT_TOP, text, egui::FontId::proportional(15.0), Color32::from_rgb(0xf5, 0x9e, 0x3b));
         }
+        // Guide lines: the outline of each one's plane over the model (plus a margin), not when it faces the viewer.
+        let (f, _, _) = self.camera.basis();
+        let margin = 200.0f32;
+        for g in self.guides.iter().filter(|g| f[g.axis].abs() < 0.99) {
+            let (a, b) = ((g.axis + 1) % 3, (g.axis + 2) % 3);
+            let corner = |u: f32, v: f32| {
+                let mut p = [0.0f64; 3];
+                p[g.axis] = g.at;
+                p[a] = f64::from(if u < 0.5 { scene.lo[a] - margin } else { scene.hi[a] + margin });
+                p[b] = f64::from(if v < 0.5 { scene.lo[b] - margin } else { scene.hi[b] + margin });
+                rect.center() + self.to_screen(p)
+            };
+            let pts = [corner(0.0, 0.0), corner(1.0, 0.0), corner(1.0, 1.0), corner(0.0, 1.0), corner(0.0, 0.0)];
+            ui.painter_at(rect).extend(egui::Shape::dashed_line(&pts, egui::Stroke::new(1.0, GUIDE), 6.0, 4.0));
+        }
         for (_, m) in &markers {
             let hr = egui::Rect::from_center_size(*m, Vec2::splat(9.0));
             ui.painter().rect(hr, 1.0, Color32::WHITE, egui::Stroke::new(1.2, Color32::from_rgb(220, 110, 0)), egui::StrokeKind::Inside);
@@ -1573,11 +1595,14 @@ mod tests {
         s.execute("panel.add", &serde_json::json!({"material": "Chipboard 16", "plane": "vertical", "size": [300, 700], "position": [500, 0, 0]})).unwrap();
         let parts = dowel::design::build(&s.project).unwrap();
         // Right edge of the first panel (X) by +93 mm: 493 snaps to 500 (within 10 mm).
-        let (lo, hi) = resized(&parts, 0, [0, 1], [1, 0], [93.0, 0.0], 10.0);
+        let (lo, hi) = resized(&parts, &[], 0, [0, 1], [1, 0], [93.0, 0.0], 10.0);
         assert_eq!((lo, hi), ([0.0, 0.0, 0.0], [500.0, 600.0, 16.0]));
         // Top by +50.4 mm: no neighbours nearby — whole mm.
-        let (_, hi) = resized(&parts, 0, [0, 1], [0, 1], [0.0, 50.4], 10.0);
+        let (_, hi) = resized(&parts, &[], 0, [0, 1], [0, 1], [0.0, 50.4], 10.0);
         assert_eq!(hi[1], 650.0);
+        // A guide line at 655 nearby: the top snaps to it.
+        let (_, hi) = resized(&parts, &[Guide { axis: 1, at: 655.0 }], 0, [0, 1], [0, 1], [0.0, 50.4], 10.0);
+        assert_eq!(hi[1], 655.0);
     }
 
     /// Dragging the selection: offset goes along one project axis — the one the mouse moves along on screen.

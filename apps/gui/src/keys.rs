@@ -11,6 +11,7 @@ pub const ACTIONS: &[(&str, &str, &str)] = &[
     ("delete", "Delete selection", "Delete"),
     ("grid", "Grid: show or hide", "F7"),
     ("ruler", "Ruler", "M"),
+    ("guide", "Guide lines", "G"),
     ("open", "Open doors and drawers", "O"),
     ("cam.front", "Camera: front", "1"),
     ("cam.left", "Camera: left", "2"),

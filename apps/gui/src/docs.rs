@@ -121,6 +121,7 @@ impl App {
         self.error = None;
         self.fill = None;
         self.modify = None;
+        (self.guiding, self.guide_drag) = (None, None);
         self.start = false;
         self.refresh();
         self.viewport.refit();

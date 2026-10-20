@@ -847,3 +847,23 @@ Open doors and drawers	Открыть двери и ящики
 Adjustable leg {} mm	Опора регулируемая {} мм
 Plinth on legs	Цоколь на опорах
 Adjustable legs instead of the plinth board: the side panels stand on them	Регулируемые опоры вместо цокольной планки: боковины стоят на них
+{axis: x|y|z, at: mm} → {index}. A guide line across the model: x — vertical in the front view, y — horizontal, z — depth; dragged and resized parts snap to it	{axis: x|y|z, at: мм} → {index}. Направляющая через всю модель: x — вертикальная на виде спереди, y — горизонтальная, z — по глубине; к ней прилипают перетаскиваемые детали и ручки размера
+{index, at} — move a guide line	{index, at} — передвинуть направляющую
+remove every guide line	убрать все направляющие
+guide: {}	направляющая: {}
+no guide {}	нет направляющей {}
+axis must be x, y or z, not “{}”	ось должна быть x, y или z, а не «{}»
+Guide lines (G): click in the front view — a vertical one, with Shift — a horizontal one; drag a line to move it. Parts snap to them	Направляющие (G): щелчок на виде спереди — вертикальная, с Shift — горизонтальная; линию можно перетащить. Детали к ним прилипают
+Guide lines	Направляющие
+Guides	Направляющие
+Add	Добавить
+Remove the guide line	Убрать направляющую
+Remove all guide lines	Убрать все направляющие
+Guide line at the edge	Направляющая по краю
+Left edge	Левый край
+Right edge	Правый край
+Bottom edge	Нижний край
+Top edge	Верхний край
+Back edge	Задний край
+Front edge	Передний край
+Guide lines: click in the front view — a vertical line, with Shift — a horizontal one; drag a line to move it. A Z line — by number on the left. Esc exits.	Направляющие: щелчок на виде спереди — вертикальная линия, с Shift — горизонтальная; линию можно перетащить. Линия по Z — числом слева. Esc — выход.

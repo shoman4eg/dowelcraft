@@ -419,6 +419,32 @@ pub struct Project {
     /// Custom fastener library; empty — the default library ([`crate::fasteners::library`]).
     #[serde(default)]
     pub fastener_defs: Vec<crate::fasteners::Def>,
+    /// Guide lines: parts snap to them when dragged or resized.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub guides: Vec<Guide>,
+}
+
+/// A guide line across the whole model at `at` mm along `axis` (0 — X, a vertical line in the front view; 1 — Y,
+/// a horizontal one; 2 — Z, depth).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct Guide {
+    #[serde(with = "axis_name")]
+    pub axis: usize,
+    pub at: f64,
+}
+
+/// An axis as "x", "y" or "z" in the project file and commands.
+mod axis_name {
+    use serde::{Deserialize, Deserializer, Serializer, de::Error};
+
+    pub fn serialize<S: Serializer>(axis: &usize, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(["x", "y", "z"].get(*axis).copied().unwrap_or("x"))
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<usize, D::Error> {
+        let name = String::deserialize(d)?;
+        ["x", "y", "z"].iter().position(|a| a.eq_ignore_ascii_case(&name)).ok_or_else(|| D::Error::custom(format!("axis must be x, y or z, not “{name}”")))
+    }
 }
 
 /// Fastener at a joint of two tree panels: edge of `b` on the face of `a` (order doesn't matter — the joint is searched both ways).
@@ -450,6 +476,7 @@ impl Project {
             objects: Vec::new(),
             fasteners: Vec::new(),
             fastener_defs: Vec::new(),
+            guides: Vec::new(),
         }
     }
 
