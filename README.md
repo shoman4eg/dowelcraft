@@ -16,7 +16,7 @@ dowel-craft designs cabinet furniture: wardrobes, kitchens, chests of drawers, v
 
 Runs on Linux, macOS and Windows. It has a desktop window, a command line and an MCP server, so an AI assistant (Claude and others) can design furniture too.
 
-![3D view](docs/images/3d.png)
+![A kitchen is put together module by module, then cut into sheets](docs/images/assembly.gif)
 
 > dowel-craft is an independent project, not affiliated with Bazis-Center. “Bazis-Mebelshchik” and “BAZIS-Raskroy” are mentioned only to describe file-format compatibility.
 
@@ -134,6 +134,7 @@ The macOS archive also has `Dowel Craft.app`.
 
 | | |
 |---|---|
+| ![Turning the 3D view](docs/images/rotate.gif) **3D** with Baltlaminat decor textures: drag to turn | ![Display modes](docs/images/views.gif) **Display modes:** textures, solid, hidden lines, wireframe, X-ray, 4 windows |
 | ![X-ray](docs/images/xray.png) **X-ray:** shelves, fasteners and part axes are visible | ![4 windows](docs/images/quad.png) **4 windows:** front, left, top and 3D |
 | ![Wireframe](docs/images/wire.png) **Wireframe** | ![Front view](docs/images/front.png) **Front view:** placing shelves, doors and drawers |
 | ![Parts](docs/images/parts.png) **Parts:** cut sizes, material, edge banding | ![Cutting](docs/images/cut.png) **Sheet cutting** with usable offcuts |

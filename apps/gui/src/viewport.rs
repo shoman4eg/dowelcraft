@@ -440,6 +440,8 @@ pub struct Viewport {
     framing: Option<(egui::Pos2, bool)>,
     /// Axis the 3D grid was perpendicular to last frame (1 — the floor), see `grid_axis`.
     grid_axis: usize,
+    /// For screenshots: look-at point and scale (mm per pixel) used instead of fitting the scene.
+    pub fixed: Option<([f32; 3], f32)>,
 }
 
 impl Default for Viewport {
@@ -459,6 +461,7 @@ impl Default for Viewport {
             errors: Vec::new(),
             fitted: false,
             grid_axis: 1,
+            fixed: None,
             label: None,
             textures: Vec::new(),
             textures_built: Vec::new(),
@@ -931,6 +934,10 @@ impl Scene {
 impl Viewport {
     /// Fit the scene into a window of `size` pixels.
     fn fit(&mut self, size: Vec2) {
+        if let Some((target, mm_per_px)) = self.fixed {
+            (self.camera.target, self.camera.mm_per_px) = (target, mm_per_px);
+            return;
+        }
         let Some(s) = &self.scene else { return };
         self.camera.target = std::array::from_fn(|k| (s.lo[k] + s.hi[k]) / 2.0);
         let diag = (0..3).map(|k| (s.hi[k] - s.lo[k]).powi(2)).sum::<f32>().sqrt().max(100.0);

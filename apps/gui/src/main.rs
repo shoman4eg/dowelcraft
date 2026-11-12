@@ -88,9 +88,23 @@ fn main() -> eframe::Result {
     app.start = (file.is_none() && tab.is_none()) || tab.as_deref() == Some("start");
     app.show_pane(pane);
     app.quad = args.iter().any(|a| a == "--quad");
-    // For screenshots: doors and drawers open.
-    if args.iter().any(|a| a == "--open") {
-        app.open = (true, 1.0);
+    // For screenshots: doors and drawers open, fully or by the given share (0…1).
+    if let Some(i) = args.iter().position(|a| a == "--open") {
+        let f = args.get(i + 1).and_then(|v| v.parse::<f32>().ok()).filter(|f| f.is_finite()).unwrap_or(1.0).clamp(0.0, 1.0);
+        app.open = (true, f);
+    }
+    // For screenshots: camera angles in degrees "yaw,pitch", look-at point "x,y,z" and scale (mm per pixel)
+    // instead of fitting the model, so frames of different projects line up.
+    let numbers = |key: &str| args.iter().position(|a| a == key).and_then(|i| args.get(i + 1)).map(|v| v.split(',').map(|n| n.trim().parse::<f32>().ok().filter(|n| n.is_finite())).collect::<Option<Vec<_>>>());
+    match numbers("--view") {
+        Some(Some(v)) if v.len() == 2 => app.viewport.set_view(v[0], v[1].clamp(-89.9, 89.9)),
+        Some(_) => eprintln!("--view: expected yaw,pitch in degrees"),
+        None => {}
+    }
+    match (numbers("--target"), numbers("--zoom")) {
+        (Some(Some(t)), Some(Some(z))) if t.len() == 3 && z.len() == 1 && z[0] > 0.0 => app.viewport.fixed = Some(([t[0], t[1], t[2]], z[0])),
+        (None, None) => {}
+        _ => eprintln!("--target x,y,z and --zoom mm_per_px (above 0) go together"),
     }
     // For screenshots: the texture picker for a new material.
     if let Some(i) = args.iter().position(|a| a == "--pick-texture") {
@@ -2405,7 +2419,8 @@ impl App {
     fn update_opening(&mut self, ctx: &egui::Context) {
         let (target, f) = &mut self.open;
         let goal = if *target { 1.0 } else { 0.0 };
-        if *f != goal {
+        // Screenshots keep the share given with --open.
+        if *f != goal && self.screenshot.is_none() {
             // Half a second from closed to open.
             let step = ctx.input(|i| i.stable_dt).min(0.1) * 2.0;
             *f = if goal > *f { (*f + step).min(1.0) } else { (*f - step).max(0.0) };
