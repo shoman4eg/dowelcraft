@@ -1,0 +1,8453 @@
+{
+  "format": "dowel-craft/2",
+  "name": "Кухня тест",
+  "materials": [
+    {
+      "name": "ЛДСП 16",
+      "article": "",
+      "thickness": 16.0,
+      "sheet": [
+        2800.0,
+        2070.0
+      ],
+      "coef": 1.2,
+      "trim": null,
+      "kerf": null,
+      "texture": null,
+      "texture_size": null,
+      "price": 1200.0,
+      "weight": 11.0
+    },
+    {
+      "name": "ХДФ 3",
+      "article": "",
+      "thickness": 3.0,
+      "sheet": [
+        2800.0,
+        2070.0
+      ],
+      "coef": 1.2,
+      "trim": null,
+      "kerf": null,
+      "texture": null,
+      "texture_size": null,
+      "price": 300.0,
+      "weight": 2.5
+    },
+    {
+      "name": "МДФ 18 фасад",
+      "article": "",
+      "thickness": 18.0,
+      "sheet": [
+        2800.0,
+        2070.0
+      ],
+      "coef": 1.2,
+      "trim": null,
+      "kerf": null,
+      "texture": null,
+      "texture_size": null,
+      "price": 2500.0,
+      "weight": 13.0
+    },
+    {
+      "name": "Столешница 38",
+      "article": "",
+      "thickness": 38.0,
+      "sheet": [
+        3050.0,
+        600.0
+      ],
+      "coef": 1.2,
+      "trim": 0.0,
+      "kerf": null,
+      "texture": null,
+      "texture_size": null,
+      "price": 4000.0
+    }
+  ],
+  "edges": [
+    {
+      "name": "ПВХ 2",
+      "article": "",
+      "thickness": 2.0,
+      "width": 0.0,
+      "price": 40.0
+    },
+    {
+      "name": "ПВХ 0.4",
+      "article": "",
+      "thickness": 0.4,
+      "width": 0.0,
+      "price": 15.0
+    }
+  ],
+  "cabinets": [
+    {
+      "id": 1,
+      "name": "Колонна под духовку",
+      "fastener": "Confirmat 7x50",
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "width": 600.0,
+      "height": 2120.0,
+      "depth": 560.0,
+      "material": "ЛДСП 16",
+      "edge": "ПВХ 0.4",
+      "plinth": 100.0,
+      "legs": true,
+      "back": "ХДФ 3",
+      "partitions": [],
+      "shelves": [
+        {
+          "section": 0,
+          "height": 443.0
+        },
+        {
+          "section": 0,
+          "height": 1059.0
+        }
+      ],
+      "doors": 0,
+      "door_material": null,
+      "door_gap": 2.0,
+      "drawers": [],
+      "drawer_depth": null,
+      "drawer_section": 0
+    },
+    {
+      "id": 23,
+      "name": "Бутылочница 200",
+      "fastener": "Confirmat 7x50",
+      "position": [
+        600.0,
+        0.0,
+        0.0
+      ],
+      "width": 200.0,
+      "height": 820.0,
+      "depth": 560.0,
+      "material": "ЛДСП 16",
+      "edge": "ПВХ 0.4",
+      "plinth": 100.0,
+      "legs": true,
+      "back": "ХДФ 3",
+      "back_groove": {
+        "offset": 16.0,
+        "depth": 8.0
+      },
+      "partitions": [],
+      "shelves": [],
+      "doors": 0,
+      "door_material": null,
+      "door_gap": 2.0,
+      "drawers": [],
+      "drawer_depth": null,
+      "drawer_section": 0
+    },
+    {
+      "id": 28,
+      "name": "Ящик 800",
+      "fastener": "Confirmat 7x50",
+      "position": [
+        800.0,
+        0.0,
+        0.0
+      ],
+      "width": 800.0,
+      "height": 820.0,
+      "depth": 560.0,
+      "material": "ЛДСП 16",
+      "edge": "ПВХ 0.4",
+      "plinth": 100.0,
+      "legs": true,
+      "back": "ХДФ 3",
+      "back_groove": {
+        "offset": 16.0,
+        "depth": 8.0
+      },
+      "partitions": [],
+      "shelves": [],
+      "doors": 0,
+      "door_material": null,
+      "door_gap": 2.0,
+      "drawers": [],
+      "drawer_depth": null,
+      "drawer_section": 0
+    },
+    {
+      "id": 29,
+      "name": "Ящики 600",
+      "fastener": "Confirmat 7x50",
+      "position": [
+        1600.0,
+        0.0,
+        0.0
+      ],
+      "width": 600.0,
+      "height": 820.0,
+      "depth": 560.0,
+      "material": "ЛДСП 16",
+      "edge": "ПВХ 0.4",
+      "plinth": 100.0,
+      "legs": true,
+      "back": "ХДФ 3",
+      "back_groove": {
+        "offset": 16.0,
+        "depth": 8.0
+      },
+      "partitions": [],
+      "shelves": [],
+      "doors": 0,
+      "door_material": null,
+      "door_gap": 2.0,
+      "drawers": [],
+      "drawer_depth": null,
+      "drawer_section": 0
+    },
+    {
+      "id": 63,
+      "name": "Ящики большие 800",
+      "fastener": "Confirmat 7x50",
+      "position": [
+        2800.0,
+        0.0,
+        0.0
+      ],
+      "width": 800.0,
+      "height": 820.0,
+      "depth": 560.0,
+      "material": "ЛДСП 16",
+      "edge": "ПВХ 0.4",
+      "plinth": 100.0,
+      "legs": true,
+      "back": "ХДФ 3",
+      "back_groove": {
+        "offset": 16.0,
+        "depth": 8.0
+      },
+      "partitions": [],
+      "shelves": [
+        {
+          "section": 0,
+          "height": 340.0
+        }
+      ],
+      "doors": 0,
+      "door_material": null,
+      "door_gap": 2.0,
+      "drawers": [],
+      "drawer_depth": null,
+      "drawer_section": 0
+    },
+    {
+      "id": 82,
+      "name": "Навесной 1000",
+      "fastener": "Confirmat 7x50",
+      "position": [
+        600.0,
+        1400.0,
+        0.0
+      ],
+      "width": 1000.0,
+      "height": 720.0,
+      "depth": 300.0,
+      "material": "ЛДСП 16",
+      "edge": "ПВХ 0.4",
+      "plinth": 0.0,
+      "back": "ХДФ 3",
+      "partitions": [],
+      "shelves": [
+        {
+          "section": 0,
+          "height": 330.0
+        }
+      ],
+      "doors": 0,
+      "door_material": null,
+      "door_gap": 2.0,
+      "drawers": [],
+      "drawer_depth": null,
+      "drawer_section": 0
+    },
+    {
+      "id": 90,
+      "name": "Навесной 600",
+      "fastener": "Confirmat 7x50",
+      "position": [
+        1600.0,
+        1400.0,
+        0.0
+      ],
+      "width": 600.0,
+      "height": 720.0,
+      "depth": 300.0,
+      "material": "ЛДСП 16",
+      "edge": "ПВХ 0.4",
+      "plinth": 0.0,
+      "back": "ХДФ 3",
+      "partitions": [],
+      "shelves": [
+        {
+          "section": 0,
+          "height": 330.0
+        }
+      ],
+      "doors": 0,
+      "door_material": null,
+      "door_gap": 2.0,
+      "drawers": [],
+      "drawer_depth": null,
+      "drawer_section": 0
+    },
+    {
+      "id": 95,
+      "name": "Навесной 600",
+      "fastener": "Confirmat 7x50",
+      "position": [
+        2200.0,
+        1400.0,
+        0.0
+      ],
+      "width": 600.0,
+      "height": 720.0,
+      "depth": 300.0,
+      "material": "ЛДСП 16",
+      "edge": "ПВХ 0.4",
+      "plinth": 0.0,
+      "back": "ХДФ 3",
+      "partitions": [],
+      "shelves": [
+        {
+          "section": 0,
+          "height": 330.0
+        }
+      ],
+      "doors": 0,
+      "door_material": null,
+      "door_gap": 2.0,
+      "drawers": [],
+      "drawer_depth": null,
+      "drawer_section": 0
+    },
+    {
+      "id": 100,
+      "name": "Навесной 800",
+      "fastener": "Confirmat 7x50",
+      "position": [
+        2800.0,
+        1400.0,
+        0.0
+      ],
+      "width": 800.0,
+      "height": 720.0,
+      "depth": 300.0,
+      "material": "ЛДСП 16",
+      "edge": "ПВХ 0.4",
+      "plinth": 0.0,
+      "back": "ХДФ 3",
+      "partitions": [],
+      "shelves": [
+        {
+          "section": 0,
+          "height": 330.0
+        }
+      ],
+      "doors": 0,
+      "door_material": null,
+      "door_gap": 2.0,
+      "drawers": [],
+      "drawer_depth": null,
+      "drawer_section": 0
+    }
+  ],
+  "countertops": [
+    {
+      "id": 81,
+      "name": "Countertop 81",
+      "material": "Столешница 38",
+      "position": [
+        600.0,
+        820.0,
+        0.0
+      ],
+      "length": 3000.0,
+      "depth": 600.0,
+      "edge": "ПВХ 2"
+    }
+  ],
+  "corners": [],
+  "objects": [
+    {
+      "type": "block",
+      "id": 89,
+      "name": "Дверь двойная",
+      "frame": {
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "x": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "y": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "z": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "children": [
+        {
+          "type": "panel",
+          "id": 83,
+          "name": "Дверь",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  497.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  716.0
+                ],
+                "b": [
+                  497.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  497.0,
+                  716.0
+                ],
+                "b": [
+                  497.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Vertical",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "door",
+          "frame": {
+            "origin": [
+              602.0,
+              1402.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "furniture",
+          "id": 84,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              602.0,
+              1502.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            50.0,
+            30.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 85,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              602.0,
+              2018.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            50.0,
+            30.0,
+            0.0
+          ]
+        },
+        {
+          "type": "panel",
+          "id": 86,
+          "name": "Дверь",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  497.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  716.0
+                ],
+                "b": [
+                  497.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  497.0,
+                  716.0
+                ],
+                "b": [
+                  497.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Vertical",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "door",
+          "frame": {
+            "origin": [
+              1101.0,
+              1402.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "furniture",
+          "id": 87,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              1598.0,
+              1502.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                -22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                -14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                -14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            -50.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            0.0,
+            30.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 88,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              1598.0,
+              2018.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                -22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                -14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                -14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            -50.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            0.0,
+            30.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "block",
+      "id": 94,
+      "name": "Дверь",
+      "frame": {
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "x": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "y": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "z": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "children": [
+        {
+          "type": "panel",
+          "id": 91,
+          "name": "Дверь",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  596.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  716.0
+                ],
+                "b": [
+                  596.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  596.0,
+                  716.0
+                ],
+                "b": [
+                  596.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Vertical",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "door",
+          "frame": {
+            "origin": [
+              1602.0,
+              1402.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "furniture",
+          "id": 92,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              1602.0,
+              1502.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            50.0,
+            30.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 93,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              1602.0,
+              2018.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            50.0,
+            30.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "block",
+      "id": 99,
+      "name": "Дверь",
+      "frame": {
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "x": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "y": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "z": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "children": [
+        {
+          "type": "panel",
+          "id": 96,
+          "name": "Дверь",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  596.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  716.0
+                ],
+                "b": [
+                  596.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  596.0,
+                  716.0
+                ],
+                "b": [
+                  596.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Vertical",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "door",
+          "frame": {
+            "origin": [
+              2202.0,
+              1402.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "furniture",
+          "id": 97,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              2798.0,
+              1502.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                -22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                -14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                -14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            -50.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            0.0,
+            30.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 98,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              2798.0,
+              2018.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                -22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                -14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                -14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            -50.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            0.0,
+            30.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "block",
+      "id": 107,
+      "name": "Дверь двойная",
+      "frame": {
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "x": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "y": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "z": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "children": [
+        {
+          "type": "panel",
+          "id": 101,
+          "name": "Дверь",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  397.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  716.0
+                ],
+                "b": [
+                  397.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  397.0,
+                  716.0
+                ],
+                "b": [
+                  397.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Vertical",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "door",
+          "frame": {
+            "origin": [
+              2802.0,
+              1402.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "furniture",
+          "id": 102,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              2802.0,
+              1502.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            50.0,
+            30.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 103,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              2802.0,
+              2018.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            50.0,
+            30.0,
+            0.0
+          ]
+        },
+        {
+          "type": "panel",
+          "id": 104,
+          "name": "Дверь",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  397.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  716.0
+                ],
+                "b": [
+                  397.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  397.0,
+                  716.0
+                ],
+                "b": [
+                  397.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Vertical",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "door",
+          "frame": {
+            "origin": [
+              3201.0,
+              1402.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "furniture",
+          "id": 105,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              3598.0,
+              1502.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                -22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                -14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                -14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            -50.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            0.0,
+            30.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 106,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              3598.0,
+              2018.0,
+              300.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                -22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                -14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                -14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            -50.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            0.0,
+            30.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "block",
+      "id": 124,
+      "name": "Ящики",
+      "frame": {
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "x": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "y": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "z": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "children": [
+        {
+          "type": "panel",
+          "id": 108,
+          "name": "Фасад ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  596.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  313.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  313.0
+                ],
+                "b": [
+                  596.0,
+                  313.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  596.0,
+                  313.0
+                ],
+                "b": [
+                  596.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "drawer",
+          "frame": {
+            "origin": [
+              2.0,
+              102.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 109,
+          "name": "Боковина ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  550.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  258.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  258.0
+                ],
+                "b": [
+                  550.0,
+                  258.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  550.0,
+                  258.0
+                ],
+                "b": [
+                  550.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              47.0,
+              137.0,
+              10.0
+            ],
+            "x": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              -1.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 110,
+          "name": "Боковина ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  550.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  258.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  258.0
+                ],
+                "b": [
+                  550.0,
+                  258.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  550.0,
+                  258.0
+                ],
+                "b": [
+                  550.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              571.0,
+              137.0,
+              10.0
+            ],
+            "x": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              -1.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 111,
+          "name": "Передняя стенка ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  258.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  258.0
+                ],
+                "b": [
+                  506.0,
+                  258.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  258.0
+                ],
+                "b": [
+                  506.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              47.0,
+              137.0,
+              542.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 112,
+          "name": "Задняя стенка ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  258.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  258.0
+                ],
+                "b": [
+                  506.0,
+                  258.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  258.0
+                ],
+                "b": [
+                  506.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              47.0,
+              137.0,
+              10.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 113,
+          "name": "Дно ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  542.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  550.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  550.0
+                ],
+                "b": [
+                  542.0,
+                  550.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  542.0,
+                  550.0
+                ],
+                "b": [
+                  542.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Default",
+          "edges": [],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              29.0,
+              137.0,
+              10.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "z": [
+              0.0,
+              -1.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 114,
+          "name": "Фасад ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  596.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  156.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  156.0
+                ],
+                "b": [
+                  596.0,
+                  156.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  596.0,
+                  156.0
+                ],
+                "b": [
+                  596.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "drawer",
+          "frame": {
+            "origin": [
+              2.0,
+              417.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 115,
+          "name": "Боковина ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  550.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  116.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  116.0
+                ],
+                "b": [
+                  550.0,
+                  116.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  550.0,
+                  116.0
+                ],
+                "b": [
+                  550.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              47.0,
+              437.0,
+              10.0
+            ],
+            "x": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              -1.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 116,
+          "name": "Боковина ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  550.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  116.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  116.0
+                ],
+                "b": [
+                  550.0,
+                  116.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  550.0,
+                  116.0
+                ],
+                "b": [
+                  550.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              571.0,
+              437.0,
+              10.0
+            ],
+            "x": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              -1.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 117,
+          "name": "Передняя стенка ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  116.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  116.0
+                ],
+                "b": [
+                  506.0,
+                  116.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  116.0
+                ],
+                "b": [
+                  506.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              47.0,
+              437.0,
+              542.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 118,
+          "name": "Задняя стенка ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  116.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  116.0
+                ],
+                "b": [
+                  506.0,
+                  116.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  116.0
+                ],
+                "b": [
+                  506.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              47.0,
+              437.0,
+              10.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 119,
+          "name": "Дно ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  542.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  550.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  550.0
+                ],
+                "b": [
+                  542.0,
+                  550.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  542.0,
+                  550.0
+                ],
+                "b": [
+                  542.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Default",
+          "edges": [],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              29.0,
+              437.0,
+              10.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "z": [
+              0.0,
+              -1.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "furniture",
+          "id": 120,
+          "name": "Направляющие шариковые 550 мм (половина пары)",
+          "kind": "Ящик",
+          "source": "",
+          "frame": {
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                16.0,
+                129.0,
+                523.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                16.0,
+                129.0,
+                299.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hi": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 121,
+          "name": "Направляющие шариковые 550 мм (половина пары)",
+          "kind": "Ящик",
+          "source": "",
+          "frame": {
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                584.0,
+                129.0,
+                523.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                584.0,
+                129.0,
+                299.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hi": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 122,
+          "name": "Направляющие шариковые 550 мм (половина пары)",
+          "kind": "Ящик",
+          "source": "",
+          "frame": {
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                16.0,
+                429.0,
+                523.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                16.0,
+                429.0,
+                299.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hi": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 123,
+          "name": "Направляющие шариковые 550 мм (половина пары)",
+          "kind": "Ящик",
+          "source": "",
+          "frame": {
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                584.0,
+                429.0,
+                523.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                584.0,
+                429.0,
+                299.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hi": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "block",
+      "id": 129,
+      "name": "Дверь",
+      "frame": {
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "x": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "y": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "z": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "children": [
+        {
+          "type": "panel",
+          "id": 125,
+          "name": "Дверь",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  596.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  941.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  941.0
+                ],
+                "b": [
+                  596.0,
+                  941.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  596.0,
+                  941.0
+                ],
+                "b": [
+                  596.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Vertical",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "door",
+          "frame": {
+            "origin": [
+              2.0,
+              1177.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "furniture",
+          "id": 126,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              2.0,
+              1277.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            50.0,
+            30.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 127,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              2.0,
+              1647.5,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            50.0,
+            30.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 128,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              2.0,
+              2018.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            50.0,
+            30.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "block",
+      "id": 138,
+      "name": "Ящики",
+      "frame": {
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "x": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "y": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "z": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "children": [
+        {
+          "type": "panel",
+          "id": 130,
+          "name": "Фасад ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  196.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  716.0
+                ],
+                "b": [
+                  196.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  196.0,
+                  716.0
+                ],
+                "b": [
+                  196.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "drawer",
+          "frame": {
+            "origin": [
+              602.0,
+              102.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 131,
+          "name": "Боковина ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  661.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  661.0
+                ],
+                "b": [
+                  500.0,
+                  661.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  661.0
+                ],
+                "b": [
+                  500.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              647.0,
+              137.0,
+              60.0
+            ],
+            "x": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              -1.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 132,
+          "name": "Боковина ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  661.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  661.0
+                ],
+                "b": [
+                  500.0,
+                  661.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  661.0
+                ],
+                "b": [
+                  500.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              771.0,
+              137.0,
+              60.0
+            ],
+            "x": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              -1.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 133,
+          "name": "Передняя стенка ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  106.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  661.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  661.0
+                ],
+                "b": [
+                  106.0,
+                  661.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  106.0,
+                  661.0
+                ],
+                "b": [
+                  106.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              647.0,
+              137.0,
+              542.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 134,
+          "name": "Задняя стенка ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  106.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  661.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  661.0
+                ],
+                "b": [
+                  106.0,
+                  661.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  106.0,
+                  661.0
+                ],
+                "b": [
+                  106.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              647.0,
+              137.0,
+              60.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 135,
+          "name": "Дно ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  142.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  500.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  500.0
+                ],
+                "b": [
+                  142.0,
+                  500.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  142.0,
+                  500.0
+                ],
+                "b": [
+                  142.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Default",
+          "edges": [],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              629.0,
+              137.0,
+              60.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "z": [
+              0.0,
+              -1.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "furniture",
+          "id": 136,
+          "name": "Направляющие шариковые 500 мм (половина пары)",
+          "kind": "Ящик",
+          "source": "",
+          "frame": {
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                616.0,
+                129.0,
+                523.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                616.0,
+                129.0,
+                299.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hi": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 137,
+          "name": "Направляющие шариковые 500 мм (половина пары)",
+          "kind": "Ящик",
+          "source": "",
+          "frame": {
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                784.0,
+                129.0,
+                523.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                784.0,
+                129.0,
+                299.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hi": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "block",
+      "id": 155,
+      "name": "Ящики",
+      "frame": {
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "x": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "y": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "z": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "children": [
+        {
+          "type": "panel",
+          "id": 139,
+          "name": "Фасад ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  796.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  357.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  357.0
+                ],
+                "b": [
+                  796.0,
+                  357.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  796.0,
+                  357.0
+                ],
+                "b": [
+                  796.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "drawer",
+          "frame": {
+            "origin": [
+              802.0,
+              102.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 140,
+          "name": "Боковина ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  302.0
+                ],
+                "b": [
+                  500.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  302.0
+                ],
+                "b": [
+                  500.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              847.0,
+              137.0,
+              60.0
+            ],
+            "x": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              -1.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 141,
+          "name": "Боковина ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  302.0
+                ],
+                "b": [
+                  500.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  302.0
+                ],
+                "b": [
+                  500.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              1571.0,
+              137.0,
+              60.0
+            ],
+            "x": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              -1.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 142,
+          "name": "Передняя стенка ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  706.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  302.0
+                ],
+                "b": [
+                  706.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  706.0,
+                  302.0
+                ],
+                "b": [
+                  706.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              847.0,
+              137.0,
+              542.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 143,
+          "name": "Задняя стенка ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  706.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  302.0
+                ],
+                "b": [
+                  706.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  706.0,
+                  302.0
+                ],
+                "b": [
+                  706.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              847.0,
+              137.0,
+              60.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 144,
+          "name": "Дно ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  742.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  500.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  500.0
+                ],
+                "b": [
+                  742.0,
+                  500.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  742.0,
+                  500.0
+                ],
+                "b": [
+                  742.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Default",
+          "edges": [],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              829.0,
+              137.0,
+              60.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "z": [
+              0.0,
+              -1.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 145,
+          "name": "Фасад ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  796.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  357.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  357.0
+                ],
+                "b": [
+                  796.0,
+                  357.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  796.0,
+                  357.0
+                ],
+                "b": [
+                  796.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "drawer",
+          "frame": {
+            "origin": [
+              802.0,
+              461.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 146,
+          "name": "Боковина ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  317.0
+                ],
+                "b": [
+                  500.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  317.0
+                ],
+                "b": [
+                  500.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              847.0,
+              481.0,
+              60.0
+            ],
+            "x": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              -1.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 147,
+          "name": "Боковина ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  317.0
+                ],
+                "b": [
+                  500.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  317.0
+                ],
+                "b": [
+                  500.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              1571.0,
+              481.0,
+              60.0
+            ],
+            "x": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              -1.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 148,
+          "name": "Передняя стенка ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  706.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  317.0
+                ],
+                "b": [
+                  706.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  706.0,
+                  317.0
+                ],
+                "b": [
+                  706.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              847.0,
+              481.0,
+              542.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 149,
+          "name": "Задняя стенка ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  706.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  317.0
+                ],
+                "b": [
+                  706.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  706.0,
+                  317.0
+                ],
+                "b": [
+                  706.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              847.0,
+              481.0,
+              60.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 150,
+          "name": "Дно ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  742.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  500.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  500.0
+                ],
+                "b": [
+                  742.0,
+                  500.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  742.0,
+                  500.0
+                ],
+                "b": [
+                  742.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Default",
+          "edges": [],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              829.0,
+              481.0,
+              60.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "z": [
+              0.0,
+              -1.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "furniture",
+          "id": 151,
+          "name": "Направляющие шариковые 500 мм (половина пары)",
+          "kind": "Ящик",
+          "source": "",
+          "frame": {
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                816.0,
+                129.0,
+                523.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                816.0,
+                129.0,
+                299.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hi": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 152,
+          "name": "Направляющие шариковые 500 мм (половина пары)",
+          "kind": "Ящик",
+          "source": "",
+          "frame": {
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                1584.0,
+                129.0,
+                523.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                1584.0,
+                129.0,
+                299.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hi": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 153,
+          "name": "Направляющие шариковые 500 мм (половина пары)",
+          "kind": "Ящик",
+          "source": "",
+          "frame": {
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                816.0,
+                473.0,
+                523.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                816.0,
+                473.0,
+                299.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hi": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 154,
+          "name": "Направляющие шариковые 500 мм (половина пары)",
+          "kind": "Ящик",
+          "source": "",
+          "frame": {
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                1584.0,
+                473.0,
+                523.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                1584.0,
+                473.0,
+                299.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hi": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "block",
+      "id": 172,
+      "name": "Ящики",
+      "frame": {
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "x": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "y": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "z": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "children": [
+        {
+          "type": "panel",
+          "id": 156,
+          "name": "Фасад ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  596.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  357.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  357.0
+                ],
+                "b": [
+                  596.0,
+                  357.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  596.0,
+                  357.0
+                ],
+                "b": [
+                  596.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "drawer",
+          "frame": {
+            "origin": [
+              1602.0,
+              102.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 157,
+          "name": "Боковина ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  302.0
+                ],
+                "b": [
+                  500.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  302.0
+                ],
+                "b": [
+                  500.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              1647.0,
+              137.0,
+              60.0
+            ],
+            "x": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              -1.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 158,
+          "name": "Боковина ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  302.0
+                ],
+                "b": [
+                  500.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  302.0
+                ],
+                "b": [
+                  500.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              2171.0,
+              137.0,
+              60.0
+            ],
+            "x": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              -1.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 159,
+          "name": "Передняя стенка ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  302.0
+                ],
+                "b": [
+                  506.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  302.0
+                ],
+                "b": [
+                  506.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              1647.0,
+              137.0,
+              542.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 160,
+          "name": "Задняя стенка ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  302.0
+                ],
+                "b": [
+                  506.0,
+                  302.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  302.0
+                ],
+                "b": [
+                  506.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              1647.0,
+              137.0,
+              60.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 161,
+          "name": "Дно ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  542.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  500.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  500.0
+                ],
+                "b": [
+                  542.0,
+                  500.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  542.0,
+                  500.0
+                ],
+                "b": [
+                  542.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Default",
+          "edges": [],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              1629.0,
+              137.0,
+              60.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "z": [
+              0.0,
+              -1.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 162,
+          "name": "Фасад ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  596.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  357.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  357.0
+                ],
+                "b": [
+                  596.0,
+                  357.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  596.0,
+                  357.0
+                ],
+                "b": [
+                  596.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "drawer",
+          "frame": {
+            "origin": [
+              1602.0,
+              461.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 163,
+          "name": "Боковина ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  317.0
+                ],
+                "b": [
+                  500.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  317.0
+                ],
+                "b": [
+                  500.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              1647.0,
+              481.0,
+              60.0
+            ],
+            "x": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              -1.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 164,
+          "name": "Боковина ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  317.0
+                ],
+                "b": [
+                  500.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  500.0,
+                  317.0
+                ],
+                "b": [
+                  500.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              2171.0,
+              481.0,
+              60.0
+            ],
+            "x": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              -1.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 165,
+          "name": "Передняя стенка ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  317.0
+                ],
+                "b": [
+                  506.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  317.0
+                ],
+                "b": [
+                  506.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              1647.0,
+              481.0,
+              542.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 166,
+          "name": "Задняя стенка ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  317.0
+                ],
+                "b": [
+                  506.0,
+                  317.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  506.0,
+                  317.0
+                ],
+                "b": [
+                  506.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Horizontal",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              1647.0,
+              481.0,
+              60.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "panel",
+          "id": 167,
+          "name": "Дно ящика",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  542.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  500.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  500.0
+                ],
+                "b": [
+                  542.0,
+                  500.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  542.0,
+                  500.0
+                ],
+                "b": [
+                  542.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Default",
+          "edges": [],
+          "holes": [],
+          "grooves": [],
+          "kind": "body",
+          "frame": {
+            "origin": [
+              1629.0,
+              481.0,
+              60.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              0.0,
+              1.0
+            ],
+            "z": [
+              0.0,
+              -1.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "type": "furniture",
+          "id": 168,
+          "name": "Направляющие шариковые 500 мм (половина пары)",
+          "kind": "Ящик",
+          "source": "",
+          "frame": {
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                1616.0,
+                129.0,
+                523.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                1616.0,
+                129.0,
+                299.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hi": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 169,
+          "name": "Направляющие шариковые 500 мм (половина пары)",
+          "kind": "Ящик",
+          "source": "",
+          "frame": {
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                2184.0,
+                129.0,
+                523.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                2184.0,
+                129.0,
+                299.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hi": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 170,
+          "name": "Направляющие шариковые 500 мм (половина пары)",
+          "kind": "Ящик",
+          "source": "",
+          "frame": {
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                1616.0,
+                473.0,
+                523.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                1616.0,
+                473.0,
+                299.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hi": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 171,
+          "name": "Направляющие шариковые 500 мм (половина пары)",
+          "kind": "Ящик",
+          "source": "",
+          "frame": {
+            "origin": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                2184.0,
+                473.0,
+                523.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                2184.0,
+                473.0,
+                299.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 4.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hi": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "type": "panel",
+      "id": 173,
+      "name": "Фасад посудомойки",
+      "pos": "",
+      "designation": "",
+      "material": "МДФ 18 фасад",
+      "segs": [
+        {
+          "Line": {
+            "a": [
+              596.0,
+              0.0
+            ],
+            "b": [
+              0.0,
+              0.0
+            ]
+          }
+        },
+        {
+          "Line": {
+            "a": [
+              0.0,
+              0.0
+            ],
+            "b": [
+              0.0,
+              716.0
+            ]
+          }
+        },
+        {
+          "Line": {
+            "a": [
+              0.0,
+              716.0
+            ],
+            "b": [
+              596.0,
+              716.0
+            ]
+          }
+        },
+        {
+          "Line": {
+            "a": [
+              596.0,
+              716.0
+            ],
+            "b": [
+              596.0,
+              0.0
+            ]
+          }
+        }
+      ],
+      "texture": "Vertical",
+      "edges": [
+        {
+          "material": "ПВХ 2",
+          "thickness": 2.0,
+          "width": 0.0,
+          "allowance": 0.0,
+          "clip": true,
+          "segment": 0
+        },
+        {
+          "material": "ПВХ 2",
+          "thickness": 2.0,
+          "width": 0.0,
+          "allowance": 0.0,
+          "clip": true,
+          "segment": 1
+        },
+        {
+          "material": "ПВХ 2",
+          "thickness": 2.0,
+          "width": 0.0,
+          "allowance": 0.0,
+          "clip": true,
+          "segment": 2
+        },
+        {
+          "material": "ПВХ 2",
+          "thickness": 2.0,
+          "width": 0.0,
+          "allowance": 0.0,
+          "clip": true,
+          "segment": 3
+        }
+      ],
+      "holes": [],
+      "grooves": [],
+      "kind": "door",
+      "frame": {
+        "origin": [
+          2202.0,
+          102.0,
+          560.0
+        ],
+        "x": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "y": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "z": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "type": "block",
+      "id": 180,
+      "name": "Дверь двойная",
+      "frame": {
+        "origin": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "x": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "y": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "z": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      },
+      "children": [
+        {
+          "type": "panel",
+          "id": 174,
+          "name": "Дверь",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  397.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  716.0
+                ],
+                "b": [
+                  397.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  397.0,
+                  716.0
+                ],
+                "b": [
+                  397.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Vertical",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "door",
+          "frame": {
+            "origin": [
+              2802.0,
+              102.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "furniture",
+          "id": 175,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              2802.0,
+              202.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            50.0,
+            30.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 176,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              2802.0,
+              718.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                -1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            0.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            50.0,
+            30.0,
+            0.0
+          ]
+        },
+        {
+          "type": "panel",
+          "id": 177,
+          "name": "Дверь",
+          "pos": "",
+          "designation": "",
+          "material": "МДФ 18 фасад",
+          "segs": [
+            {
+              "Line": {
+                "a": [
+                  397.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  0.0
+                ],
+                "b": [
+                  0.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  0.0,
+                  716.0
+                ],
+                "b": [
+                  397.0,
+                  716.0
+                ]
+              }
+            },
+            {
+              "Line": {
+                "a": [
+                  397.0,
+                  716.0
+                ],
+                "b": [
+                  397.0,
+                  0.0
+                ]
+              }
+            }
+          ],
+          "texture": "Vertical",
+          "edges": [
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 0
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 1
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 2
+            },
+            {
+              "material": "ПВХ 2",
+              "thickness": 2.0,
+              "width": 0.0,
+              "allowance": 0.0,
+              "clip": true,
+              "segment": 3
+            }
+          ],
+          "holes": [],
+          "grooves": [],
+          "kind": "door",
+          "frame": {
+            "origin": [
+              3201.0,
+              102.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          }
+        },
+        {
+          "type": "furniture",
+          "id": 178,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              3598.0,
+              202.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                -22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                -14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                -14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            -50.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            0.0,
+            30.0,
+            0.0
+          ]
+        },
+        {
+          "type": "furniture",
+          "id": 179,
+          "name": "Петля накладная с доводчиком",
+          "kind": "Петля",
+          "source": "",
+          "frame": {
+            "origin": [
+              3598.0,
+              718.0,
+              560.0
+            ],
+            "x": [
+              1.0,
+              0.0,
+              0.0
+            ],
+            "y": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "z": [
+              0.0,
+              0.0,
+              1.0
+            ]
+          },
+          "holes": [
+            {
+              "pos": [
+                -22.0,
+                0.0,
+                0.0
+              ],
+              "dir": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "diameter": 35.0,
+              "depth": 11.5
+            },
+            {
+              "pos": [
+                -14.0,
+                16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            },
+            {
+              "pos": [
+                -14.0,
+                -16.0,
+                -37.0
+              ],
+              "dir": [
+                1.0,
+                0.0,
+                0.0
+              ],
+              "diameter": 2.0,
+              "depth": 12.0
+            }
+          ],
+          "lo": [
+            -50.0,
+            -30.0,
+            -40.0
+          ],
+          "hi": [
+            0.0,
+            30.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ],
+  "fasteners": [],
+  "fastener_defs": []
+}

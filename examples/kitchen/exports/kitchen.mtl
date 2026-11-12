@@ -1,0 +1,16 @@
+# dowel-craft materials
+
+newmtl ЛДСП_16
+Kd 0.920 0.860 0.750
+
+newmtl ХДФ_3
+Kd 0.850 0.850 0.850
+
+newmtl МДФ_18_фасад
+Kd 0.670 0.780 0.900
+
+newmtl Столешница_38
+Kd 0.920 0.860 0.750
+
+newmtl hardware
+Kd 0.620 0.640 0.680

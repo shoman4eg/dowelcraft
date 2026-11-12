@@ -1,3 +1,4 @@
 # Эталоны и образцы храним байт в байт.
 reference/** -text -diff
 example/** -text -diff
+examples/*/exports/** -text -diff

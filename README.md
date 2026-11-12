@@ -116,6 +116,7 @@ The macOS archive also has `Dowel Craft.app`.
   - specification and cost estimate (CSV for Excel): boards in m², edge banding in m, hardware in pcs; with prices (per m², per metre, per piece) — sums, the total cost and the weight of the product (from the weight of 1 m² of each board);
   - assembly and part drawings (A4, HTML or PDF);
   - a model for Bazis-Mebelshchik (`.b3d`).
+  - every one of them, made from a sample kitchen: [examples/kitchen](examples/kitchen).
 - **Model check:** overlapping parts, fasteners missing a panel, hardware without a panel, parts larger than a sheet.
 
 ### Bazis compatibility
